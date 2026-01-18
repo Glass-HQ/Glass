@@ -1,0 +1,226 @@
+name: Release Glass
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v0.0.1)'
+        required: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: '1'
+
+jobs:
+  build-macos:
+    name: Build macOS (${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            arch: aarch64
+          - target: x86_64-apple-darwin
+            runner: macos-13
+            arch: x86_64
+    
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      APPLE_NOTARIZATION_KEY: ${{ secrets.APPLE_NOTARIZATION_KEY }}
+      APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
+      APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --git https://github.com/zed-industries/cargo-bundle.git --branch zed-deploy
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install cmake
+        run: brew install cmake
+
+      - name: Generate licenses
+        run: script/generate-licenses
+
+      - name: Build Glass
+        run: |
+          export ZED_BUNDLE=true
+          export CXXFLAGS="-stdlib=libc++"
+          cargo build --release --package zed --package cli --target ${{ matrix.target }}
+          cargo build --release --package remote_server --target ${{ matrix.target }}
+
+      - name: Create app bundle
+        run: |
+          export ZED_BUNDLE=true
+          cd crates/zed
+          
+          # Backup and modify Cargo.toml for bundling
+          cp Cargo.toml Cargo.toml.backup
+          channel=$(cat RELEASE_CHANNEL)
+          sed -i.backup "s/package.metadata.bundle-${channel}/package.metadata.bundle/" Cargo.toml
+          
+          # Create the bundle
+          cargo bundle --release --target ${{ matrix.target }} --select-workspace-root
+          
+          # Restore original Cargo.toml
+          mv Cargo.toml.backup Cargo.toml
+
+      - name: Download git binary
+        run: |
+          mkdir -p /tmp/git-download
+          cd /tmp/git-download
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            curl -L "https://github.com/desktop/dugite-native/releases/download/v2.43.3/dugite-native-v2.43.3-fa29823-macOS-arm64.tar.gz" | tar -xz bin/git
+          else
+            curl -L "https://github.com/desktop/dugite-native/releases/download/v2.43.3/dugite-native-v2.43.3-fa29823-macOS-x64.tar.gz" | tar -xz bin/git
+          fi
+
+      - name: Prepare app bundle
+        run: |
+          APP_PATH=$(find target/${{ matrix.target }}/release -name "*.app" -type d | head -1)
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          
+          # Copy binaries
+          cp target/${{ matrix.target }}/release/zed "$APP_PATH/Contents/MacOS/zed"
+          cp target/${{ matrix.target }}/release/cli "$APP_PATH/Contents/MacOS/cli"
+          cp /tmp/git-download/bin/git "$APP_PATH/Contents/MacOS/git"
+
+      - name: Setup code signing
+        if: env.MACOS_CERTIFICATE != ''
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings build.keychain
+          
+          # Import certificate
+          echo "$MACOS_CERTIFICATE" | base64 --decode > /tmp/certificate.p12
+          security import /tmp/certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm /tmp/certificate.p12
+          
+          # Allow codesign to access keychain
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          
+          # Get the signing identity
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          echo "CAN_SIGN=true" >> $GITHUB_ENV
+
+      - name: Code sign app bundle
+        run: |
+          if [ "$CAN_SIGN" = "true" ]; then
+            echo "Signing with Developer ID: $SIGNING_IDENTITY"
+            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/cli" -v
+            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/git" -v
+            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/zed" -v
+            /usr/bin/codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH" -v
+          else
+            echo "No signing certificate available, using ad-hoc signing"
+            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/cli"
+            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/git"
+            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/zed"
+            codesign --force --deep --sign - "$APP_PATH"
+          fi
+
+      - name: Create DMG
+        run: |
+          DMG_DIR="target/${{ matrix.target }}/release/dmg"
+          DMG_PATH="target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}.dmg"
+          mkdir -p "$DMG_DIR"
+          cp -R "$APP_PATH" "$DMG_DIR/"
+          ln -s /Applications "$DMG_DIR/Applications"
+          
+          hdiutil create -volname "Glass" \
+            -srcfolder "$DMG_DIR" \
+            -ov -format UDZO \
+            "$DMG_PATH"
+          
+          echo "DMG_PATH=$DMG_PATH" >> $GITHUB_ENV
+
+      - name: Sign and notarize DMG
+        if: env.CAN_SIGN == 'true' && env.APPLE_NOTARIZATION_KEY != ''
+        run: |
+          # Sign the DMG
+          /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$DMG_PATH" -v
+          
+          # Decode the base64-encoded .p8 key
+          echo "$APPLE_NOTARIZATION_KEY" | base64 --decode > /tmp/notarization_key.p8
+          chmod 600 /tmp/notarization_key.p8
+          
+          # Notarize
+          xcrun notarytool submit --wait \
+            --key /tmp/notarization_key.p8 \
+            --key-id "$APPLE_NOTARIZATION_KEY_ID" \
+            --issuer "$APPLE_NOTARIZATION_ISSUER_ID" \
+            "$DMG_PATH"
+          rm /tmp/notarization_key.p8
+          
+          # Staple the notarization ticket
+          xcrun stapler staple "$DMG_PATH"
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security default-keychain -s login.keychain || true
+          security delete-keychain build.keychain || true
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-${{ matrix.arch }}.dmg
+          path: target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: ls -lR artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Glass ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/Glass-aarch64.dmg/Glass-aarch64.dmg
+            artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
+          body: |
+            ## Glass ${{ github.ref_name }}
+            
+            ### Installation
+            
+            1. Download the DMG for your Mac:
+               - **Apple Silicon (M1/M2/M3)**: `Glass-aarch64.dmg`
+               - **Intel Mac**: `Glass-x86_64.dmg`
+            2. Open the DMG and drag Glass to Applications
+            3. Launch Glass from Applications
