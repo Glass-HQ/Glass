@@ -22,11 +22,11 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
-            runner: macos-14
+            runner: macos-15
             arch: aarch64
           # Intel build disabled for now - uncomment to re-enable
           # - target: x86_64-apple-darwin
-          #   runner: macos-13
+          #   runner: macos-14
           #   arch: x86_64
     
     env:
