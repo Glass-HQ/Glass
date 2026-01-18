@@ -24,9 +24,10 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-14
             arch: aarch64
-          - target: x86_64-apple-darwin
-            runner: macos-13
-            arch: x86_64
+          # Intel build disabled for now - uncomment to re-enable
+          # - target: x86_64-apple-darwin
+          #   runner: macos-13
+          #   arch: x86_64
     
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -213,14 +214,15 @@ jobs:
           prerelease: false
           files: |
             artifacts/Glass-aarch64.dmg/Glass-aarch64.dmg
-            artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
+            # Intel build disabled - uncomment when re-enabled:
+            # artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
           body: |
             ## Glass ${{ github.ref_name }}
             
             ### Installation
             
-            1. Download the DMG for your Mac:
-               - **Apple Silicon (M1/M2/M3)**: `Glass-aarch64.dmg`
-               - **Intel Mac**: `Glass-x86_64.dmg`
+            1. Download the DMG: `Glass-aarch64.dmg` (Apple Silicon Macs - M1/M2/M3/M4)
             2. Open the DMG and drag Glass to Applications
             3. Launch Glass from Applications
+            
+            > **Note:** Only Apple Silicon builds are available at this time. Intel Mac support coming later.
