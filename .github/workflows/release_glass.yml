@@ -74,6 +74,20 @@ jobs:
           cargo build --release --package zed --package cli --target ${{ matrix.target }}
           cargo build --release --package remote_server --target ${{ matrix.target }}
 
+      - name: Generate debug symbols (for crash reports)
+        run: |
+          SYMBOLS_DIR="target/${{ matrix.target }}/release/symbols"
+          SYMBOLS_ZIP="target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}-symbols.zip"
+          rm -rf "$SYMBOLS_DIR"
+          mkdir -p "$SYMBOLS_DIR"
+
+          # Match Zed's approach: produce flat .dwarf files suitable for symbolication tooling.
+          dsymutil --flat -o "$SYMBOLS_DIR/zed.dwarf" "target/${{ matrix.target }}/release/zed"
+          dsymutil --flat -o "$SYMBOLS_DIR/cli.dwarf" "target/${{ matrix.target }}/release/cli"
+          dsymutil --flat -o "$SYMBOLS_DIR/remote_server.dwarf" "target/${{ matrix.target }}/release/remote_server"
+
+          ditto -c -k --sequesterRsrc --keepParent "$SYMBOLS_DIR" "$SYMBOLS_ZIP"
+
       - name: Create app bundle
         run: |
           export ZED_BUNDLE=true
@@ -203,6 +217,27 @@ jobs:
           # Staple the notarization ticket
           xcrun stapler staple "$DMG_PATH"
 
+      - name: Verify code signing
+        if: env.CAN_SIGN == 'true'
+        run: |
+          echo "Verifying app signature..."
+          /usr/bin/codesign --verify --strict --deep --verbose=4 "$APP_PATH"
+
+          echo "Verifying DMG signature..."
+          /usr/bin/codesign --verify --strict --verbose=4 "$DMG_PATH"
+
+          echo "Assessing app with Gatekeeper..."
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
+
+      - name: Verify notarization
+        if: env.CAN_SIGN == 'true' && env.APPLE_NOTARIZATION_KEY != ''
+        run: |
+          echo "Validating stapled notarization ticket..."
+          xcrun stapler validate "$DMG_PATH"
+
+          echo "Assessing DMG with Gatekeeper..."
+          spctl --assess --type open --verbose=4 "$DMG_PATH"
+
       - name: Cleanup keychain
         if: always()
         run: |
@@ -214,6 +249,13 @@ jobs:
         with:
           name: Glass-${{ matrix.arch }}.dmg
           path: target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+      - name: Upload symbols artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glass-${{ matrix.arch }}-symbols.zip
+          path: target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}-symbols.zip
           if-no-files-found: error
 
   create-release:
@@ -240,6 +282,7 @@ jobs:
           prerelease: false
           files: |
             artifacts/Glass-aarch64.dmg/Glass-aarch64.dmg
+            artifacts/Glass-aarch64-symbols.zip/Glass-aarch64-symbols.zip
             # Intel build disabled - uncomment when re-enabled:
             # artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
           body: |
