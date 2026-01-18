@@ -178,29 +178,34 @@ pub fn init(client: Arc<Client>, cx: &mut App) {
     let auto_updater = cx.new(|cx| {
         let updater = AutoUpdater::new(version, client, cx);
 
-        let poll_for_updates = ReleaseChannel::try_global(cx)
-            .map(|channel| channel.poll_for_updates())
-            .unwrap_or(false);
-
-        if option_env!("ZED_UPDATE_EXPLANATION").is_none()
-            && env::var("ZED_UPDATE_EXPLANATION").is_err()
-            && poll_for_updates
-        {
-            let mut update_subscription = AutoUpdateSetting::get_global(cx)
-                .0
-                .then(|| updater.start_polling(cx));
-
-            cx.observe_global::<SettingsStore>(move |updater: &mut AutoUpdater, cx| {
-                if AutoUpdateSetting::get_global(cx).0 {
-                    if update_subscription.is_none() {
-                        update_subscription = Some(updater.start_polling(cx))
-                    }
-                } else {
-                    update_subscription.take();
-                }
-            })
-            .detach();
-        }
+        // GLASS: Auto-update polling is disabled for now.
+        // The original Zed auto-update points to api.zed.dev which would overwrite
+        // Glass with official Zed builds. To re-enable auto-updates, uncomment
+        // the block below and point it to Glass's own update server or GitHub releases.
+        //
+        // let poll_for_updates = ReleaseChannel::try_global(cx)
+        //     .map(|channel| channel.poll_for_updates())
+        //     .unwrap_or(false);
+        //
+        // if option_env!("ZED_UPDATE_EXPLANATION").is_none()
+        //     && env::var("ZED_UPDATE_EXPLANATION").is_err()
+        //     && poll_for_updates
+        // {
+        //     let mut update_subscription = AutoUpdateSetting::get_global(cx)
+        //         .0
+        //         .then(|| updater.start_polling(cx));
+        //
+        //     cx.observe_global::<SettingsStore>(move |updater: &mut AutoUpdater, cx| {
+        //         if AutoUpdateSetting::get_global(cx).0 {
+        //             if update_subscription.is_none() {
+        //                 update_subscription = Some(updater.start_polling(cx))
+        //             }
+        //         } else {
+        //             update_subscription.take();
+        //         }
+        //     })
+        //     .detach();
+        // }
 
         updater
     });
@@ -208,46 +213,59 @@ pub fn init(client: Arc<Client>, cx: &mut App) {
 }
 
 pub fn check(_: &Check, window: &mut Window, cx: &mut App) {
-    if let Some(message) = option_env!("ZED_UPDATE_EXPLANATION") {
-        drop(window.prompt(
-            gpui::PromptLevel::Info,
-            "Zed was installed via a package manager.",
-            Some(message),
-            &["Ok"],
-            cx,
-        ));
-        return;
-    }
+    // GLASS: Auto-updates are disabled. Show a message directing users to GitHub releases.
+    // To re-enable auto-updates, remove this block and uncomment the original code below.
+    drop(window.prompt(
+        gpui::PromptLevel::Info,
+        "Auto-updates are not yet available",
+        Some("Please check https://github.com/Glass-HQ/Glass/releases for new versions."),
+        &["Ok"],
+        cx,
+    ));
+    return;
 
-    if let Ok(message) = env::var("ZED_UPDATE_EXPLANATION") {
-        drop(window.prompt(
-            gpui::PromptLevel::Info,
-            "Zed was installed via a package manager.",
-            Some(&message),
-            &["Ok"],
-            cx,
-        ));
-        return;
-    }
-
-    if !ReleaseChannel::try_global(cx)
-        .map(|channel| channel.poll_for_updates())
-        .unwrap_or(false)
-    {
-        return;
-    }
-
-    if let Some(updater) = AutoUpdater::get(cx) {
-        updater.update(cx, |updater, cx| updater.poll(UpdateCheckType::Manual, cx));
-    } else {
-        drop(window.prompt(
-            gpui::PromptLevel::Info,
-            "Could not check for updates",
-            Some("Auto-updates disabled for non-bundled app."),
-            &["Ok"],
-            cx,
-        ));
-    }
+    // GLASS: Original auto-update check code (commented out for now)
+    //
+    // if let Some(message) = option_env!("ZED_UPDATE_EXPLANATION") {
+    //     drop(window.prompt(
+    //         gpui::PromptLevel::Info,
+    //         "Zed was installed via a package manager.",
+    //         Some(message),
+    //         &["Ok"],
+    //         cx,
+    //     ));
+    //     return;
+    // }
+    //
+    // if let Ok(message) = env::var("ZED_UPDATE_EXPLANATION") {
+    //     drop(window.prompt(
+    //         gpui::PromptLevel::Info,
+    //         "Zed was installed via a package manager.",
+    //         Some(&message),
+    //         &["Ok"],
+    //         cx,
+    //     ));
+    //     return;
+    // }
+    //
+    // if !ReleaseChannel::try_global(cx)
+    //     .map(|channel| channel.poll_for_updates())
+    //     .unwrap_or(false)
+    // {
+    //     return;
+    // }
+    //
+    // if let Some(updater) = AutoUpdater::get(cx) {
+    //     updater.update(cx, |updater, cx| updater.poll(UpdateCheckType::Manual, cx));
+    // } else {
+    //     drop(window.prompt(
+    //         gpui::PromptLevel::Info,
+    //         "Could not check for updates",
+    //         Some("Auto-updates disabled for non-bundled app."),
+    //         &["Ok"],
+    //         cx,
+    //     ));
+    // }
 }
 
 pub fn release_notes_url(cx: &mut App) -> Option<String> {

@@ -45,6 +45,14 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      - name: Cache Rust dependencies
+        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2
+        with:
+          # Cache is keyed by target architecture
+          key: ${{ matrix.target }}
+          # Save cache even if build fails (helps debug)
+          save-if: true
+
       - name: Install cargo-bundle
         run: cargo install cargo-bundle --git https://github.com/zed-industries/cargo-bundle.git --branch zed-deploy
 
