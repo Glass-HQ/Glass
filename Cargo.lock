@@ -20397,6 +20397,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "workspace_modes"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "collections",
+ "db",
+ "gpui",
+ "schemars",
+ "serde",
+ "serde_json",
+ "settings",
+ "ui",
+ "util",
+]
+
+[[package]]
 name = "worktree"
 version = "0.1.0"
 dependencies = [
@@ -20786,7 +20802,7 @@ dependencies = [
 
 [[package]]
 name = "zed"
-version = "0.221.0"
+version = "0.0.1"
 dependencies = [
  "acp_thread",
  "acp_tools",
