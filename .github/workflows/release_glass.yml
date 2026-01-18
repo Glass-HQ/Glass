@@ -127,12 +127,30 @@ jobs:
 
       - name: Code sign app bundle
         run: |
+          ENTITLEMENTS="crates/zed/resources/zed.entitlements"
+          
           if [ "$CAN_SIGN" = "true" ]; then
             echo "Signing with Developer ID: $SIGNING_IDENTITY"
-            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/cli" -v
-            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/git" -v
-            /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/zed" -v
-            /usr/bin/codesign --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$APP_PATH" -v
+            echo "Using entitlements: $ENTITLEMENTS"
+            
+            # Sign helper binaries with entitlements
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --entitlements "$ENTITLEMENTS" \
+              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/cli" -v
+            
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --entitlements "$ENTITLEMENTS" \
+              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/git" -v
+            
+            # Sign main executable with entitlements (this is the one that needs JIT)
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --entitlements "$ENTITLEMENTS" \
+              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/zed" -v
+            
+            # Sign the app bundle itself with entitlements
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --entitlements "$ENTITLEMENTS" \
+              --sign "$SIGNING_IDENTITY" "$APP_PATH" -v
           else
             echo "No signing certificate available, using ad-hoc signing"
             codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/cli"
