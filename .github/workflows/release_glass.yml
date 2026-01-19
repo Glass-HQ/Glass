@@ -198,6 +198,7 @@ jobs:
 
       - name: Sign and notarize DMG
         if: env.CAN_SIGN == 'true' && env.APPLE_NOTARIZATION_KEY != ''
+        timeout-minutes: 30
         run: |
           # Sign the DMG
           /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$DMG_PATH" -v
