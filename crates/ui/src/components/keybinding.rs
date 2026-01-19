@@ -596,12 +596,7 @@ mod tests {
             "Super-C".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Windows,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Windows),
             "Win-C".to_string()
         );
 
@@ -621,30 +616,15 @@ mod tests {
 
         let keystroke = Keystroke::parse("shift-pageup").unwrap();
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Mac,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Mac),
             "Shift-PageUp".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Linux,
-                false,
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Linux),
             "Shift-PageUp".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Windows,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Windows),
             "Shift-PageUp".to_string()
         );
     }

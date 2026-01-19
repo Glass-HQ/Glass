@@ -2113,7 +2113,6 @@ impl Render for KeymapEditor {
                                                 let context = overriding_binding.and_then(|binding| {
                                                     match conflict.override_source {
                                                         KeybindSource::User  => Some("your keymap"),
-                                                        KeybindSource::Vim => Some("the vim keymap"),
                                                         KeybindSource::Base => Some("your base keymap"),
                                                         _ => {
                                                             log::error!("Unexpected override from the {} keymap", conflict.override_source.name());

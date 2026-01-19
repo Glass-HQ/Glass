@@ -334,7 +334,7 @@ If this command returns no output, Zed is using RandR (X11's monitor management 
 Edit or create the `~/.Xresources` file:
 
 ```sh
-vim ~/.Xresources
+nano ~/.Xresources
 ```
 
 Add this line with your desired DPI:

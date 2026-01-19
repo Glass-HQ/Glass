@@ -61,7 +61,7 @@ They are merged into the base configuration with settings from these keys taking
 }
 ```
 
-With this configuration, Stable keeps all base preferences, Preview switches to `zed-dark`, and Nightly enables Vim mode with a different theme.
+With this configuration, Stable keeps all base preferences, Preview switches to `zed-dark`, and Nightly uses a different theme.
 
 Changing settings in the Settings Editorwill always apply the change across all channels.
 
@@ -185,8 +185,6 @@ Non-negative `float` values
   "allow_rewrap": "anywhere"
 }
 ```
-
-Note: This setting has no effect in Vim mode, as rewrap is already allowed everywhere.
 
 ## Auto Indent
 
@@ -3664,7 +3662,7 @@ List of `integer` column numbers
 
 ### Terminal: Alternate Scroll
 
-- Description: Set whether Alternate Scroll mode (DECSET code: `?1007`) is active by default. Alternate Scroll mode converts mouse scroll events into up / down key presses when in the alternate screen (e.g. when running applications like vim or less). The terminal can still set and unset this mode with ANSI escape codes.
+- Description: Set whether Alternate Scroll mode (DECSET code: `?1007`) is active by default. Alternate Scroll mode converts mouse scroll events into up / down key presses when in the alternate screen (e.g. when running applications like less). The terminal can still set and unset this mode with ANSI escape codes.
 - Setting: `alternate_scroll`
 - Default: `off`
 
