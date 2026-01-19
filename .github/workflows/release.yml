@@ -461,8 +461,8 @@ jobs:
         mv ./artifacts/zed-remote-server-linux-aarch64.gz/zed-remote-server-linux-aarch64.gz release-artifacts/zed-remote-server-linux-aarch64.gz
         mv ./artifacts/zed-remote-server-linux-x86_64.gz/zed-remote-server-linux-x86_64.gz release-artifacts/zed-remote-server-linux-x86_64.gz
       shell: bash -euxo pipefail {0}
-    - name: gh release upload "$GITHUB_REF_NAME" --repo=${{ github.repository }} release-artifacts/*
-      run: gh release upload "$GITHUB_REF_NAME" --repo=${{ github.repository }} release-artifacts/*
+    - name: gh release upload "$GITHUB_REF_NAME" --repo=zed-industries/zed release-artifacts/*
+      run: gh release upload "$GITHUB_REF_NAME" --repo=zed-industries/zed release-artifacts/*
       shell: bash -euxo pipefail {0}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -478,8 +478,8 @@ jobs:
       with:
         app-id: ${{ secrets.ZED_ZIPPY_APP_ID }}
         private-key: ${{ secrets.ZED_ZIPPY_APP_PRIVATE_KEY }}
-    - name: gh release edit "$GITHUB_REF_NAME" --repo=${{ github.repository }} --draft=false
-      run: gh release edit "$GITHUB_REF_NAME" --repo=${{ github.repository }} --draft=false
+    - name: gh release edit "$GITHUB_REF_NAME" --repo=zed-industries/zed --draft=false
+      run: gh release edit "$GITHUB_REF_NAME" --repo=zed-industries/zed --draft=false
       shell: bash -euxo pipefail {0}
       env:
         GITHUB_TOKEN: ${{ steps.get-app-token.outputs.token }}

@@ -34,7 +34,7 @@ pub fn run_perf(
             if [ -n \"{crate_name}\" ]; then
                 cargo perf-test -p {crate_name} -- --json={ref_name};
             else
-                cargo perf-test -p vim -- --json={ref_name};
+                cargo perf-test -p editor -- --json={ref_name};
             fi"
         ))
     }
