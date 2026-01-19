@@ -55,8 +55,6 @@ impl Render for DockButtonBar {
             let dock = dock_entity.read(cx);
             let active_index = dock.active_panel_index();
             let is_open = dock.is_open();
-            let focus_handle = dock.focus_handle(cx).clone();
-            let dock_toggle_action = dock.toggle_action();
 
             for (i, entry) in dock.panel_entries.iter().enumerate() {
                 let panel = &entry.panel;
@@ -66,18 +64,15 @@ impl Render for DockButtonBar {
                 let name = panel.persistent_name();
                 let panel_clone = panel.clone();
                 let icon_tooltip: SharedString = panel.icon_tooltip(window, cx).unwrap_or(name).into();
+                let panel_id = panel.panel_id();
 
                 let is_active_button = Some(i) == active_index && is_open;
-                let (action, tooltip): (Box<dyn Action>, SharedString) = if is_active_button {
-                    (
-                        dock_toggle_action.boxed_clone(),
-                        format!("Close {} Dock", dock_position.label()).into(),
-                    )
+                let tooltip: SharedString = if is_active_button {
+                    format!("Close {} Dock", dock_position.label()).into()
                 } else {
-                    (panel.toggle_action(window, cx), icon_tooltip.clone())
+                    icon_tooltip.clone()
                 };
-
-                let focus_handle = focus_handle.clone();
+                let workspace = self.workspace.clone();
 
                 buttons.push(
                     right_click_menu(name)
@@ -113,26 +108,25 @@ impl Render for DockButtonBar {
                         .anchor(menu_anchor)
                         .attach(menu_attach)
                         .trigger({
-                            let action = action.boxed_clone();
                             let tooltip = tooltip.clone();
                             move |is_active, _window, _cx| {
                                 IconButton::new((name, is_active_button as u64), icon)
                                     .icon_size(IconSize::Small)
                                     .toggle_state(is_active_button)
                                     .on_click({
-                                        let action = action.boxed_clone();
-                                        let focus_handle = focus_handle.clone();
+                                        let workspace = workspace.clone();
                                         move |_, window, cx| {
-                                            window.focus(&focus_handle, cx);
-                                            window.dispatch_action(action.boxed_clone(), cx)
+                                            let Some(workspace) = workspace.upgrade() else {
+                                                return;
+                                            };
+                                            workspace.update(cx, |workspace, cx| {
+                                                workspace.toggle_panel_for_id(panel_id, window, cx);
+                                            });
                                         }
                                     })
                                     .when(!is_active, |this| {
-                                        let action = action.boxed_clone();
                                         let tooltip = tooltip.clone();
-                                        this.tooltip(move |_window, cx| {
-                                            Tooltip::for_action(tooltip.clone(), &*action, cx)
-                                        })
+                                        this.tooltip(Tooltip::text(tooltip.clone()))
                                     })
                             }
                         })
@@ -590,6 +584,12 @@ impl Dock {
         self.panel_entries
             .iter()
             .position(|entry| entry.panel.remote_id() == Some(panel_id))
+    }
+
+    pub fn panel_index_for_id(&self, panel_id: EntityId) -> Option<usize> {
+        self.panel_entries
+            .iter()
+            .position(|entry| entry.panel.panel_id() == panel_id)
     }
 
     pub fn panel_for_id(&self, panel_id: EntityId) -> Option<&Arc<dyn PanelHandle>> {

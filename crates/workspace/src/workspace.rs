@@ -3489,6 +3489,50 @@ impl Workspace {
         did_focus_panel
     }
 
+    pub(crate) fn toggle_panel_for_id(
+        &mut self,
+        panel_id: EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mut found = None;
+        for position in [DockPosition::Left, DockPosition::Bottom, DockPosition::Right] {
+            let dock = self.dock_at_position(position);
+            if let Some(panel_index) = dock.read(cx).panel_index_for_id(panel_id) {
+                found = Some((position, dock.clone(), panel_index));
+                break;
+            }
+        }
+
+        let Some((dock_position, dock, panel_index)) = found else {
+            return;
+        };
+
+        let other_is_zoomed =
+            self.zoomed.is_some() && self.zoomed_position != Some(dock_position);
+        let is_visible = dock.read(cx).is_open()
+            && dock.read(cx).active_panel_index() == Some(panel_index)
+            && !other_is_zoomed;
+
+        if is_visible {
+            self.toggle_dock(dock_position, window, cx);
+            return;
+        }
+
+        dock.update(cx, |dock, cx| {
+            dock.activate_panel(panel_index, window, cx);
+            dock.set_open(true, window, cx);
+            if let Some(panel) = dock.active_panel() {
+                let focus_handle = panel.panel_focus_handle(cx);
+                window.focus(&focus_handle, cx);
+            }
+        });
+
+        self.dismiss_zoomed_items_to_reveal(Some(dock_position), window, cx);
+        cx.notify();
+        self.serialize_workspace(window, cx);
+    }
+
     pub fn activate_panel_for_proto_id(
         &mut self,
         panel_id: PanelId,
