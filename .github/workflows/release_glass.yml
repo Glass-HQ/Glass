@@ -48,19 +48,32 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Use Namespace Labs cache (like Zed) for better distributed caching
+      # Cache Rust compilation artifacts
       - name: Cache Rust dependencies
-        uses: namespacelabs/nscloud-cache-action@v1
+        uses: Swatinem/rust-cache@v2
         with:
-          cache: rust
+          # Use a unique key prefix to avoid conflicts
+          prefix-key: "v1-rust"
+          # Cache the target directory and cargo registry
+          shared-key: ${{ matrix.target }}
+          # Save cache even if the build fails
+          save-if: "true"
+          # Cache cargo home directories
+          cache-directories: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
 
       # Cache cargo-bundle separately to avoid rebuilding it every time
       - name: Cache cargo-bundle
         id: cache-cargo-bundle
         uses: actions/cache@v4
         with:
-          path: ~/.cargo/bin/cargo-bundle
-          key: cargo-bundle-${{ runner.os }}-${{ runner.arch }}-v1
+          path: |
+            ~/.cargo/bin/cargo-bundle
+            ~/.cargo/.crates.toml
+            ~/.cargo/.crates2.json
+          key: cargo-bundle-${{ runner.os }}-${{ runner.arch }}-v2
 
       - name: Install cargo-bundle
         if: steps.cache-cargo-bundle.outputs.cache-hit != 'true'
