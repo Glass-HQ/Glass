@@ -20,7 +20,6 @@ use alacritty_terminal::{
         search::{Match, RegexIter, RegexSearch},
     },
     tty::{self},
-    vi_mode::{ViModeCursor, ViMotion},
     vte::ansi::{
         ClearMode, CursorStyle as AlacCursorStyle, Handler, NamedPrivateMode, PrivateMode,
     },
@@ -101,8 +100,6 @@ actions!(
         ScrollToTop,
         /// Scrolls to the bottom of the terminal buffer.
         ScrollToBottom,
-        /// Toggles vi mode in the terminal.
-        ToggleViMode,
         /// Selects all text in the terminal.
         SelectAll,
     ]
@@ -172,10 +169,6 @@ enum InternalEvent {
     ProcessHyperlink((String, bool, Match), bool),
     // Whether keep selection when copy
     Copy(Option<bool>),
-    // Vi mode events
-    ToggleViMode,
-    ViMotion(ViMotion),
-    MoveViCursorToAlacPoint(AlacPoint),
 }
 
 ///A translation struct for Alacritty to communicate with us from their event loop
@@ -389,7 +382,6 @@ impl TerminalBuilder {
             next_link_id: 0,
             selection_phase: SelectionPhase::Ended,
             hyperlink_regex_searches: RegexSearches::default(),
-            vi_mode_enabled: false,
             is_remote_terminal: false,
             last_mouse_move_time: Instant::now(),
             last_hyperlink_search_position: None,
@@ -616,7 +608,6 @@ impl TerminalBuilder {
                     &path_hyperlink_regexes,
                     path_hyperlink_timeout_ms,
                 ),
-                vi_mode_enabled: false,
                 is_remote_terminal,
                 last_mouse_move_time: Instant::now(),
                 last_hyperlink_search_position: None,
@@ -847,7 +838,6 @@ pub struct Terminal {
     selection_phase: SelectionPhase,
     hyperlink_regex_searches: RegexSearches,
     task: Option<TaskState>,
-    vi_mode_enabled: bool,
     is_remote_terminal: bool,
     last_mouse_move_time: Instant,
     last_hyperlink_search_position: Option<Point<Pixels>>,
@@ -1057,43 +1047,6 @@ impl Terminal {
                 trace!("Scrolling: scroll={scroll:?}");
                 term.scroll_display(*scroll);
                 self.refresh_hovered_word(window);
-
-                if self.vi_mode_enabled {
-                    match *scroll {
-                        AlacScroll::Delta(delta) => {
-                            term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, delta);
-                        }
-                        AlacScroll::PageUp => {
-                            let lines = term.screen_lines() as i32;
-                            term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, lines);
-                        }
-                        AlacScroll::PageDown => {
-                            let lines = -(term.screen_lines() as i32);
-                            term.vi_mode_cursor = term.vi_mode_cursor.scroll(term, lines);
-                        }
-                        AlacScroll::Top => {
-                            let point = AlacPoint::new(term.topmost_line(), Column(0));
-                            term.vi_mode_cursor = ViModeCursor::new(point);
-                        }
-                        AlacScroll::Bottom => {
-                            let point = AlacPoint::new(term.bottommost_line(), Column(0));
-                            term.vi_mode_cursor = ViModeCursor::new(point);
-                        }
-                    }
-                    if let Some(mut selection) = term.selection.take() {
-                        let point = term.vi_mode_cursor.point;
-                        selection.update(point, AlacDirection::Right);
-                        term.selection = Some(selection);
-
-                        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-                        if let Some(selection_text) = term.selection_to_string() {
-                            cx.write_to_primary(ClipboardItem::new_string(selection_text));
-                        }
-
-                        self.selection_head = Some(point);
-                        cx.emit(Event::SelectionsChanged)
-                    }
-                }
             }
             InternalEvent::SetSelection(selection) => {
                 trace!("Setting selection: selection={selection:?}");
@@ -1148,20 +1101,7 @@ impl Terminal {
                 term.scroll_to_point(*point);
                 self.refresh_hovered_word(window);
             }
-            InternalEvent::MoveViCursorToAlacPoint(point) => {
-                trace!("Move vi cursor to point: point={point:?}");
-                term.vi_goto_point(*point);
-                self.refresh_hovered_word(window);
-            }
-            InternalEvent::ToggleViMode => {
-                trace!("Toggling vi mode");
-                self.vi_mode_enabled = !self.vi_mode_enabled;
-                term.toggle_vi_mode();
-            }
-            InternalEvent::ViMotion(motion) => {
-                trace!("Performing vi motion: motion={motion:?}");
-                term.vi_motion(*motion);
-            }
+
             InternalEvent::FindHyperlink(position, open) => {
                 trace!("Finding hyperlink at position: position={position:?}, open={open:?}");
 
@@ -1317,13 +1257,8 @@ impl Terminal {
     pub fn activate_match(&mut self, index: usize) {
         if let Some(search_match) = self.matches.get(index).cloned() {
             self.set_selection(Some((make_selection(&search_match), *search_match.end())));
-            if self.vi_mode_enabled {
-                self.events
-                    .push_back(InternalEvent::MoveViCursorToAlacPoint(*search_match.end()));
-            } else {
-                self.events
-                    .push_back(InternalEvent::ScrollToAlacPoint(*search_match.start()));
-            }
+            self.events
+                .push_back(InternalEvent::ScrollToAlacPoint(*search_match.start()));
         }
     }
 
@@ -1442,104 +1377,7 @@ impl Terminal {
         self.write_to_pty(input);
     }
 
-    pub fn toggle_vi_mode(&mut self) {
-        self.events.push_back(InternalEvent::ToggleViMode);
-    }
-
-    pub fn vi_motion(&mut self, keystroke: &Keystroke) {
-        if !self.vi_mode_enabled {
-            return;
-        }
-
-        let key: Cow<'_, str> = if keystroke.modifiers.shift {
-            Cow::Owned(keystroke.key.to_uppercase())
-        } else {
-            Cow::Borrowed(keystroke.key.as_str())
-        };
-
-        let motion: Option<ViMotion> = match key.as_ref() {
-            "h" | "left" => Some(ViMotion::Left),
-            "j" | "down" => Some(ViMotion::Down),
-            "k" | "up" => Some(ViMotion::Up),
-            "l" | "right" => Some(ViMotion::Right),
-            "w" => Some(ViMotion::WordRight),
-            "b" if !keystroke.modifiers.control => Some(ViMotion::WordLeft),
-            "e" => Some(ViMotion::WordRightEnd),
-            "%" => Some(ViMotion::Bracket),
-            "$" => Some(ViMotion::Last),
-            "0" => Some(ViMotion::First),
-            "^" => Some(ViMotion::FirstOccupied),
-            "H" => Some(ViMotion::High),
-            "M" => Some(ViMotion::Middle),
-            "L" => Some(ViMotion::Low),
-            _ => None,
-        };
-
-        if let Some(motion) = motion {
-            let cursor = self.last_content.cursor.point;
-            let cursor_pos = Point {
-                x: cursor.column.0 as f32 * self.last_content.terminal_bounds.cell_width,
-                y: cursor.line.0 as f32 * self.last_content.terminal_bounds.line_height,
-            };
-            self.events
-                .push_back(InternalEvent::UpdateSelection(cursor_pos));
-            self.events.push_back(InternalEvent::ViMotion(motion));
-            return;
-        }
-
-        let scroll_motion = match key.as_ref() {
-            "g" => Some(AlacScroll::Top),
-            "G" => Some(AlacScroll::Bottom),
-            "b" if keystroke.modifiers.control => Some(AlacScroll::PageUp),
-            "f" if keystroke.modifiers.control => Some(AlacScroll::PageDown),
-            "d" if keystroke.modifiers.control => {
-                let amount = self.last_content.terminal_bounds.line_height().to_f64() as i32 / 2;
-                Some(AlacScroll::Delta(-amount))
-            }
-            "u" if keystroke.modifiers.control => {
-                let amount = self.last_content.terminal_bounds.line_height().to_f64() as i32 / 2;
-                Some(AlacScroll::Delta(amount))
-            }
-            _ => None,
-        };
-
-        if let Some(scroll_motion) = scroll_motion {
-            self.events.push_back(InternalEvent::Scroll(scroll_motion));
-            return;
-        }
-
-        match key.as_ref() {
-            "v" => {
-                let point = self.last_content.cursor.point;
-                let selection_type = SelectionType::Simple;
-                let side = AlacDirection::Right;
-                let selection = Selection::new(selection_type, point, side);
-                self.events
-                    .push_back(InternalEvent::SetSelection(Some((selection, point))));
-            }
-
-            "escape" => {
-                self.events.push_back(InternalEvent::SetSelection(None));
-            }
-
-            "y" => {
-                self.copy(Some(false));
-            }
-
-            "i" => {
-                self.scroll_to_bottom();
-                self.toggle_vi_mode();
-            }
-            _ => {}
-        }
-    }
-
     pub fn try_keystroke(&mut self, keystroke: &Keystroke, option_as_meta: bool) -> bool {
-        if self.vi_mode_enabled {
-            self.vi_motion(keystroke);
-            return true;
-        }
-
         // Keep default terminal behavior
         let esc = to_esc_str(keystroke, &self.last_content.mode, option_as_meta);
         if let Some(esc) = esc {
@@ -2252,10 +2090,6 @@ impl Terminal {
                 }
             }
         }
-    }
-
-    pub fn vi_mode_enabled(&self) -> bool {
-        self.vi_mode_enabled
     }
 
     pub fn clone_builder(&self, cx: &App, cwd: Option<PathBuf>) -> Task<Result<TerminalBuilder>> {

@@ -131,7 +131,6 @@ impl SelectionLayout {
     fn new<T: ToPoint + ToDisplayPoint + Clone>(
         selection: Selection<T>,
         line_mode: bool,
-        cursor_offset: bool,
         cursor_shape: CursorShape,
         map: &DisplaySnapshot,
         is_newest: bool,
@@ -141,35 +140,14 @@ impl SelectionLayout {
         let point_selection = selection.map(|p| p.to_point(map.buffer_snapshot()));
         let display_selection = point_selection.map(|p| p.to_display_point(map));
         let mut range = display_selection.range();
-        let mut head = display_selection.head();
-        let mut active_rows = map.prev_line_boundary(point_selection.start).1.row()
+        let head = display_selection.head();
+        let active_rows = map.prev_line_boundary(point_selection.start).1.row()
             ..map.next_line_boundary(point_selection.end).1.row();
 
-        // vim visual line mode
+        // Whole-line selections
         if line_mode {
             let point_range = map.expand_to_line(point_selection.range());
             range = point_range.start.to_display_point(map)..point_range.end.to_display_point(map);
-        }
-
-        // any vim visual mode (including line mode)
-        if cursor_offset && !range.is_empty() && !selection.reversed {
-            if head.column() > 0 {
-                head = map.clip_point(DisplayPoint::new(head.row(), head.column() - 1), Bias::Left);
-            } else if head.row().0 > 0 && head != map.max_point() {
-                head = map.clip_point(
-                    DisplayPoint::new(
-                        head.row().previous_row(),
-                        map.line_len(head.row().previous_row()),
-                    ),
-                    Bias::Left,
-                );
-                // updating range.end is a no-op unless you're cursor is
-                // on the newline containing a multi-buffer divider
-                // in which case the clip_point may have moved the head up
-                // an additional row.
-                range.end = DisplayPoint::new(head.row().next_row(), 0);
-                active_rows.end = head.row();
-            }
         }
 
         Self {
@@ -1523,7 +1501,6 @@ impl EditorElement {
                     let layout = SelectionLayout::new(
                         selection,
                         editor.selections.line_mode(),
-                        editor.cursor_offset_on_selection,
                         editor.cursor_shape,
                         &snapshot.display_snapshot,
                         is_newest,
@@ -1570,7 +1547,6 @@ impl EditorElement {
                     let drag_cursor_layout = SelectionLayout::new(
                         drop_cursor.clone(),
                         false,
-                        editor.cursor_offset_on_selection,
                         CursorShape::Bar,
                         &snapshot.display_snapshot,
                         false,
@@ -1634,7 +1610,6 @@ impl EditorElement {
                         .push(SelectionLayout::new(
                             selection.selection,
                             selection.line_mode,
-                            editor.cursor_offset_on_selection,
                             selection.cursor_shape,
                             &snapshot.display_snapshot,
                             false,
@@ -1645,8 +1620,6 @@ impl EditorElement {
 
                 selections.extend(remote_selections.into_values());
             } else if !editor.is_focused(window) && editor.show_cursor_when_unfocused {
-                let cursor_offset_on_selection = editor.cursor_offset_on_selection;
-
                 let layouts = snapshot
                     .buffer_snapshot()
                     .selections_in_range(&(start_anchor..end_anchor), true)
@@ -1654,7 +1627,6 @@ impl EditorElement {
                         SelectionLayout::new(
                             selection,
                             line_mode,
-                            cursor_offset_on_selection,
                             cursor_shape,
                             &snapshot.display_snapshot,
                             false,
@@ -9778,7 +9750,6 @@ impl Element for EditorElement {
                             SelectionLayout::new(
                                 newest,
                                 editor.selections.line_mode(),
-                                editor.cursor_offset_on_selection,
                                 editor.cursor_shape,
                                 &snapshot,
                                 true,
@@ -12432,7 +12403,7 @@ mod tests {
     }
 
     #[gpui::test]
-    async fn test_vim_visual_selections(cx: &mut TestAppContext) {
+    async fn test_selection_layouts(cx: &mut TestAppContext) {
         init_test(cx, |_| {});
 
         let window = cx.add_window(|window, cx| {
@@ -12445,7 +12416,6 @@ mod tests {
 
         window
             .update(cx, |editor, window, cx| {
-                editor.cursor_offset_on_selection = true;
                 editor.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
                     s.select_ranges([
                         Point::new(0, 0)..Point::new(1, 0),
@@ -12465,27 +12435,26 @@ mod tests {
         assert_eq!(state.selections.len(), 1);
         let local_selections = &state.selections[0].1;
         assert_eq!(local_selections.len(), 3);
-        // moves cursor back one line
+
+        // Cursor remains at the selection head.
         assert_eq!(
             local_selections[0].head,
-            DisplayPoint::new(DisplayRow(0), 6)
+            DisplayPoint::new(DisplayRow(1), 0)
         );
         assert_eq!(
             local_selections[0].range,
             DisplayPoint::new(DisplayRow(0), 0)..DisplayPoint::new(DisplayRow(1), 0)
         );
 
-        // moves cursor back one column
         assert_eq!(
             local_selections[1].range,
             DisplayPoint::new(DisplayRow(3), 2)..DisplayPoint::new(DisplayRow(3), 3)
         );
         assert_eq!(
             local_selections[1].head,
-            DisplayPoint::new(DisplayRow(3), 2)
+            DisplayPoint::new(DisplayRow(3), 3)
         );
 
-        // leaves cursor on the max point
         assert_eq!(
             local_selections[2].range,
             DisplayPoint::new(DisplayRow(5), 6)..DisplayPoint::new(DisplayRow(6), 0)
@@ -12493,12 +12462,6 @@ mod tests {
         assert_eq!(
             local_selections[2].head,
             DisplayPoint::new(DisplayRow(6), 0)
-        );
-
-        // active lines does not include 1 (even though the range of the selection does)
-        assert_eq!(
-            state.active_rows.keys().cloned().collect::<Vec<_>>(),
-            vec![DisplayRow(0), DisplayRow(3), DisplayRow(5), DisplayRow(6)]
         );
     }
 

@@ -1532,16 +1532,6 @@
     // This setting has no effect if globally disabled.
     "enabled_in_text_threads": true,
   },
-  // Settings specific to journaling
-  "journal": {
-    // The path of the directory where journal entries are stored
-    "path": "~",
-    // What format to display the hours in
-    // May take 2 values:
-    // 1. hour12
-    // 2. hour24
-    "hour_format": "hour12",
-  },
   // Settings specific to the terminal
   "terminal": {
     // What shell to use when opening a terminal. May take 3 values:

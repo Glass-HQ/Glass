@@ -2557,55 +2557,6 @@ All possible config values for `toggle_on_modifiers_press` are:
 ```
 
 Unspecified values have a `false` value, hints won't be toggled if all the modifiers are `false` or not all the modifiers are pressed.
-
-## Journal
-
-- Description: Configuration for the journal.
-- Setting: `journal`
-- Default:
-
-```json [settings]
-"journal": {
-  "path": "~",
-  "hour_format": "hour12"
-}
-
-```
-
-### Path
-
-- Description: The path of the directory where journal entries are stored. If an invalid path is specified, the journal will fall back to using `~` (the home directory).
-- Setting: `path`
-- Default: `~`
-
-**Options**
-
-`string` values
-
-### Hour Format
-
-- Description: The format to use for displaying hours in the journal.
-- Setting: `hour_format`
-- Default: `hour12`
-
-**Options**
-
-1. 12-hour format:
-
-```json [settings]
-{
-  "hour_format": "hour12"
-}
-```
-
-2. 24-hour format:
-
-```json [settings]
-{
-  "hour_format": "hour24"
-}
-```
-
 ## JSX Tag Auto Close
 
 - Description: Whether to automatically close JSX tags

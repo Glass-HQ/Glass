@@ -20,7 +20,7 @@ use gpui::{
 use num_format::{Locale, ToFormattedString};
 use project::DirectoryLister;
 use release_channel::ReleaseChannel;
-use settings::{Settings, SettingsContent};
+use settings::Settings;
 use strum::IntoEnumIterator as _;
 use theme::ThemeSettings;
 use ui::{
@@ -1339,28 +1339,6 @@ impl ExtensionsPage {
             .child(Label::new(message))
     }
 
-    fn update_settings(
-        &mut self,
-        selection: &ToggleState,
-
-        cx: &mut Context<Self>,
-        callback: impl 'static + Send + Fn(&mut SettingsContent, bool),
-    ) {
-        if let Some(workspace) = self.workspace.upgrade() {
-            let fs = workspace.read(cx).app_state().fs.clone();
-            let selection = *selection;
-            settings::update_settings_file(fs, cx, move |settings, _| {
-                let value = match selection {
-                    ToggleState::Unselected => false,
-                    ToggleState::Selected => true,
-                    _ => return,
-                };
-
-                callback(settings, value)
-            });
-        }
-    }
-
     fn refresh_feature_upsells(&mut self, cx: &mut Context<Self>) {
         let Some(search) = self.search_query(cx) else {
             self.upsells.clear();
@@ -1406,7 +1384,7 @@ impl ExtensionsPage {
         &self,
         label: SharedString,
         docs_url: SharedString,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let docs_url_button = Button::new("open_docs", "View Documentation")
             .icon(IconName::ArrowUpRight)

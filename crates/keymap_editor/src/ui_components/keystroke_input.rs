@@ -377,7 +377,6 @@ impl KeystrokeInput {
                 Some(Color::Default),
                 Some(rems(0.875).into()),
                 ui::PlatformStyle::platform(),
-                false,
             ))
         })
     }

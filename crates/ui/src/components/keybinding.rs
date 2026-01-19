@@ -198,12 +198,7 @@ pub fn render_keybinding_keystroke(
 
     if use_text {
         let element = Key::new(
-            keystroke_text(
-                keystroke.modifiers(),
-                keystroke.key(),
-                platform_style,
-                false,
-            ),
+            keystroke_text(keystroke.modifiers(), keystroke.key(), platform_style),
             color,
         )
         .size(size)
@@ -428,9 +423,7 @@ pub fn text_for_keystrokes(keystrokes: &[Keystroke], _cx: &App) -> String {
     let platform_style = PlatformStyle::platform();
     keystrokes
         .iter()
-        .map(|keystroke| {
-            keystroke_text(&keystroke.modifiers, &keystroke.key, platform_style, false)
-        })
+        .map(|keystroke| keystroke_text(&keystroke.modifiers, &keystroke.key, platform_style))
         .join(" ")
 }
 
@@ -438,29 +431,17 @@ pub fn text_for_keybinding_keystrokes(keystrokes: &[KeybindingKeystroke], _cx: &
     let platform_style = PlatformStyle::platform();
     keystrokes
         .iter()
-        .map(|keystroke| {
-            keystroke_text(
-                keystroke.modifiers(),
-                keystroke.key(),
-                platform_style,
-                false,
-            )
-        })
+        .map(|keystroke| keystroke_text(keystroke.modifiers(), keystroke.key(), platform_style))
         .join(" ")
 }
 
 pub fn text_for_keystroke(modifiers: &Modifiers, key: &str, _cx: &App) -> String {
     let platform_style = PlatformStyle::platform();
-    keystroke_text(modifiers, key, platform_style, false)
+    keystroke_text(modifiers, key, platform_style)
 }
 
 /// Returns a textual representation of the given [`Keystroke`].
-fn keystroke_text(
-    modifiers: &Modifiers,
-    key: &str,
-    platform_style: PlatformStyle,
-    _vim_mode: bool,
-) -> String {
+fn keystroke_text(modifiers: &Modifiers, key: &str, platform_style: PlatformStyle) -> String {
     let mut text = String::new();
     let delimiter = '-';
 
@@ -607,21 +588,11 @@ mod tests {
     fn test_text_for_keystroke() {
         let keystroke = Keystroke::parse("cmd-c").unwrap();
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Mac,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Mac),
             "Command-C".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Linux,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Linux),
             "Super-C".to_string()
         );
         assert_eq!(
@@ -636,30 +607,15 @@ mod tests {
 
         let keystroke = Keystroke::parse("ctrl-alt-delete").unwrap();
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Mac,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Mac),
             "Control-Option-Delete".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Linux,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Linux),
             "Ctrl-Alt-Delete".to_string()
         );
         assert_eq!(
-            keystroke_text(
-                &keystroke.modifiers,
-                &keystroke.key,
-                PlatformStyle::Windows,
-                false
-            ),
+            keystroke_text(&keystroke.modifiers, &keystroke.key, PlatformStyle::Windows),
             "Ctrl-Alt-Delete".to_string()
         );
 

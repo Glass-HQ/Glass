@@ -263,8 +263,7 @@ impl MacTextSystemState {
                 let has_m_glyph = font.glyph_for_char('m').is_some();
 
                 // HACK: The 'Segoe Fluent Icons' font does not have an 'm' glyph,
-                // but we need to be able to load it for rendering Windows icons in
-                // the Storybook (on macOS).
+                // but we need to be able to load it for rendering Windows icons.
                 let is_segoe_fluent_icons = font.full_name() == "Segoe Fluent Icons";
 
                 if !has_m_glyph && !is_segoe_fluent_icons {

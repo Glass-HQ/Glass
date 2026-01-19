@@ -47,7 +47,7 @@ The docs use a custom preprocessor (`docs_preprocessor`) that expands special co
 
 - Always use preprocessor syntax for keybindings instead of hardcoding
 - Action names use `snake_case` in the namespace, `PascalCase` for the action
-- Common namespaces: `agent::`, `editor::`, `assistant::`, `vim::`
+- Common namespaces: `agent::`, `editor::`, `assistant::`
 
 ### Formatting Requirements
 

@@ -10,7 +10,7 @@
 //!
 //! All other submodules and structs are mostly concerned with holding editor data about the way it displays current buffer region(s).
 //!
-//! If you're looking to improve Vim mode, you should check out Vim crate that wraps Editor and overrides its behavior.
+//! Some editor behavior can be extended by higher-level wrappers via the [`Addon`] trait.
 pub mod actions;
 pub mod blink_manager;
 mod bracket_colorization;
@@ -870,7 +870,7 @@ pub struct ResolvedTasks {
     position: Anchor,
 }
 
-/// Addons allow storing per-editor state in other crates (e.g. Vim)
+/// Addons allow storing per-editor state in other crates.
 pub trait Addon: 'static {
     fn extend_key_context(&self, _: &mut KeyContext, _: &App) {}
 
@@ -1192,9 +1192,6 @@ pub struct Editor {
     pending_rename: Option<RenameState>,
     searchable: bool,
     cursor_shape: CursorShape,
-    /// Whether the cursor is offset one character to the left when something is
-    /// selected (needed for vim visual mode)
-    cursor_offset_on_selection: bool,
     current_line_highlight: Option<CurrentLineHighlight>,
     pub collapse_matches: bool,
     autoindent_mode: Option<AutoindentMode>,
@@ -1447,7 +1444,7 @@ struct HoveredCursor {
 ///
 /// You might want to modify these behaviours. For example when doing a "jump"
 /// like go to definition, we always want to add to nav history; but when scrolling
-/// in vim mode we never do.
+/// due to viewport movement we never do.
 ///
 /// Similarly, you might want to disable scrolling if you don't want the viewport to
 /// move.
@@ -2379,7 +2376,6 @@ impl Editor {
             cursor_shape: EditorSettings::get_global(cx)
                 .cursor_shape
                 .unwrap_or_default(),
-            cursor_offset_on_selection: false,
             current_line_highlight: None,
             autoindent_mode: Some(AutoindentMode::EachLine),
             collapse_matches: false,
@@ -2569,29 +2565,26 @@ impl Editor {
                     }
                 }
                 EditorEvent::Edited { .. } => {
-                    // Vim mode removed - always execute this branch
-                    {
-                        let display_map = editor.display_snapshot(cx);
-                        let selections = editor.selections.all_adjusted_display(&display_map);
-                        let pop_state = editor
-                            .change_list
-                            .last()
-                            .map(|previous| {
-                                previous.len() == selections.len()
-                                    && previous.iter().enumerate().all(|(ix, p)| {
-                                        p.to_display_point(&display_map).row()
-                                            == selections[ix].head().row()
-                                    })
-                            })
-                            .unwrap_or(false);
-                        let new_positions = selections
-                            .into_iter()
-                            .map(|s| display_map.display_point_to_anchor(s.head(), Bias::Left))
-                            .collect();
-                        editor
-                            .change_list
-                            .push_to_change_list(pop_state, new_positions);
-                    }
+                    let display_map = editor.display_snapshot(cx);
+                    let selections = editor.selections.all_adjusted_display(&display_map);
+                    let pop_state = editor
+                        .change_list
+                        .last()
+                        .map(|previous| {
+                            previous.len() == selections.len()
+                                && previous.iter().enumerate().all(|(ix, p)| {
+                                    p.to_display_point(&display_map).row()
+                                        == selections[ix].head().row()
+                                })
+                        })
+                        .unwrap_or(false);
+                    let new_positions = selections
+                        .into_iter()
+                        .map(|s| display_map.display_point_to_anchor(s.head(), Bias::Left))
+                        .collect();
+                    editor
+                        .change_list
+                        .push_to_change_list(pop_state, new_positions);
                 }
                 _ => (),
             },
@@ -2768,7 +2761,7 @@ impl Editor {
             key_context.add("showing_signature_help");
         }
 
-        // Disable vim contexts when a sub-editor (e.g. rename/inline assistant) is focused.
+        // Disable addon-provided contexts when a sub-editor (e.g. rename/inline assistant) is focused.
         if !self.focus_handle(cx).contains_focused(window, cx)
             || (self.is_focused(window) || self.mouse_menu_is_focused(window, cx))
         {
@@ -3198,10 +3191,6 @@ impl Editor {
 
     pub fn cursor_shape(&self) -> CursorShape {
         self.cursor_shape
-    }
-
-    pub fn set_cursor_offset_on_selection(&mut self, set_cursor_offset_on_selection: bool) {
-        self.cursor_offset_on_selection = set_cursor_offset_on_selection;
     }
 
     pub fn set_current_line_highlight(
@@ -13162,8 +13151,8 @@ impl Editor {
                 wrapped_text
             };
 
-            // TODO: should always use char-based diff while still supporting cursor behavior that
-            // matches vim.
+            // TODO: should always use char-based diff while still supporting
+            // consistent cursor behavior.
             let mut diff_options = DiffOptions::default();
             if options.override_language_settings {
                 diff_options.max_word_diff_len = 0;
@@ -18041,8 +18030,7 @@ impl Editor {
             };
 
             // TODO(cameron): is this needed?
-            // the thinking is to avoid "jumping to the current location" (avoid
-            // polluting "jumplist" in vim terms)
+            // The thinking is to avoid "jumping to the current location" (polluting navigation history).
             if current_location_index == destination_location_index {
                 return Ok(());
             }

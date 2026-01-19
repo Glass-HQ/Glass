@@ -1044,10 +1044,10 @@ async fn test_channel_link_notifications(
         &[(zed_channel, 0), (vim_channel, 1)],
     );
 
-    let helix_channel = client_a
+    let neovim_channel = client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.create_channel("helix", Some(zed_channel), cx)
+            channel_store.create_channel("neovim", Some(zed_channel), cx)
         })
         .await
         .unwrap();
@@ -1055,7 +1055,7 @@ async fn test_channel_link_notifications(
     client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.move_channel(helix_channel, vim_channel, cx)
+            channel_store.move_channel(neovim_channel, vim_channel, cx)
         })
         .await
         .unwrap();
@@ -1064,7 +1064,7 @@ async fn test_channel_link_notifications(
         .channel_store()
         .update(cx_a, |channel_store, cx| {
             channel_store.set_channel_visibility(
-                helix_channel,
+                neovim_channel,
                 proto::ChannelVisibility::Public,
                 cx,
             )
@@ -1081,13 +1081,13 @@ async fn test_channel_link_notifications(
             (zed_channel, 0),
             (active_channel, 1),
             (vim_channel, 1),
-            (helix_channel, 2),
+            (neovim_channel, 2),
         ],
     );
     assert_channels_list_shape(
         client_c.channel_store(),
         cx_c,
-        &[(zed_channel, 0), (vim_channel, 1), (helix_channel, 2)],
+        &[(zed_channel, 0), (vim_channel, 1), (neovim_channel, 2)],
     );
 }
 

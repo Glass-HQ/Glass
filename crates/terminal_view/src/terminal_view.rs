@@ -19,7 +19,7 @@ use task::TaskId;
 use terminal::{
     Clear, Copy, Event, HoveredWord, MaybeNavigationTarget, Paste, ScrollLineDown, ScrollLineUp,
     ScrollPageDown, ScrollPageUp, ScrollToBottom, ScrollToTop, ShowCharacterPalette, TaskState,
-    TaskStatus, Terminal, TerminalBounds, ToggleViMode,
+    TaskStatus, Terminal, TerminalBounds,
     alacritty_terminal::{
         index::Point,
         term::{TermMode, point_to_viewport, search::RegexSearch},
@@ -625,11 +625,6 @@ impl TerminalView {
         cx.notify();
     }
 
-    fn toggle_vi_mode(&mut self, _: &ToggleViMode, _: &mut Window, cx: &mut Context<Self>) {
-        self.terminal.update(cx, |term, _| term.toggle_vi_mode());
-        cx.notify();
-    }
-
     pub fn should_show_cursor(&self, focused: bool, cx: &mut Context<Self>) -> bool {
         // Always show cursor when not focused or in special modes
         if !focused
@@ -729,10 +724,6 @@ impl TerminalView {
     fn dispatch_context(&self, cx: &App) -> KeyContext {
         let mut dispatch_context = KeyContext::new_with_defaults();
         dispatch_context.add("Terminal");
-
-        if self.terminal.read(cx).vi_mode_enabled() {
-            dispatch_context.add("vi_mode");
-        }
 
         let mode = self.terminal.read(cx).last_content.mode;
         dispatch_context.set(
@@ -1008,18 +999,9 @@ impl TerminalView {
     /// updates the cursor locally without sending data to the shell, so there's no
     /// shell output to automatically trigger a re-render.
     fn process_keystroke(&mut self, keystroke: &Keystroke, cx: &mut Context<Self>) -> bool {
-        let (handled, vi_mode_enabled) = self.terminal.update(cx, |term, cx| {
-            (
-                term.try_keystroke(keystroke, TerminalSettings::get_global(cx).option_as_meta),
-                term.vi_mode_enabled(),
-            )
-        });
-
-        if handled && vi_mode_enabled {
-            cx.notify();
-        }
-
-        handled
+        self.terminal.update(cx, |term, cx| {
+            term.try_keystroke(keystroke, TerminalSettings::get_global(cx).option_as_meta)
+        })
     }
 
     fn key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
@@ -1099,7 +1081,6 @@ impl Render for TerminalView {
             .on_action(cx.listener(TerminalView::scroll_page_down))
             .on_action(cx.listener(TerminalView::scroll_to_top))
             .on_action(cx.listener(TerminalView::scroll_to_bottom))
-            .on_action(cx.listener(TerminalView::toggle_vi_mode))
             .on_action(cx.listener(TerminalView::show_character_palette))
             .on_action(cx.listener(TerminalView::select_all))
             .on_action(cx.listener(TerminalView::rerun_task))
