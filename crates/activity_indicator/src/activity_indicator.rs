@@ -22,12 +22,12 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
-use workspace::TitleBarItemView;
 use ui::{
     ButtonLike, CommonAnimationExt, ContextMenu, PopoverMenu, PopoverMenuHandle, Tooltip,
     prelude::*,
 };
 use util::truncate_and_trailoff;
+use workspace::TitleBarItemView;
 use workspace::{Workspace, item::ItemHandle};
 
 const GIT_OPERATION_DELAY: Duration = Duration::from_millis(0);

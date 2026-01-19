@@ -1,8 +1,8 @@
 use editor::EditorSettings;
 use settings::Settings as _;
-use workspace::TitleBarItemView;
 use ui::{ButtonCommon, Clickable, Context, Render, Tooltip, Window, prelude::*};
 use workspace::ItemHandle;
+use workspace::TitleBarItemView;
 
 pub const SEARCH_ICON: IconName = IconName::MagnifyingGlass;
 

@@ -722,7 +722,7 @@ mod tests {
 
     #[test]
     fn test_source_precedence_sorting() {
-        // KeybindSource precedence: User (0) > Vim (1) > Base (2) > Default (3)
+        // KeybindSource precedence: User (0) > Base (2) > Default (3)
         // Test that user keymaps take precedence over default keymaps at the same context depth
         let mut keymap = Keymap::default();
 

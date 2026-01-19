@@ -113,11 +113,6 @@ terminal
 text
   = @Veykril
 
-vim
-  = @ConradIrwin
-  = @dinocosta
-  = @probably-neb
-
 windows
   = @localcc
   = @reflectronic

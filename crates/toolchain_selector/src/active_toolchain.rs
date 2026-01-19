@@ -7,9 +7,9 @@ use gpui::{
 };
 use language::{Buffer, BufferEvent, LanguageName, Toolchain, ToolchainScope};
 use project::{Project, ProjectPath, Toolchains, WorktreeId, toolchain_store::ToolchainStoreEvent};
-use workspace::TitleBarItemView;
 use ui::{Button, ButtonCommon, Clickable, LabelSize, SharedString, Tooltip};
 use util::{maybe, rel_path::RelPath};
+use workspace::TitleBarItemView;
 use workspace::{Workspace, item::ItemHandle};
 
 use crate::ToolchainSelector;

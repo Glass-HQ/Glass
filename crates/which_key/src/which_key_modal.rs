@@ -6,10 +6,7 @@ use gpui::{
     ScrollHandle, Subscription, WeakEntity, Window,
 };
 use std::collections::HashMap;
-use ui::{
-    Divider, DividerColor, LabelSize, WithScrollbar, prelude::*,
-    text_for_keystrokes,
-};
+use ui::{Divider, DividerColor, LabelSize, WithScrollbar, prelude::*, text_for_keystrokes};
 use workspace::{ModalView, Workspace};
 
 use crate::FILTERED_KEYSTROKES;

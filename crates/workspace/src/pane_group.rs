@@ -94,7 +94,7 @@ impl PaneGroup {
     }
 
     /// Moves active pane to span the entire border in the given direction,
-    /// similar to Vim ctrl+w shift-[hjkl] motion.
+    /// similar to common split-pane navigation keybindings (ctrl+w shift-[hjkl]).
     ///
     /// Returns:
     /// - Ok(true) if it found and moved a pane

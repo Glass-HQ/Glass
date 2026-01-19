@@ -947,7 +947,7 @@ impl DisplaySnapshot {
         }
     }
 
-    // used by line_mode selections and tries to match vim behavior
+    // Used by line_mode selections and tries to match typical line-wise selection behavior.
     pub fn expand_to_line(&self, range: Range<Point>) -> Range<Point> {
         let new_start = MultiBufferPoint::new(range.start.row, 0);
         let new_end = if range.end.column > 0 {

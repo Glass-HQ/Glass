@@ -490,7 +490,7 @@ mod tests {
             [
                 {
                     "bindings": {
-                        "cmd-1": ["vim::PushOperator", { "Object": { "some" : "value" } }]
+                        "cmd-1": ["example::PushOperator", { "Object": { "some" : "value" } }]
                     }
                 }
             ]
@@ -500,7 +500,7 @@ mod tests {
             [
                 {
                     "bindings": {
-                        "cmd-1": ["vim::PushObject", { "some" : "value" }]
+                        "cmd-1": ["example::PushObject", { "some" : "value" }]
                     }
                 }
             ]
@@ -598,9 +598,9 @@ mod tests {
             [
                 {
                     "bindings": {
-                        "cmd-1": ["vim::PushOperator", { "Object": { "around": false } }],
+                        "cmd-1": ["example::PushOperator", { "Object": { "around": false } }],
                         "cmd-3": ["pane::CloseActiveItem", { "saveIntent": "saveAll" }],
-                        "cmd-2": ["vim::NextWordStart", { "ignorePunctuation": true }],
+                        "cmd-2": ["example::NextWordStart", { "ignorePunctuation": true }],
                         "cmd-4": ["task::Spawn", { "task_name": "a b" }] // should remain as it is
                     }
                 }
@@ -611,9 +611,9 @@ mod tests {
             [
                 {
                     "bindings": {
-                        "cmd-1": ["vim::PushObject", { "around": false }],
+                        "cmd-1": ["example::PushObject", { "around": false }],
                         "cmd-3": ["pane::CloseActiveItem", { "save_intent": "save_all" }],
-                        "cmd-2": ["vim::NextWordStart", { "ignore_punctuation": true }],
+                        "cmd-2": ["example::NextWordStart", { "ignore_punctuation": true }],
                         "cmd-4": ["task::Spawn", { "task_name": "a b" }] // should remain as it is
                     }
                 }

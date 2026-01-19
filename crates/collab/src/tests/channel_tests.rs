@@ -1009,10 +1009,10 @@ async fn test_channel_link_notifications(
     );
     assert_channels_list_shape(client_c.channel_store(), cx_c, &[(zed_channel, 0)]);
 
-    let vim_channel = client_a
+    let public_channel = client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.create_channel("vim", Some(zed_channel), cx)
+            channel_store.create_channel("public", Some(zed_channel), cx)
         })
         .await
         .unwrap();
@@ -1020,7 +1020,11 @@ async fn test_channel_link_notifications(
     client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.set_channel_visibility(vim_channel, proto::ChannelVisibility::Public, cx)
+            channel_store.set_channel_visibility(
+                public_channel,
+                proto::ChannelVisibility::Public,
+                cx,
+            )
         })
         .await
         .unwrap();
@@ -1031,23 +1035,23 @@ async fn test_channel_link_notifications(
     assert_channels_list_shape(
         client_a.channel_store(),
         cx_a,
-        &[(zed_channel, 0), (active_channel, 1), (vim_channel, 1)],
+        &[(zed_channel, 0), (active_channel, 1), (public_channel, 1)],
     );
     assert_channels_list_shape(
         client_b.channel_store(),
         cx_b,
-        &[(zed_channel, 0), (active_channel, 1), (vim_channel, 1)],
+        &[(zed_channel, 0), (active_channel, 1), (public_channel, 1)],
     );
     assert_channels_list_shape(
         client_c.channel_store(),
         cx_c,
-        &[(zed_channel, 0), (vim_channel, 1)],
+        &[(zed_channel, 0), (public_channel, 1)],
     );
 
-    let neovim_channel = client_a
+    let nested_channel = client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.create_channel("neovim", Some(zed_channel), cx)
+            channel_store.create_channel("nested", Some(zed_channel), cx)
         })
         .await
         .unwrap();
@@ -1055,7 +1059,7 @@ async fn test_channel_link_notifications(
     client_a
         .channel_store()
         .update(cx_a, |channel_store, cx| {
-            channel_store.move_channel(neovim_channel, vim_channel, cx)
+            channel_store.move_channel(nested_channel, public_channel, cx)
         })
         .await
         .unwrap();
@@ -1064,7 +1068,7 @@ async fn test_channel_link_notifications(
         .channel_store()
         .update(cx_a, |channel_store, cx| {
             channel_store.set_channel_visibility(
-                neovim_channel,
+                nested_channel,
                 proto::ChannelVisibility::Public,
                 cx,
             )
@@ -1080,14 +1084,14 @@ async fn test_channel_link_notifications(
         &[
             (zed_channel, 0),
             (active_channel, 1),
-            (vim_channel, 1),
-            (neovim_channel, 2),
+            (public_channel, 1),
+            (nested_channel, 2),
         ],
     );
     assert_channels_list_shape(
         client_c.channel_store(),
         cx_c,
-        &[(zed_channel, 0), (vim_channel, 1), (neovim_channel, 2)],
+        &[(zed_channel, 0), (public_channel, 1), (nested_channel, 2)],
     );
 }
 
@@ -1105,18 +1109,22 @@ async fn test_channel_membership_notifications(
 
     let channels = server
         .make_channel_tree(
-            &[("zed", None), ("vim", Some("zed")), ("opensource", None)],
+            &[("zed", None), ("public", Some("zed")), ("opensource", None)],
             (&client_a, cx_a),
         )
         .await;
     let zed_channel = channels[0];
-    let vim_channel = channels[1];
+    let public_channel = channels[1];
     let opensource_channel = channels[2];
 
     try_join_all(client_a.channel_store().update(cx_a, |channel_store, cx| {
         [
             channel_store.set_channel_visibility(zed_channel, proto::ChannelVisibility::Public, cx),
-            channel_store.set_channel_visibility(vim_channel, proto::ChannelVisibility::Public, cx),
+            channel_store.set_channel_visibility(
+                public_channel,
+                proto::ChannelVisibility::Public,
+                cx,
+            ),
             channel_store.invite_member(zed_channel, user_b, proto::ChannelRole::Admin, cx),
             channel_store.invite_member(opensource_channel, user_b, proto::ChannelRole::Member, cx),
         ]
@@ -1136,7 +1144,7 @@ async fn test_channel_membership_notifications(
 
     executor.run_until_parked();
 
-    // we have an admin (a), and a guest (b) with access to all of zed, and membership in vim.
+    // We have an admin (a), and a guest (b) with access to all of zed, and membership in public.
     assert_channels(
         client_b.channel_store(),
         cx_b,
@@ -1148,8 +1156,8 @@ async fn test_channel_membership_notifications(
             },
             ExpectedChannel {
                 depth: 1,
-                id: vim_channel,
-                name: "vim".into(),
+                id: public_channel,
+                name: "public".into(),
             },
         ],
     );

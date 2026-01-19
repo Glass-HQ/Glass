@@ -83,7 +83,7 @@ There are two additional Zed-specific options per connection, `upload_binary_ove
 }
 ```
 
-If you use the command line to open a connection to a host by doing `zed ssh://192.168.1.10/~/.vimrc`, then extra options are read from your settings file by finding the first connection that matches the host/username/port of the URL on the command line.
+If you use the command line to open a connection to a host by doing `zed ssh://192.168.1.10/~/README.md`, then extra options are read from your settings file by finding the first connection that matches the host/username/port of the URL on the command line.
 
 Additionally it's worth noting that while you can pass a password on the command line `zed ssh://user:password@host/~`, we do not support writing a password to your settings file. If you're connecting repeatedly to the same host, you should configure key-based authentication.
 

@@ -685,7 +685,7 @@ async fn test_user_is_channel_participant(db: &Arc<Database>) {
         .await
         .unwrap();
     let public_channel_id = db
-        .create_sub_channel("vim", zed_channel, admin)
+        .create_sub_channel("public", zed_channel, admin)
         .await
         .unwrap();
 

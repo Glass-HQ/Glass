@@ -281,7 +281,7 @@ For languages with closures, these typically should not count as functions in Ze
 
 For languages with declarations like C, provide queries that match `@class.around` or `@function.around`. The `if` and `ic` text objects will default to these if there is no inside.
 
-If you are not sure what to put in textobjects.scm, [nvim-treesitter-textobjects](https://github.com/nvim-treesitter/nvim-treesitter-textobjects) has queries for many languages. You can refer to the Zed [built-in languages](https://github.com/zed-industries/zed/tree/main/crates/languages/src) to see how to adapt these.
+If you are not sure what to put in textobjects.scm, you can refer to Zed's [built-in languages](https://github.com/zed-industries/zed/tree/main/crates/languages/src) to see how to adapt existing query patterns.
 
 | Capture          | Description                                                             |
 | ---------------- | ----------------------------------------------------------------------- |

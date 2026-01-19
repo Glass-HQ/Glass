@@ -1505,8 +1505,10 @@ impl Dispatch<zwp_text_input_v3::ZwpTextInputV3, ()> for WaylandClientStatePtr {
 
                 if let Some(commit_text) = text {
                     drop(state);
-                    // IBus Intercepts keys like `a`, `b`, but those keys are needed for vim mode.
-                    // We should only send ASCII characters to Zed, otherwise a user could remap a letter like `か` or `相`.
+                    // IBus can intercept single-character key presses. We only send ASCII
+                    // characters as KeyDown events (instead of IME text) so letter keys remain
+                    // available for typing and keybindings, and to avoid unexpected remappings
+                    // (e.g. `か`, `相`) being treated like physical keys.
                     if commit_text.len() == 1 {
                         window.handle_input(PlatformInput::KeyDown(KeyDownEvent {
                             keystroke: Keystroke {

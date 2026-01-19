@@ -930,7 +930,7 @@ impl BufferSearchBar {
             self.default_options = configured_options;
         }
 
-        // This isn't a normal setting; it's only applicable to vim search.
+        // This isn't a normal setting; it's only applicable to backward search navigation.
         self.search_options.remove(SearchOptions::BACKWARDS);
 
         self.dismissed = false;

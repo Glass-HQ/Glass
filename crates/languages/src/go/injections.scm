@@ -1,4 +1,4 @@
-; Refer to https://github.com/nvim-treesitter/nvim-treesitter/blob/master/queries/go/injections.scm#L4C1-L16C41
+; Based on upstream Go injection queries.
 ((comment) @injection.content
  (#set! injection.language "comment")
 )

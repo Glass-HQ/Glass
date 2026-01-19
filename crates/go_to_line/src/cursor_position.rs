@@ -3,12 +3,12 @@ use gpui::{App, Entity, FocusHandle, Focusable, Subscription, Task, WeakEntity};
 use settings::{RegisterSetting, Settings};
 use std::{fmt::Write, num::NonZeroU32, time::Duration};
 use text::{Point, Selection};
-use workspace::TitleBarItemView;
 use ui::{
     Button, ButtonCommon, Clickable, Context, FluentBuilder, IntoElement, LabelSize, ParentElement,
     Render, Tooltip, Window, div,
 };
 use util::paths::FILE_ROW_COLUMN_DELIMITER;
+use workspace::TitleBarItemView;
 use workspace::{Workspace, item::ItemHandle};
 
 #[derive(Copy, Clone, Debug, Default, PartialOrd, PartialEq)]

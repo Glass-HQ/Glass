@@ -1718,14 +1718,8 @@ extern "C" fn handle_key_up(this: &Object, _: Sel, native_event: id) {
 //     the terminal behave incorrectly by default. This behavior should be patched by our
 //     IME integration
 //   - `alt-t` should open the tasks menu
-//   - In vim mode, this keybinding should work:
-//     ```
-//        {
-//          "context": "Editor && vim_mode == insert",
-//          "bindings": {"j j": "vim::NormalBefore"}
-//        }
-//     ```
-//     and typing 'j k' in insert mode with this keybinding should insert the two characters
+//   - Keybinding chords involving letter keys (e.g. `j j`) should still work without the IME
+//     consuming the individual characters unexpectedly.
 //  Brazilian layout:
 //   - `" space` should create an unmarked quote
 //   - `" backspace` should delete the marked quote
@@ -1734,7 +1728,7 @@ extern "C" fn handle_key_up(this: &Object, _: Sel, native_event: id) {
 //   - `" cmd-down` should insert a quote, unmark it, and move to the end of the file
 //   - `cmd-ctrl-space` and clicking on an emoji should type it
 //  Czech (QWERTY) layout:
-//   - in vim mode `option-4`  should go to end of line (same as $)
+//   - `option-4` should go to end of line (same as $) when that binding is configured
 //  Japanese (Romaji) layout:
 //   - type `a i left down up enter enter` should create an unmarked text "愛"
 extern "C" fn handle_key_event(this: &Object, native_event: id, key_equivalent: bool) -> BOOL {

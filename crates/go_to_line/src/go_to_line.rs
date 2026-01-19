@@ -647,7 +647,10 @@ mod tests {
             editor.move_to_beginning(&MoveToBeginning, window, cx)
         });
         cx.executor().advance_clock(Duration::from_millis(200));
-        assert_eq!(user_caret_position(1, 1), current_position_from_entity(&cursor_position, cx));
+        assert_eq!(
+            user_caret_position(1, 1),
+            current_position_from_entity(&cursor_position, cx)
+        );
 
         for (i, c) in text.chars().enumerate() {
             let i = i as u32 + 1;
@@ -680,9 +683,7 @@ mod tests {
         cx: &mut VisualTestContext,
     ) -> UserCaretPosition {
         cursor_position.update(cx, |cursor_position, _cx| {
-            cursor_position
-                .position()
-                .expect("No position found")
+            cursor_position.position().expect("No position found")
         })
     }
 

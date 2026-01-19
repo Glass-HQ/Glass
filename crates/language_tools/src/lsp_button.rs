@@ -20,8 +20,8 @@ use ui::{
     ContextMenu, ContextMenuEntry, Indicator, PopoverMenu, PopoverMenuHandle, Tooltip, prelude::*,
 };
 
-use workspace::TitleBarItemView;
 use util::{ResultExt, rel_path::RelPath};
+use workspace::TitleBarItemView;
 use workspace::Workspace;
 
 use crate::lsp_log_view;

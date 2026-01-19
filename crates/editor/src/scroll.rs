@@ -707,13 +707,11 @@ impl Editor {
             return;
         };
 
-        // If the user has a preferred line length, and has the editor
-        // configured to wrap at the preferred line length, or bounded to it,
-        // use that value over the visible column count. This was mostly done so
-        // that tests could actually be written for vim's `z l`, `z h`, `z
-        // shift-l` and `z shift-h` commands, as there wasn't a good way to
-        // configure the editor to only display a certain number of columns. If
-        // that ever happens, this could probably be removed.
+        // If the user has a preferred line length, and has the editor configured
+        // to wrap at that preferred line length (or be bounded to it), use that
+        // value over the visible column count. This exists primarily to make it
+        // possible to write deterministic horizontal-scroll tests without a
+        // first-class way to cap the visible column count.
         let settings = AllLanguageSettings::get_global(cx);
         if matches!(
             settings.defaults.soft_wrap,

@@ -3,12 +3,9 @@ use encoding_rs::{Encoding, UTF_8};
 use gpui::{
     Context, Entity, IntoElement, ParentElement, Render, Styled, Subscription, Window, div,
 };
-use workspace::TitleBarItemView;
 use ui::{Button, ButtonCommon, Clickable, LabelSize, Tooltip};
-use workspace::{
-    Workspace,
-    item::ItemHandle,
-};
+use workspace::TitleBarItemView;
+use workspace::{Workspace, item::ItemHandle};
 
 pub struct ActiveBufferEncoding {
     active_encoding: Option<&'static Encoding>,

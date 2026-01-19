@@ -1,8 +1,8 @@
 use editor::Editor;
 use gpui::{Entity, Subscription, WeakEntity};
 use language::LineEnding;
-use workspace::TitleBarItemView;
 use ui::{Tooltip, prelude::*};
+use workspace::TitleBarItemView;
 use workspace::item::ItemHandle;
 
 use crate::{LineEndingSelector, Toggle};

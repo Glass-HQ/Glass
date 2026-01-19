@@ -63,7 +63,7 @@ Settings IntelliJ users typically configure first:
 | `soft_wrap`             | Wrap long lines. Options: `"none"`, `"editor_width"`, `"preferred_line_length"` |
 | `preferred_line_length` | Column width for wrapping and rulers. Default is 80.                            |
 | `inlay_hints`           | Show parameter names and type hints inline, like IntelliJ's hints.              |
-| `relative_line_numbers` | Useful if you're coming from IdeaVim.                                           |
+| `relative_line_numbers` | Useful if you prefer relative line numbers.                                     |
 
 Zed also supports per-project settings. Create a `.zed/settings.json` file in your project root to override global settings for that project, similar to how you might use `.idea` folders in IntelliJ.
 

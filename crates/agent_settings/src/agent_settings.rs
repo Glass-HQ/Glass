@@ -719,7 +719,7 @@ mod tests {
             "Should match /etc/passwd in a pipeline"
         );
         assert!(
-            terminal.always_deny[1].is_match("vim /etc/passwd"),
+            terminal.always_deny[1].is_match("cat /etc/passwd"),
             "Should match /etc/passwd as argument"
         );
     }

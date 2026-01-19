@@ -35,15 +35,14 @@ use std::{
     time::Duration,
 };
 use supermaven::{AccountStatus, Supermaven};
-use workspace::TitleBarItemView;
 use ui::{
     Clickable, ContextMenu, ContextMenuEntry, DocumentationSide, IconButton, IconButtonShape,
     Indicator, PopoverMenu, PopoverMenuHandle, ProgressBar, Tooltip, prelude::*,
 };
 use util::ResultExt as _;
+use workspace::TitleBarItemView;
 use workspace::{
-    Toast, Workspace, create_and_open_local_file, item::ItemHandle,
-    notifications::NotificationId,
+    Toast, Workspace, create_and_open_local_file, item::ItemHandle, notifications::NotificationId,
 };
 use zed_actions::{OpenBrowser, OpenSettingsAt};
 

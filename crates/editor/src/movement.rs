@@ -1,5 +1,5 @@
 //! Movement module contains helper functions for calculating intended position
-//! in editor given a given motion (e.g. it handles converting a "move left" command into coordinates in editor). It is exposed mostly for use by vim crate.
+//! in editor given a given motion (e.g. it handles converting a "move left" command into coordinates in editor).
 
 use super::{Bias, DisplayPoint, DisplaySnapshot, SelectionGoal, ToDisplayPoint};
 use crate::{

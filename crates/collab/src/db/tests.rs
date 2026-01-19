@@ -4,6 +4,7 @@ mod db_tests;
 mod extension_tests;
 mod migrations;
 
+use std::io::ErrorKind;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicI32, Ordering::SeqCst};
 use std::time::Duration;
@@ -78,10 +79,20 @@ impl TestDb {
             .build()
             .unwrap();
 
+        match runtime.block_on(async { sqlx::Postgres::create_database(&url).await }) {
+            Ok(()) => {}
+            Err(sqlx::Error::Io(error)) if error.kind() == ErrorKind::ConnectionRefused => {
+                return Self {
+                    db: None,
+                    connection: None,
+                };
+            }
+            Err(error) => {
+                panic!("failed to create test db: {error:?}");
+            }
+        }
+
         let mut db = runtime.block_on(async {
-            sqlx::Postgres::create_database(&url)
-                .await
-                .expect("failed to create test db");
             let mut options = ConnectOptions::new(url);
             options
                 .max_connections(5)
@@ -125,7 +136,10 @@ macro_rules! test_both_dbs {
         #[gpui::test]
         async fn $postgres_test_name(cx: &mut gpui::TestAppContext) {
             let test_db = $crate::db::TestDb::postgres(cx.executor().clone());
-            $test_name(test_db.db()).await;
+            let Some(db) = test_db.db.as_ref() else {
+                return;
+            };
+            $test_name(db).await;
         }
 
         #[gpui::test]
@@ -138,7 +152,9 @@ macro_rules! test_both_dbs {
 
 impl Drop for TestDb {
     fn drop(&mut self) {
-        let db = self.db.take().unwrap();
+        let Some(db) = self.db.take() else {
+            return;
+        };
         if let sea_orm::DatabaseBackend::Postgres = db.pool.get_database_backend() {
             db.test_options.as_ref().unwrap().runtime.block_on(async {
                 use util::ResultExt;

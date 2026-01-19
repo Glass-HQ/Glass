@@ -4,9 +4,8 @@ use crate::DockPosition;
 use collections::HashMap;
 use serde::Deserialize;
 pub use settings::{
-    AutosaveSetting, BottomDockLayout, InactiveOpacity,
-    PaneSplitDirectionHorizontal, PaneSplitDirectionVertical, RegisterSetting,
-    RestoreOnStartupBehavior, Settings,
+    AutosaveSetting, BottomDockLayout, InactiveOpacity, PaneSplitDirectionHorizontal,
+    PaneSplitDirectionVertical, RegisterSetting, RestoreOnStartupBehavior, Settings,
 };
 
 #[derive(RegisterSetting)]
@@ -126,4 +125,3 @@ impl Settings for TabBarSettings {
         }
     }
 }
-
