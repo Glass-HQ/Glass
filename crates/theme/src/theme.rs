@@ -289,6 +289,14 @@ impl ThemeFamily {
             .map(|w| w.into_gpui())
             .unwrap_or_default();
 
+        // For transparent/blurred themes, adjust border colors for visibility
+        if matches!(
+            window_background_appearance,
+            WindowBackgroundAppearance::Transparent | WindowBackgroundAppearance::Blurred
+        ) {
+            adjust_borders_for_transparency(&mut refined_theme_colors, appearance);
+        }
+
         Theme {
             id: uuid::Uuid::new_v4().to_string(),
             name: theme.name.clone().into(),
@@ -414,6 +422,38 @@ impl Theme {
         hsla.l = (hsla.l - amount).max(0.0);
         hsla
     }
+}
+
+/// Adjusts border colors in ThemeColors for better visibility on transparent backgrounds.
+///
+/// When a theme uses transparent/blurred window backgrounds, the default border colors
+/// may become nearly invisible. This function increases the contrast of border colors
+/// to ensure UI separation remains visible.
+fn adjust_borders_for_transparency(colors: &mut ThemeColors, appearance: Appearance) {
+    fn adjust_border(color: &mut Hsla, appearance: Appearance) {
+        match appearance {
+            Appearance::Light => {
+                // For light themes on transparent bg, make borders darker
+                color.l = (color.l - 0.3).max(0.1);
+                if color.a < 0.5 {
+                    color.a = 0.5;
+                }
+            }
+            Appearance::Dark => {
+                // For dark themes on transparent bg, make borders lighter
+                color.l = (color.l + 0.25).min(0.7);
+                if color.a < 0.5 {
+                    color.a = 0.5;
+                }
+            }
+        }
+    }
+
+    adjust_border(&mut colors.border, appearance);
+    adjust_border(&mut colors.border_variant, appearance);
+    adjust_border(&mut colors.pane_group_border, appearance);
+    adjust_border(&mut colors.pane_focused_border, appearance);
+    adjust_border(&mut colors.panel_focused_border, appearance);
 }
 
 /// Asynchronously reads the user theme from the specified path.

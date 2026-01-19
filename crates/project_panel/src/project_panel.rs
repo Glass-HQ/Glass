@@ -59,7 +59,7 @@ use theme::ThemeSettings;
 use ui::{
     Color, ContextMenu, DecoratedIcon, Divider, Icon, IconDecoration, IconDecorationKind,
     IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize, ListItem, ListItemSpacing,
-    ScrollAxes, ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*,
+    ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*,
     v_flex,
 };
 use util::{
@@ -5253,28 +5253,43 @@ impl ProjectPanel {
                     } else {
                         h_flex()
                             .h_6()
+                            .w_full()
+                            .min_w_0()
                             .map(|this| match self.state.ancestors.get(&entry_id) {
                                 Some(folded_ancestors) => {
-                                    this.children(self.render_folder_elements(
-                                        folded_ancestors,
-                                        entry_id,
-                                        file_name,
-                                        path_style,
-                                        is_sticky,
-                                        kind.is_file(),
-                                        is_active || is_marked,
-                                        settings.drag_and_drop,
-                                        item_colors.drag_over,
-                                        folded_directory_drag_target,
-                                        filename_text_color,
-                                        cx,
-                                    ))
+                                    this.child(
+                                        h_flex()
+                                            .w_full()
+                                            .min_w_0()
+                                            .overflow_hidden()
+                                            .children(self.render_folder_elements(
+                                                folded_ancestors,
+                                                entry_id,
+                                                file_name,
+                                                path_style,
+                                                is_sticky,
+                                                kind.is_file(),
+                                                is_active || is_marked,
+                                                settings.drag_and_drop,
+                                                item_colors.drag_over,
+                                                folded_directory_drag_target,
+                                                filename_text_color,
+                                                cx,
+                                            )),
+                                    )
                                 }
 
                                 None => this.child(
-                                    Label::new(file_name)
-                                        .single_line()
-                                        .color(filename_text_color)
+                                    div()
+                                        .w_full()
+                                        .min_w_0()
+                                        .child(
+                                            Label::new(file_name)
+                                                .single_line()
+                                                .truncate()
+                                                .color(filename_text_color)
+                                                .into_any_element(),
+                                        )
                                         .into_any_element(),
                                 ),
                             })
@@ -5294,7 +5309,6 @@ impl ProjectPanel {
                             this.deploy_context_menu(event.position, entry_id, window, cx);
                         },
                     ))
-                    .overflow_x(),
             )
             .when_some(validation_color_and_message, |this, (color, message)| {
                 this.relative().child(deferred(
@@ -5351,6 +5365,7 @@ impl ProjectPanel {
                             "project_panel_path_component_{}_{index}",
                             entry_id.to_usize()
                         )))
+                        .when(index == components_len - 1, |this| this.flex_1().min_w_0())
                         .px_0p5()
                         .rounded_xs()
                         .hover(|style| style.bg(cx.theme().colors().element_active))
@@ -5436,6 +5451,7 @@ impl ProjectPanel {
                         .child(
                             Label::new(component)
                                 .single_line()
+                                .truncate()
                                 .color(filename_text_color)
                                 .when(index == active_index && is_active_or_marked, |this| {
                                     this.underline()
@@ -6265,7 +6281,7 @@ impl Render for ProjectPanel {
                             })
                             .with_sizing_behavior(ListSizingBehavior::Infer)
                             .with_horizontal_sizing_behavior(
-                                ListHorizontalSizingBehavior::Unconstrained,
+                                ListHorizontalSizingBehavior::FitList,
                             )
                             .with_width_from_item(self.state.max_width_item_index)
                             .track_scroll(&self.scroll_handle),
@@ -6412,10 +6428,6 @@ impl Render for ProjectPanel {
                 .custom_scrollbars(
                     Scrollbars::for_settings::<ProjectPanelSettings>()
                         .tracked_scroll_handle(&self.scroll_handle)
-                        .with_track_along(
-                            ScrollAxes::Horizontal,
-                            cx.theme().colors().panel_background,
-                        )
                         .notify_content(),
                     window,
                     cx,
