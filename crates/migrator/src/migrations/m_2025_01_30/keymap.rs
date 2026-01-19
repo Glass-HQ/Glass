@@ -60,23 +60,5 @@ fn action_argument_snake_case(
     Some((range_to_replace, replacement))
 }
 
-static ACTION_ARGUMENT_SNAKE_CASE_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
-    HashMap::from_iter([
-        ("vim::NextWordStart", "ignorePunctuation"),
-        ("vim::NextWordEnd", "ignorePunctuation"),
-        ("vim::PreviousWordStart", "ignorePunctuation"),
-        ("vim::PreviousWordEnd", "ignorePunctuation"),
-        ("vim::MoveToNext", "partialWord"),
-        ("vim::MoveToPrev", "partialWord"),
-        ("vim::Down", "displayLines"),
-        ("vim::Up", "displayLines"),
-        ("vim::EndOfLine", "displayLines"),
-        ("vim::StartOfLine", "displayLines"),
-        ("vim::FirstNonWhitespace", "displayLines"),
-        ("pane::CloseActiveItem", "saveIntent"),
-        ("vim::Paste", "preserveClipboard"),
-        ("vim::Word", "ignorePunctuation"),
-        ("vim::Subword", "ignorePunctuation"),
-        ("vim::IndentObj", "includeBelow"),
-    ])
-});
+static ACTION_ARGUMENT_SNAKE_CASE_REPLACE: LazyLock<HashMap<&str, &str>> =
+    LazyLock::new(|| HashMap::from_iter([("pane::CloseActiveItem", "saveIntent")]));

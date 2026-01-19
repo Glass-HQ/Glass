@@ -21,8 +21,6 @@
 - [Themes](./themes.md)
 - [Icon Themes](./icon-themes.md)
 - [Visual Customization](./visual-customization.md)
-- [Vim Mode](./vim.md)
-- [Helix Mode](./helix.md)
 - [Privacy and Security](./ai/privacy-and-security.md)
   - [Worktree Trust](./worktree-trust.md)
   - [AI Improvement](./ai/ai-improvement.md)

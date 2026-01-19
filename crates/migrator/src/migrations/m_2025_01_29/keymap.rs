@@ -93,69 +93,6 @@ static TRANSFORM_ARRAY: LazyLock<HashMap<(&str, &str), &str>> = LazyLock::new(||
             ("app_menu::NavigateApplicationMenuInDirection", "Right"),
             "app_menu::ActivateMenuRight",
         ),
-        // vim push
-        (("vim::PushOperator", "Change"), "vim::PushChange"),
-        (("vim::PushOperator", "Delete"), "vim::PushDelete"),
-        (("vim::PushOperator", "Yank"), "vim::PushYank"),
-        (("vim::PushOperator", "Replace"), "vim::PushReplace"),
-        (
-            ("vim::PushOperator", "DeleteSurrounds"),
-            "vim::PushDeleteSurrounds",
-        ),
-        (("vim::PushOperator", "Mark"), "vim::PushMark"),
-        (("vim::PushOperator", "Indent"), "vim::PushIndent"),
-        (("vim::PushOperator", "Outdent"), "vim::PushOutdent"),
-        (("vim::PushOperator", "AutoIndent"), "vim::PushAutoIndent"),
-        (("vim::PushOperator", "Rewrap"), "vim::PushRewrap"),
-        (
-            ("vim::PushOperator", "ShellCommand"),
-            "vim::PushShellCommand",
-        ),
-        (("vim::PushOperator", "Lowercase"), "vim::PushLowercase"),
-        (("vim::PushOperator", "Uppercase"), "vim::PushUppercase"),
-        (
-            ("vim::PushOperator", "OppositeCase"),
-            "vim::PushOppositeCase",
-        ),
-        (("vim::PushOperator", "Register"), "vim::PushRegister"),
-        (
-            ("vim::PushOperator", "RecordRegister"),
-            "vim::PushRecordRegister",
-        ),
-        (
-            ("vim::PushOperator", "ReplayRegister"),
-            "vim::PushReplayRegister",
-        ),
-        (
-            ("vim::PushOperator", "ReplaceWithRegister"),
-            "vim::PushReplaceWithRegister",
-        ),
-        (
-            ("vim::PushOperator", "ToggleComments"),
-            "vim::PushToggleComments",
-        ),
-        // vim switch
-        (("vim::SwitchMode", "Normal"), "vim::SwitchToNormalMode"),
-        (("vim::SwitchMode", "Insert"), "vim::SwitchToInsertMode"),
-        (("vim::SwitchMode", "Replace"), "vim::SwitchToReplaceMode"),
-        (("vim::SwitchMode", "Visual"), "vim::SwitchToVisualMode"),
-        (
-            ("vim::SwitchMode", "VisualLine"),
-            "vim::SwitchToVisualLineMode",
-        ),
-        (
-            ("vim::SwitchMode", "VisualBlock"),
-            "vim::SwitchToVisualBlockMode",
-        ),
-        (
-            ("vim::SwitchMode", "HelixNormal"),
-            "vim::SwitchToHelixNormalMode",
-        ),
-        // vim resize
-        (("vim::ResizePane", "Widen"), "vim::ResizePaneRight"),
-        (("vim::ResizePane", "Narrow"), "vim::ResizePaneLeft"),
-        (("vim::ResizePane", "Shorten"), "vim::ResizePaneDown"),
-        (("vim::ResizePane", "Lengthen"), "vim::ResizePaneUp"),
         // fold at level
         (("editor::FoldAtLevel", "1"), "editor::FoldAtLevel1"),
         (("editor::FoldAtLevel", "2"), "editor::FoldAtLevel2"),
@@ -203,29 +140,12 @@ fn replace_action_argument_object_with_single_value(
     Some((range_to_replace, replacement))
 }
 
-/// "ctrl-k ctrl-1": [ "editor::PushOperator", { "Object": {} } ] -> [ "editor::vim::PushObject", {} ]
+/// "ctrl-k ctrl-1": [ "editor::PushOperator", { "Object": {} } ] -> [ "editor::PushObject", {} ]
 static UNWRAP_OBJECTS: LazyLock<HashMap<&str, HashMap<&str, &str>>> = LazyLock::new(|| {
-    HashMap::from_iter([
-        (
-            "editor::FoldAtLevel",
-            HashMap::from_iter([("level", "editor::FoldAtLevel")]),
-        ),
-        (
-            "vim::PushOperator",
-            HashMap::from_iter([
-                ("Object", "vim::PushObject"),
-                ("FindForward", "vim::PushFindForward"),
-                ("FindBackward", "vim::PushFindBackward"),
-                ("Sneak", "vim::PushSneak"),
-                ("SneakBackward", "vim::PushSneakBackward"),
-                ("AddSurrounds", "vim::PushAddSurrounds"),
-                ("ChangeSurrounds", "vim::PushChangeSurrounds"),
-                ("Jump", "vim::PushJump"),
-                ("Digraph", "vim::PushDigraph"),
-                ("Literal", "vim::PushLiteral"),
-            ]),
-        ),
-    ])
+    HashMap::from_iter([(
+        "editor::FoldAtLevel",
+        HashMap::from_iter([("level", "editor::FoldAtLevel")]),
+    )])
 });
 
 fn replace_string_action(

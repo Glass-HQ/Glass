@@ -1835,10 +1835,6 @@ impl Render for KeymapEditor {
                                                                     zed_actions::OpenDefaultKeymap
                                                                         .boxed_clone(),
                                                                 )
-                                                                .action(
-                                                                    "Vim Bindings",
-                                                                    zed_actions::vim::OpenDefaultKeymap.boxed_clone(),
-                                                                )
                                                         }))
                                                     })
                                                     .anchor(gpui::Corner::TopRight)
@@ -3498,10 +3494,9 @@ async fn remove_keybinding(
 }
 
 fn collect_contexts_from_assets() -> Vec<SharedString> {
-    let mut keymap_assets = vec![
-        util::asset_str::<SettingsAssets>(settings::DEFAULT_KEYMAP_PATH),
-        util::asset_str::<SettingsAssets>(settings::VIM_KEYMAP_PATH),
-    ];
+    let mut keymap_assets = vec![util::asset_str::<SettingsAssets>(
+        settings::DEFAULT_KEYMAP_PATH,
+    )];
     keymap_assets.extend(
         BaseKeymap::OPTIONS
             .iter()

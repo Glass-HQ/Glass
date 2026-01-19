@@ -388,20 +388,12 @@ impl KeyBindingContextPredicate {
             }
             _ if is_identifier_char(next) => {
                 let len = source
-                    .find(|c: char| !is_identifier_char(c) && !is_vim_operator_char(c))
+                    .find(|c: char| !is_identifier_char(c))
                     .unwrap_or(source.len());
                 let (identifier, rest) = source.split_at(len);
                 source = skip_whitespace(rest);
                 Ok((
                     KeyBindingContextPredicate::Identifier(identifier.to_string().into()),
-                    source,
-                ))
-            }
-            _ if is_vim_operator_char(next) => {
-                let (operator, rest) = source.split_at(1);
-                source = skip_whitespace(rest);
-                Ok((
-                    KeyBindingContextPredicate::Identifier(operator.to_string().into()),
                     source,
                 ))
             }
@@ -446,10 +438,6 @@ const PRECEDENCE_NOT: u32 = 5;
 
 fn is_identifier_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_' || c == '-'
-}
-
-fn is_vim_operator_char(c: char) -> bool {
-    c == '>' || c == '<' || c == '~' || c == '"' || c == '?'
 }
 
 fn skip_whitespace(source: &str) -> &str {
@@ -626,7 +614,7 @@ mod tests {
         assert_is_superset("editor", "editor", true);
         assert_is_superset("editor", "workspace", false);
 
-        assert_is_superset("editor", "editor && vim_mode", true);
+        assert_is_superset("editor", "editor && some_mode", true);
         assert_is_superset("editor", "mode == full && editor", true);
         assert_is_superset("editor && mode == full", "editor", false);
 

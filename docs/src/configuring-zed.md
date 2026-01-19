@@ -39,7 +39,7 @@ This will create a `.zed` directory containing`.zed/settings.json`.
 
 Although most projects will only need one settings file at the root, you can add more local settings files for subdirectories as needed.
 Not all settings can be set in local files, just those that impact the behavior of the editor and language tooling.
-For example you can set `tab_size`, `formatter` etc. but not `theme`, `vim_mode` and similar.
+For example you can set `tab_size`, `formatter` etc. but not `theme` and similar.
 
 The syntax for configuration files is a super-set of JSON that allows `//` comments.
 
@@ -52,10 +52,8 @@ They are merged into the base configuration with settings from these keys taking
 ```json [settings]
 {
   "theme": "sunset",
-  "vim_mode": false,
   "nightly": {
-    "theme": "cave-light",
-    "vim_mode": true
+    "theme": "cave-light"
   },
   "preview": {
     "theme": "zed-dark"
@@ -2302,16 +2300,6 @@ Example:
 
 `boolean` values
 
-## Helix Mode
-
-- Description: Whether or not to enable Helix mode. Enabling `helix_mode` also enables `vim_mode`. See the [Helix documentation](./helix.md) for more details.
-- Setting: `helix_mode`
-- Default: `false`
-
-**Options**
-
-`boolean` values
-
 ## Indent Guides
 
 - Description: Configuration related to indent guides. Indent guides can be configured separately for each language.
@@ -4428,12 +4416,6 @@ Run the {#action theme_selector::Toggle} action in the command palette to see a 
 - `show_sign_in`: Whether to show the sign in button in the titlebar
 - `show_menus`: Whether to show the menus in the titlebar
 
-## Vim
-
-- Description: Whether or not to enable vim mode.
-- Setting: `vim_mode`
-- Default: `false`
-
 ## When Closing With No Tabs
 
 - Description: Whether the window should be closed when using 'close active item' on a window with no tabs
@@ -5082,7 +5064,6 @@ To preview and enable a settings profile, open the command palette via {#kb comm
 
   "autosave": "on_focus_change",
   "format_on_save": "off",
-  "vim_mode": false,
   "projects_online_by_default": true,
   "terminal": {
     "font_family": "FiraCode Nerd Font Mono",

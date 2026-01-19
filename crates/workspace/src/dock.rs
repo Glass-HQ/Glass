@@ -63,7 +63,8 @@ impl Render for DockButtonBar {
                 };
                 let name = panel.persistent_name();
                 let panel_clone = panel.clone();
-                let icon_tooltip: SharedString = panel.icon_tooltip(window, cx).unwrap_or(name).into();
+                let icon_tooltip: SharedString =
+                    panel.icon_tooltip(window, cx).unwrap_or(name).into();
                 let panel_id = panel.panel_id();
 
                 let is_active_button = Some(i) == active_index && is_open;
@@ -125,7 +126,6 @@ impl Render for DockButtonBar {
                                         }
                                     })
                                     .when(!is_active, |this| {
-                                        let tooltip = tooltip.clone();
                                         this.tooltip(Tooltip::text(tooltip.clone()))
                                     })
                             }

@@ -158,23 +158,6 @@ You might want this in order to have just one (alternative) keybinding to use fo
   },
 ```
 
-If you are using [Vim mode](../vim.md), then additional bindings are needed after the above to return `tab` to its original behavior:
-
-```json [keymap]
-  {
-    "context": "(VimControl && !menu) || vim_mode == replace || vim_mode == waiting",
-    "bindings": {
-      "tab": "vim::Tab"
-    }
-  },
-  {
-    "context": "vim_mode == literal",
-    "bindings": {
-      "tab": ["vim::Literal", ["tab", "\u0009"]]
-    }
-  },
-```
-
 ### Keybinding Example: Displaying Tab and Alt-Tab on Linux
 
 While `tab` and `alt-tab` are supported on Linux, `alt-l` is displayed instead.
