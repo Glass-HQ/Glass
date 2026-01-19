@@ -5,11 +5,9 @@ use gpui::{
     App, Context, DismissEvent, EventEmitter, FocusHandle, Focusable, FontWeight, Keystroke,
     ScrollHandle, Subscription, WeakEntity, Window,
 };
-use settings::Settings;
 use std::collections::HashMap;
-use theme::ThemeSettings;
 use ui::{
-    Divider, DividerColor, DynamicSpacing, LabelSize, WithScrollbar, prelude::*,
+    Divider, DividerColor, LabelSize, WithScrollbar, prelude::*,
     text_for_keystrokes,
 };
 use workspace::{ModalView, Workspace};
@@ -143,23 +141,8 @@ impl Render for WhichKeyModal {
         let max_panel_width = px((f32::from(viewport_size.width) * 0.5).min(480.0));
         let max_content_height = px(f32::from(viewport_size.height) * 0.4);
 
-        // Push above status bar when visible
-        let status_height = self
-            ._workspace
-            .upgrade()
-            .and_then(|workspace| {
-                workspace.read_with(cx, |workspace, cx| {
-                    if workspace.status_bar_visible(cx) {
-                        Some(
-                            DynamicSpacing::Base04.px(cx) * 2.0
-                                + ThemeSettings::get_global(cx).ui_font_size(cx),
-                        )
-                    } else {
-                        None
-                    }
-                })
-            })
-            .unwrap_or(px(0.));
+        // Push above the bottom dock area when visible
+        let status_height = px(0.);
 
         let margin_bottom = px(16.);
         let bottom_offset = margin_bottom + status_height;

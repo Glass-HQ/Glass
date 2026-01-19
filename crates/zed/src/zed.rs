@@ -448,20 +448,27 @@ pub fn initialize_workspace(
             cx.new(|_| go_to_line::cursor_position::CursorPosition::new(workspace));
         let line_ending_indicator =
             cx.new(|_| line_ending_selector::LineEndingIndicator::default());
-        workspace.status_bar().update(cx, |status_bar, cx| {
-            status_bar.add_left_item(search_button, window, cx);
-            status_bar.add_left_item(lsp_button, window, cx);
-            status_bar.add_left_item(diagnostic_summary, window, cx);
-            status_bar.add_left_item(activity_indicator, window, cx);
-            status_bar.add_right_item(edit_prediction_ui, window, cx);
-            status_bar.add_right_item(active_buffer_encoding, window, cx);
-            status_bar.add_right_item(active_buffer_language, window, cx);
-            status_bar.add_right_item(active_toolchain_language, window, cx);
-            status_bar.add_right_item(line_ending_indicator, window, cx);
-            status_bar.add_right_item(vim_mode_indicator, window, cx);
-            status_bar.add_right_item(cursor_position, window, cx);
-            status_bar.add_right_item(image_info, window, cx);
-        });
+
+        if let Some(title_bar) = workspace
+            .titlebar_item()
+            .and_then(|item| item.downcast::<title_bar::TitleBar>().ok())
+        {
+            title_bar.update(cx, |title_bar, cx| {
+                title_bar.set_active_pane(&workspace.active_pane().clone(), window, cx);
+                title_bar.add_right_item(vim_mode_indicator, window, cx);
+                title_bar.add_right_item(cursor_position, window, cx);
+                title_bar.add_right_item(image_info, window, cx);
+                title_bar.add_right_item(line_ending_indicator, window, cx);
+                title_bar.add_right_item(active_buffer_language, window, cx);
+                title_bar.add_right_item(active_toolchain_language, window, cx);
+                title_bar.add_right_item(active_buffer_encoding, window, cx);
+                title_bar.add_right_item(activity_indicator, window, cx);
+                title_bar.add_right_item(search_button, window, cx);
+                title_bar.add_right_item(lsp_button, window, cx);
+                title_bar.add_right_item(diagnostic_summary, window, cx);
+                title_bar.add_right_item(edit_prediction_ui, window, cx);
+            });
+        }
 
         let handle = cx.entity().downgrade();
         window.on_window_should_close(cx, move |window, cx| {

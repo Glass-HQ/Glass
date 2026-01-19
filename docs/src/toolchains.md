@@ -20,7 +20,7 @@ This also applies to [tasks](./tasks.md)—Zed tasks behave "as if" you opened a
 
 ## Selecting toolchains
 
-The active toolchain (if there is one) is displayed in the status bar (on the right hand side). Click on it to access the toolchain selector—you can also use an action from a command palette ({#action toolchain::Select}).
+The active toolchain (if there is one) is displayed in the title bar (on the right-hand side). Click on it to access the toolchain selector—you can also use an action from a command palette ({#action toolchain::Select}).
 
 Zed will automatically infer a set of toolchains to choose from based on the project you're working with. A default will also be selected on your behalf on a best-effort basis when you open a project for the first time.
 

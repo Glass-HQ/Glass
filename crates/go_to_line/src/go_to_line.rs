@@ -322,7 +322,7 @@ mod tests {
     use serde_json::json;
     use std::{num::NonZeroU32, sync::Arc, time::Duration};
     use util::{path, rel_path::rel_path};
-    use workspace::{AppState, Workspace};
+    use workspace::{AppState, TitleBarItemView, Workspace};
 
     #[gpui::test]
     async fn test_go_to_line_view_row_highlights(cx: &mut TestAppContext) {
@@ -450,11 +450,8 @@ mod tests {
         let project = Project::test(fs, [path!("/dir").as_ref()], cx).await;
         let (workspace, cx) =
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-        workspace.update_in(cx, |workspace, window, cx| {
-            let cursor_position = cx.new(|_| CursorPosition::new(workspace));
-            workspace.status_bar().update(cx, |status_bar, cx| {
-                status_bar.add_right_item(cursor_position, window, cx);
-            });
+        let cursor_position = workspace.update_in(cx, |workspace, _window, cx| {
+            cx.new(|_| CursorPosition::new(workspace))
         });
 
         let worktree_id = workspace.update(cx, |workspace, cx| {
@@ -477,21 +474,23 @@ mod tests {
             .downcast::<Editor>()
             .unwrap();
 
+        // Set active pane item to trigger cursor position updates
+        workspace.update_in(cx, |workspace, window, cx| {
+            let active_item = workspace.active_item(cx);
+            cursor_position.update(cx, |cursor_position, cx| {
+                cursor_position.set_active_pane_item(active_item.as_deref(), window, cx);
+            });
+        });
+
         cx.executor().advance_clock(Duration::from_millis(200));
-        workspace.update(cx, |workspace, cx| {
+        cursor_position.update(cx, |cursor_position, _cx| {
             assert_eq!(
                 &SelectionStats {
                     lines: 0,
                     characters: 0,
                     selections: 1,
                 },
-                workspace
-                    .status_bar()
-                    .read(cx)
-                    .item_of_type::<CursorPosition>()
-                    .expect("missing cursor position item")
-                    .read(cx)
-                    .selection_stats(),
+                cursor_position.selection_stats(),
                 "No selections should be initially"
             );
         });
@@ -499,20 +498,14 @@ mod tests {
             editor.select_all(&SelectAll, window, cx)
         });
         cx.executor().advance_clock(Duration::from_millis(200));
-        workspace.update(cx, |workspace, cx| {
+        cursor_position.update(cx, |cursor_position, _cx| {
             assert_eq!(
                 &SelectionStats {
                     lines: 1,
                     characters: 3,
                     selections: 1,
                 },
-                workspace
-                    .status_bar()
-                    .read(cx)
-                    .item_of_type::<CursorPosition>()
-                    .expect("missing cursor position item")
-                    .read(cx)
-                    .selection_stats(),
+                cursor_position.selection_stats(),
                 "After selecting a text with multibyte unicode characters, the character count should be correct"
             );
         });
@@ -535,11 +528,8 @@ mod tests {
         let project = Project::test(fs, [path!("/dir").as_ref()], cx).await;
         let (workspace, cx) =
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-        workspace.update_in(cx, |workspace, window, cx| {
-            let cursor_position = cx.new(|_| CursorPosition::new(workspace));
-            workspace.status_bar().update(cx, |status_bar, cx| {
-                status_bar.add_right_item(cursor_position, window, cx);
-            });
+        let cursor_position = workspace.update_in(cx, |workspace, _window, cx| {
+            cx.new(|_| CursorPosition::new(workspace))
         });
 
         let worktree_id = workspace.update(cx, |workspace, cx| {
@@ -562,13 +552,21 @@ mod tests {
             .downcast::<Editor>()
             .unwrap();
 
+        // Set active pane item to trigger cursor position updates
+        workspace.update_in(cx, |workspace, window, cx| {
+            let active_item = workspace.active_item(cx);
+            cursor_position.update(cx, |cursor_position, cx| {
+                cursor_position.set_active_pane_item(active_item.as_deref(), window, cx);
+            });
+        });
+
         editor.update_in(cx, |editor, window, cx| {
             editor.move_to_beginning(&MoveToBeginning, window, cx)
         });
         cx.executor().advance_clock(Duration::from_millis(200));
         assert_eq!(
             user_caret_position(1, 1),
-            current_position(&workspace, cx),
+            current_position_from_entity(&cursor_position, cx),
             "Beginning of the line should be at first line, before any characters"
         );
 
@@ -580,7 +578,7 @@ mod tests {
             cx.executor().advance_clock(Duration::from_millis(200));
             assert_eq!(
                 user_caret_position(1, i + 1),
-                current_position(&workspace, cx),
+                current_position_from_entity(&cursor_position, cx),
                 "Wrong position for char '{c}' in string '{text}'",
             );
         }
@@ -591,7 +589,7 @@ mod tests {
         cx.executor().advance_clock(Duration::from_millis(200));
         assert_eq!(
             user_caret_position(1, text.chars().count() as u32 + 1),
-            current_position(&workspace, cx),
+            current_position_from_entity(&cursor_position, cx),
             "After reaching the end of the text, position should not change when moving right"
         );
     }
@@ -613,11 +611,8 @@ mod tests {
         let project = Project::test(fs, [path!("/dir").as_ref()], cx).await;
         let (workspace, cx) =
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-        workspace.update_in(cx, |workspace, window, cx| {
-            let cursor_position = cx.new(|_| CursorPosition::new(workspace));
-            workspace.status_bar().update(cx, |status_bar, cx| {
-                status_bar.add_right_item(cursor_position, window, cx);
-            });
+        let cursor_position = workspace.update_in(cx, |workspace, _window, cx| {
+            cx.new(|_| CursorPosition::new(workspace))
         });
 
         let worktree_id = workspace.update(cx, |workspace, cx| {
@@ -640,11 +635,19 @@ mod tests {
             .downcast::<Editor>()
             .unwrap();
 
+        // Set active pane item to trigger cursor position updates
+        workspace.update_in(cx, |workspace, window, cx| {
+            let active_item = workspace.active_item(cx);
+            cursor_position.update(cx, |cursor_position, cx| {
+                cursor_position.set_active_pane_item(active_item.as_deref(), window, cx);
+            });
+        });
+
         editor.update_in(cx, |editor, window, cx| {
             editor.move_to_beginning(&MoveToBeginning, window, cx)
         });
         cx.executor().advance_clock(Duration::from_millis(200));
-        assert_eq!(user_caret_position(1, 1), current_position(&workspace, cx));
+        assert_eq!(user_caret_position(1, 1), current_position_from_entity(&cursor_position, cx));
 
         for (i, c) in text.chars().enumerate() {
             let i = i as u32 + 1;
@@ -653,7 +656,7 @@ mod tests {
             cx.executor().advance_clock(Duration::from_millis(200));
             assert_eq!(
                 point,
-                current_position(&workspace, cx),
+                current_position_from_entity(&cursor_position, cx),
                 "When going to {point:?}, expecting the cursor to be at char '{c}' in string '{text}'",
             );
         }
@@ -667,22 +670,17 @@ mod tests {
         cx.executor().advance_clock(Duration::from_millis(200));
         assert_eq!(
             user_caret_position(1, text.chars().count() as u32 + 1),
-            current_position(&workspace, cx),
+            current_position_from_entity(&cursor_position, cx),
             "When going into too large point, should go to the end of the text"
         );
     }
 
-    fn current_position(
-        workspace: &Entity<Workspace>,
+    fn current_position_from_entity(
+        cursor_position: &Entity<CursorPosition>,
         cx: &mut VisualTestContext,
     ) -> UserCaretPosition {
-        workspace.update(cx, |workspace, cx| {
-            workspace
-                .status_bar()
-                .read(cx)
-                .item_of_type::<CursorPosition>()
-                .expect("missing cursor position item")
-                .read(cx)
+        cursor_position.update(cx, |cursor_position, _cx| {
+            cursor_position
                 .position()
                 .expect("No position found")
         })

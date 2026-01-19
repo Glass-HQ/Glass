@@ -11,9 +11,9 @@ mod persistence;
 pub mod searchable;
 mod security_modal;
 pub mod shared_screen;
-mod status_bar;
 pub mod tasks;
 mod theme_preview;
+mod title_bar_item;
 mod toast_layer;
 mod toolbar;
 pub mod utility_pane;
@@ -23,6 +23,7 @@ mod workspace_settings;
 pub use crate::notifications::NotificationFrame;
 pub use dock::Panel;
 pub use path_list::PathList;
+pub use title_bar_item::{TitleBarItemView, TitleBarItemViewHandle};
 pub use toast_layer::{ToastAction, ToastLayer, ToastView};
 
 use anyhow::{Context as _, Result, anyhow};
@@ -32,7 +33,7 @@ use client::{
     proto::{self, ErrorCode, PanelId, PeerId},
 };
 use collections::{HashMap, HashSet, hash_map};
-use dock::{Dock, DockPosition, PanelButtons, PanelHandle, RESIZE_HANDLE_SIZE};
+use dock::{Dock, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE};
 use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use futures::{
     Future, FutureExt, StreamExt,
@@ -97,8 +98,6 @@ use sqlez::{
     bindable::{Bind, Column, StaticColumnCount},
     statement::Statement,
 };
-use status_bar::StatusBar;
-pub use status_bar::StatusItemView;
 use std::{
     any::TypeId,
     borrow::Cow,
@@ -130,8 +129,7 @@ use util::{
 use uuid::Uuid;
 use workspace_modes::{ModeId, SwitchToEditorMode, SwitchToTerminalMode};
 pub use workspace_settings::{
-    AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, StatusBarSettings, TabBarSettings,
-    WorkspaceSettings,
+    AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
 };
 use zed_actions::{Spawn, feedback::FileBugReport};
 
@@ -1170,7 +1168,7 @@ struct DispatchingKeystrokes {
 /// Collects everything project-related for a certain window opened.
 /// In some way, is a counterpart of a window, as the [`WindowHandle`] could be downcast into `Workspace`.
 ///
-/// A `Workspace` usually consists of 1 or more projects, a central pane group, 3 docks and a status bar.
+/// A `Workspace` usually consists of 1 or more projects, a central pane group, and 3 docks.
 /// The `Workspace` owns everybody's state and serves as a default, "global context",
 /// that can be used to register a global action to be triggered from any place in the window.
 pub struct Workspace {
@@ -1189,7 +1187,6 @@ pub struct Workspace {
     active_pane: Entity<Pane>,
     last_active_center_pane: Option<WeakEntity<Pane>>,
     last_active_view_id: Option<proto::ViewId>,
-    status_bar: Entity<StatusBar>,
     modal_layer: Entity<ModalLayer>,
     toast_layer: Entity<ToastLayer>,
     titlebar_item: Option<AnyView>,
@@ -1489,17 +1486,6 @@ impl Workspace {
         let left_dock = Dock::new(DockPosition::Left, modal_layer.clone(), window, cx);
         let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), window, cx);
         let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), window, cx);
-        let left_dock_buttons = cx.new(|cx| PanelButtons::new(left_dock.clone(), cx));
-        let bottom_dock_buttons = cx.new(|cx| PanelButtons::new(bottom_dock.clone(), cx));
-        let right_dock_buttons = cx.new(|cx| PanelButtons::new(right_dock.clone(), cx));
-        let status_bar = cx.new(|cx| {
-            let mut status_bar = StatusBar::new(&center_pane.clone(), window, cx);
-            status_bar.add_left_item(left_dock_buttons, window, cx);
-            status_bar.add_right_item(right_dock_buttons, window, cx);
-            status_bar.add_right_item(bottom_dock_buttons, window, cx);
-            status_bar
-        });
-
         let session_id = app_state.session.read(cx).id().to_owned();
 
         let mut active_call = None;
@@ -1596,7 +1582,6 @@ impl Workspace {
             active_pane: center_pane.clone(),
             last_active_center_pane: Some(center_pane.downgrade()),
             last_active_view_id: None,
-            status_bar,
             modal_layer,
             toast_layer,
             titlebar_item: None,
@@ -1944,14 +1929,6 @@ impl Workspace {
             let slot = utility_slot_for_dock_position(position);
             self.clear_utility_pane_if_provider(slot, Entity::entity_id(panel), cx);
         }
-    }
-
-    pub fn status_bar(&self) -> &Entity<StatusBar> {
-        &self.status_bar
-    }
-
-    pub fn status_bar_visible(&self, cx: &App) -> bool {
-        StatusBarSettings::get_global(cx).show
     }
 
     pub fn app_state(&self) -> &Arc<AppState> {
@@ -4379,11 +4356,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // This is explicitly hoisted out of the following check for pane identity as
-        // terminal panel panes are not registered as a center panes.
-        self.status_bar.update(cx, |status_bar, cx| {
-            status_bar.set_active_pane(&pane, window, cx);
-        });
         if self.active_pane != pane {
             self.set_active_pane(&pane, window, cx);
         }
@@ -6658,6 +6630,14 @@ impl Workspace {
             return None;
         }
 
+        // Only render if dock is open AND has a visible panel
+        {
+            let dock_read = dock.read(cx);
+            if !dock_read.is_open() || dock_read.visible_panel().is_none() {
+                return None;
+            }
+        }
+
         let leader_border = dock.read(cx).active_panel().and_then(|panel| {
             let pane = panel.pane(cx)?;
             let follower_states = &self.follower_states;
@@ -7727,9 +7707,6 @@ impl Render for Workspace {
                                 }))
                                 .children(self.render_notifications(window, cx)),
                         )
-                        .when(self.status_bar_visible(cx), |parent| {
-                            parent.child(self.status_bar.clone())
-                        })
                         .child(self.modal_layer.clone())
                         .child(self.toast_layer.clone()),
                 ),
@@ -12337,46 +12314,6 @@ mod tests {
                 .await;
             assert!(handle.is_err());
         }
-    }
-
-    #[gpui::test]
-    async fn test_status_bar_visibility(cx: &mut TestAppContext) {
-        init_test(cx);
-
-        let fs = FakeFs::new(cx.executor());
-        let project = Project::test(fs, [], cx).await;
-        let (workspace, _cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
-
-        // Test with status bar shown (default)
-        workspace.read_with(cx, |workspace, cx| {
-            let visible = workspace.status_bar_visible(cx);
-            assert!(visible, "Status bar should be visible by default");
-        });
-
-        // Test with status bar hidden
-        cx.update_global(|store: &mut SettingsStore, cx| {
-            store.update_user_settings(cx, |settings| {
-                settings.status_bar.get_or_insert_default().show = Some(false);
-            });
-        });
-
-        workspace.read_with(cx, |workspace, cx| {
-            let visible = workspace.status_bar_visible(cx);
-            assert!(!visible, "Status bar should be hidden when show is false");
-        });
-
-        // Test with status bar shown explicitly
-        cx.update_global(|store: &mut SettingsStore, cx| {
-            store.update_user_settings(cx, |settings| {
-                settings.status_bar.get_or_insert_default().show = Some(true);
-            });
-        });
-
-        workspace.read_with(cx, |workspace, cx| {
-            let visible = workspace.status_bar_visible(cx);
-            assert!(visible, "Status bar should be visible when show is true");
-        });
     }
 
     fn pane_items_paths(pane: &Entity<Pane>, cx: &App) -> Vec<String> {

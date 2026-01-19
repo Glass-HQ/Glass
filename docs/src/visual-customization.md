@@ -86,7 +86,7 @@ To disable this behavior use:
 }
 ```
 
-### Status Bar
+### Dock Header & Indicators
 
 ```json [settings]
 {
@@ -95,7 +95,7 @@ To disable this behavior use:
   //   - `long`: "2 selections, 15 lines, 32 characters"
   "line_indicator_format": "long"
 
-  // Individual status bar icons can be hidden:
+  // Individual dock header buttons can be hidden:
   // "project_panel": {"button": false },
   // "outline_panel": {"button": false },
   // "collaboration_panel": {"button": false },
@@ -317,33 +317,16 @@ TBD: Centered layout related settings
   }
 ```
 
-### Status Bar
+### Workspace Buttons
+
+These settings control which panel buttons appear in the dock header.
 
 ```json [settings]
-  "status_bar": {
-    // Show/hide a button that displays the active buffer's language.
-    // Clicking the button brings up the language selector.
-    // Defaults to true.
-    "active_language_button": true,
-    // Show/hide a button that displays the cursor's position.
-    // Clicking the button brings up an input for jumping to a line and column.
-    // Defaults to true.
-    "cursor_position_button": true,
-    // Show/hide a button that displays the buffer's line-ending mode.
-    // Clicking the button brings up the line-ending selector.
-    // Defaults to false.
-    "line_endings_button": false,
-    // Show/hide a button that displays the buffer's character encoding.
-    // If set to "non_utf8", the button is hidden only for UTF-8 without BOM.
-    // Defaults to "non_utf8".
-    "active_encoding_button": "non_utf8"
-  },
-  "global_lsp_settings": {
-    // Show/hide the LSP button in the status bar.
-    // Activity from the LSP is still shown.
-    // Button is not shown if "enable_language_server" if false.
-    "button": true
-  },
+  "project_panel": { "button": true },
+  "terminal": { "button": true },
+  "diagnostics": { "button": true },
+  "editor": { "search": { "button": true } },
+  "global_lsp_settings": { "button": true }
 ```
 
 ### Multibuffer
@@ -443,7 +426,7 @@ Project panel can be shown/hidden with {#action project_panel::ToggleFocus} ({#k
 ```json [settings]
   // Project Panel Settings
   "project_panel": {
-    "button": true,                 // Show/hide button in the status bar
+    "button": true,                 // Show/hide button in the dock header
     "default_width": 240,           // Default panel width
     "dock": "left",                 // Position of the dock (left, right)
     "entry_spacing": "comfortable", // Vertical spacing (comfortable, standard)
@@ -479,7 +462,7 @@ Project panel can be shown/hidden with {#action project_panel::ToggleFocus} ({#k
   "agent": {
     "version": "2",
     "enabled": true,        // Enable/disable the agent
-    "button": true,         // Show/hide the icon in the status bar
+    "button": true,         // Show/hide the icon in the dock header
     "dock": "right",        // Where to dock: left, right, bottom
     "default_width": 640,   // Default width (left/right docked)
     "default_height": 320,  // Default height (bottom docked)
@@ -500,7 +483,7 @@ See [Zed AI Documentation](./ai/overview.md) for additional non-visual AI settin
   // Terminal Panel Settings
   "terminal": {
     "dock": "bottom",                   // Where to dock: left, right, bottom
-    "button": true,                     // Show/hide status bar icon
+    "button": true,                     // Show/hide dock header button
     "default_width": 640,               // Default width (left/right docked)
     "default_height": 320,              // Default height (bottom docked)
 
@@ -536,7 +519,7 @@ See [Terminal settings](./configuring-zed.md#terminal) for additional non-visual
 ```json [settings]
   // Git Panel
   "git_panel": {
-    "button": true,               // Show/hide status bar icon
+    "button": true,               // Show/hide dock header button
     "dock": "left",               // Where to dock: left, right
     "default_width": 360,         // Default width of the git panel.
     "status_style": "icon",       // label_color, icon
@@ -549,12 +532,12 @@ See [Terminal settings](./configuring-zed.md#terminal) for additional non-visual
   // Debugger Panel
   "debugger": {
     "dock": "bottom",             // Where to dock: left, right, bottom
-    "button": true                // Show/hide status bar icon
+    "button": true                // Show/hide dock header button
   },
 
   // Outline Panel
   "outline_panel": {
-    "button": true,               // Show/hide status bar icon
+    "button": true,               // Show/hide dock header button
     "default_width": 300,         // Default width of the git panel
     "dock": "left",               // Where to dock: left, right
     "file_icons": true,           // Show/hide file_icons
@@ -578,15 +561,15 @@ See [Terminal settings](./configuring-zed.md#terminal) for additional non-visual
 {
   // Collaboration Panel
   "collaboration_panel": {
-    "button": true, // Show/hide status bar icon
+    "button": true, // Show/hide dock header button
     "dock": "left", // Where to dock: left, right
     "default_width": 240 // Default width of the collaboration panel.
   },
-  "show_call_status_icon": true, // Shown call status in the OS status bar.
+  "show_call_status_icon": true, // Show call status in the title bar.
 
   // Notification Panel
   "notification_panel": {
-    // Whether to show the notification panel button in the status bar.
+    // Whether to show the notification panel button in the dock header.
     "button": true,
     // Where to dock the notification panel. Can be 'left' or 'right'.
     "dock": "right",

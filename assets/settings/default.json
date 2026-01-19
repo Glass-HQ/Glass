@@ -643,7 +643,7 @@
   "search_wrap": true,
   // Search options to enable by default when opening new project and buffer searches.
   "search": {
-    // Whether to show the project search button in the status bar.
+    // Whether to show the project search button in the title bar.
     "button": true,
     // Whether to only match on whole words.
     "whole_word": false,
@@ -704,7 +704,7 @@
   // Can be a combination of "left", "right" and "bottom".
   "resize_all_panels_in_dock": ["left"],
   "project_panel": {
-    // Whether to show the project panel button in the status bar
+    // Whether to show the project panel button in the dock header
     "button": true,
     // Whether to hide the gitignore entries in the project panel.
     "hide_gitignore": false,
@@ -798,7 +798,7 @@
     },
   },
   "outline_panel": {
-    // Whether to show the outline panel button in the status bar
+    // Whether to show the outline panel button in the dock header
     "button": true,
     // Default width of the outline panel.
     "default_width": 300,
@@ -852,7 +852,7 @@
     "expand_outlines_with_depth": 100,
   },
   "collaboration_panel": {
-    // Whether to show the collaboration panel button in the status bar.
+    // Whether to show the collaboration panel button in the dock header.
     "button": true,
     // Where to dock the collaboration panel. Can be 'left' or 'right'.
     "dock": "left",
@@ -860,7 +860,7 @@
     "default_width": 240,
   },
   "git_panel": {
-    // Whether to show the git panel button in the status bar.
+    // Whether to show the git panel button in the dock header.
     "button": true,
     // Where to dock the git panel. Can be 'left' or 'right'.
     "dock": "left",
@@ -901,7 +901,7 @@
     "auto_replace_emoji_shortcode": true,
   },
   "notification_panel": {
-    // Whether to show the notification panel button in the status bar.
+    // Whether to show the notification panel button in the dock header.
     "button": true,
     // Where to dock the notification panel. Can be 'left' or 'right'.
     "dock": "right",
@@ -913,7 +913,7 @@
     "inline_assistant_use_streaming_tools": true,
     // Whether the agent is enabled.
     "enabled": true,
-    // Whether to show the agent panel button in the status bar.
+    // Whether to show the agent panel button in the dock header.
     "button": true,
     // Where to dock the agent panel. Can be 'left', 'right' or 'bottom'.
     "dock": "right",
@@ -1125,7 +1125,7 @@
     // Default: false
     "show_turn_stats": false,
   },
-  // Whether the screen sharing icon is shown in the os status bar.
+  // Whether the screen sharing icon is shown in the title bar.
   "show_call_status_icon": true,
   // Whether to use language servers to provide code intelligence.
   "enable_language_server": true,
@@ -1365,7 +1365,7 @@
   "lsp_document_colors": "inlay",
   // Diagnostics configuration.
   "diagnostics": {
-    // Whether to show the project diagnostics button in the status bar.
+    // Whether to show the project diagnostics indicator in the title bar.
     "button": true,
     // Whether to show warnings or not by default.
     "include_warnings": true,
@@ -1547,19 +1547,6 @@
     // 2. hour24
     "hour_format": "hour12",
   },
-  // Status bar-related settings.
-  "status_bar": {
-    // Whether to show the status bar.
-    "experimental.show": true,
-    // Whether to show the active language button in the status bar.
-    "active_language_button": true,
-    // Whether to show the cursor position button in the status bar.
-    "cursor_position_button": true,
-    // Whether to show active line endings button in the status bar.
-    "line_endings_button": false,
-    // Control when to show the active encoding in the status bar.
-    "active_encoding_button": "non_utf8",
-  },
   // Settings specific to the terminal
   "terminal": {
     // What shell to use when opening a terminal. May take 3 values:
@@ -1646,7 +1633,7 @@
     "copy_on_select": false,
     // Whether to keep the text selection after copying it to the clipboard.
     "keep_selection_on_copy": true,
-    // Whether to show the terminal button in the status bar
+    // Whether to show the terminal button in the dock header
     "button": true,
     // Any key-value pairs added to this list will be added to the terminal's
     // environment. Use `:` to separate multiple values.
@@ -2234,7 +2221,7 @@
   },
   // Common language server settings.
   "global_lsp_settings": {
-    // Whether to show the LSP servers button in the status bar.
+    // Whether to show the LSP servers button in the title bar.
     "button": true,
   },
   // Jupyter settings

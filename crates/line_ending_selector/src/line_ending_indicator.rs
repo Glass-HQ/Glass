@@ -1,8 +1,9 @@
 use editor::Editor;
 use gpui::{Entity, Subscription, WeakEntity};
 use language::LineEnding;
+use workspace::TitleBarItemView;
 use ui::{Tooltip, prelude::*};
-use workspace::{StatusBarSettings, StatusItemView, item::ItemHandle, item::Settings};
+use workspace::item::ItemHandle;
 
 use crate::{LineEndingSelector, Toggle};
 
@@ -30,11 +31,11 @@ impl LineEndingIndicator {
 
 impl Render for LineEndingIndicator {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !StatusBarSettings::get_global(cx).line_endings_button {
-            return div();
-        }
-
         div().when_some(self.line_ending.as_ref(), |el, line_ending| {
+            if *line_ending == LineEnding::Unix {
+                return el.hidden();
+            }
+
             el.child(
                 Button::new("change-line-ending", line_ending.label())
                     .label_size(LabelSize::Small)
@@ -49,7 +50,7 @@ impl Render for LineEndingIndicator {
     }
 }
 
-impl StatusItemView for LineEndingIndicator {
+impl TitleBarItemView for LineEndingIndicator {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn ItemHandle>,

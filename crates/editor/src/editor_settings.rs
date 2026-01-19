@@ -162,7 +162,7 @@ pub struct DragAndDropSelection {
 /// Default options for buffer and project search items.
 #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
 pub struct SearchSettings {
-    /// Whether to show the project search button in the status bar.
+    /// Whether to show the project search button in the title bar.
     pub button: bool,
     /// Whether to only match on whole words.
     pub whole_word: bool,

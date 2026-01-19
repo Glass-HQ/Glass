@@ -1625,29 +1625,6 @@ Positive `integer` value between 1 and 32. Values outside of this range will be 
 
 `boolean` values
 
-## Status Bar
-
-- Description: Control various elements in the status bar. Note that some items in the status bar have their own settings set elsewhere.
-- Setting: `status_bar`
-- Default:
-
-```json [settings]
-"status_bar": {
-  "active_language_button": true,
-  "cursor_position_button": true,
-  "line_endings_button": false,
-  "active_encoding_button": "non_utf8"
-},
-```
-
-There is an experimental setting that completely hides the status bar. This causes major usability problems (you will be unable to use many of Zed's features), but is provided for those who value screen real-estate above all else.
-
-```json
-"status_bar": {
-  "experimental.show": false
-}
-```
-
 ## LSP
 
 - Description: Configuration for language servers.
@@ -1709,7 +1686,7 @@ While other options may be changed at a runtime and should be placed under `sett
 
 **Options**
 
-- `button`: Whether to show the LSP status button in the status bar
+- `button`: Whether to show the LSP status button in the title bar
 
 ## LSP Highlight Debounce
 
@@ -2732,7 +2709,7 @@ Configuration for various AI model providers including API URLs and authenticati
 
 ## Line Indicator Format
 
-- Description: Format for line indicator in the status bar
+- Description: Format for line indicator in the title bar
 - Setting: `line_indicator_format`
 - Default: `"short"`
 
@@ -3333,7 +3310,7 @@ Non-negative `integer` values
 
 ### Button
 
-- Description: Whether to show the project search button in the status bar.
+- Description: Whether to show the project search button in the title bar.
 - Setting: `button`
 - Default: `true`
 
@@ -3411,7 +3388,7 @@ Examples:
 
 ## Show Call Status Icon
 
-- Description: Whether or not to show the call status icon in the status bar.
+- Description: Whether or not to show the call status icon in the title bar.
 - Setting: `show_call_status_icon`
 - Default: `true`
 
@@ -4185,7 +4162,7 @@ Example command to set the title: `echo -e "\e]2;New Title\007";`
 
 ### Terminal: Button
 
-- Description: Control to show or hide the terminal button in the status bar
+- Description: Control to show or hide the terminal button in the dock header
 - Setting: `button`
 - Default: `true`
 
@@ -4808,7 +4785,7 @@ Visit [the Configuration page](./ai/configuration.md) under the AI section to le
 
 **Options**
 
-- `button`: Whether to show the collaboration panel button in the status bar
+- `button`: Whether to show the collaboration panel button in the dock header
 - `dock`: Where to dock the collaboration panel. Can be `left` or `right`
 - `default_width`: Default width of the collaboration panel
 
@@ -4856,7 +4833,7 @@ See the [debugger page](./debugger.md) for more information about debugging supp
 
 **Options**
 
-- `button`: Whether to show the git panel button in the status bar
+- `button`: Whether to show the git panel button in the dock header
 - `dock`: Where to dock the git panel. Can be `left` or `right`
 - `default_width`: Default width of the git panel
 - `status_style`: How to display git status. Can be `label_color` or `icon`

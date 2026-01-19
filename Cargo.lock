@@ -5631,6 +5631,7 @@ dependencies = [
  "editor",
  "encoding_rs",
  "gpui",
+ "settings",
  "ui",
  "workspace",
 ]
@@ -9375,6 +9376,7 @@ dependencies = [
  "language",
  "picker",
  "project",
+ "settings",
  "ui",
  "util",
  "workspace",
@@ -18385,7 +18387,6 @@ dependencies = [
  "task",
  "text",
  "theme",
- "title_bar",
  "tokio",
  "ui",
  "util",

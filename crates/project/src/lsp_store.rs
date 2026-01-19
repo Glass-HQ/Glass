@@ -9722,7 +9722,7 @@ impl LspStore {
     // After saving a buffer using a language server that doesn't provide a disk-based progress token,
     // kick off a timer that will reset every time the buffer is saved. If the timer eventually fires,
     // simulate disk-based diagnostics being finished so that other pieces of UI (e.g., project
-    // diagnostics view, diagnostic status bar) can update. We don't emit an event right away because
+    // diagnostics view, diagnostics indicator) can update. We don't emit an event right away because
     // the language server might take some time to publish diagnostics.
     fn simulate_disk_based_diagnostics_events_if_needed(
         &mut self,

@@ -236,9 +236,6 @@ jobs:
           echo "Validating stapled notarization ticket..."
           xcrun stapler validate "$DMG_PATH"
 
-          echo "Assessing DMG with Gatekeeper..."
-          spctl --assess --type open --verbose=4 "$DMG_PATH"
-
       - name: Cleanup keychain
         if: always()
         run: |

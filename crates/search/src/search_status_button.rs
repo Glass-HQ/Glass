@@ -1,7 +1,8 @@
 use editor::EditorSettings;
 use settings::Settings as _;
+use workspace::TitleBarItemView;
 use ui::{ButtonCommon, Clickable, Context, Render, Tooltip, Window, prelude::*};
-use workspace::{ItemHandle, StatusItemView};
+use workspace::ItemHandle;
 
 pub const SEARCH_ICON: IconName = IconName::MagnifyingGlass;
 
@@ -34,7 +35,7 @@ impl Render for SearchButton {
     }
 }
 
-impl StatusItemView for SearchButton {
+impl TitleBarItemView for SearchButton {
     fn set_active_pane_item(
         &mut self,
         _active_pane_item: Option<&dyn ItemHandle>,

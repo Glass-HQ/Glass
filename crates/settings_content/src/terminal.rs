@@ -124,7 +124,7 @@ pub struct TerminalSettingsContent {
     ///
     /// Default: true
     pub keep_selection_on_copy: Option<bool>,
-    /// Whether to show the terminal button in the status bar.
+    /// Whether to show the terminal panel button in the dock header.
     ///
     /// Default: true
     pub button: Option<bool>,

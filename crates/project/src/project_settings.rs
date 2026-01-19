@@ -118,7 +118,7 @@ impl From<settings::NodeBinarySettings> for NodeBinarySettings {
 /// Common language server settings.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GlobalLspSettings {
-    /// Whether to show the LSP servers button in the status bar.
+    /// Whether to show the LSP servers button in the title bar.
     ///
     /// Default: `true`
     pub button: bool,
@@ -497,7 +497,7 @@ impl Default for BranchPickerSettings {
 
 #[derive(Clone, Debug)]
 pub struct DiagnosticsSettings {
-    /// Whether to show the project diagnostics button in the status bar.
+    /// Whether to show the project diagnostics indicator in the title bar.
     pub button: bool,
 
     /// Whether or not to include warning diagnostics.

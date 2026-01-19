@@ -23,7 +23,7 @@ Here's an overview of all currently supported features:
 
 The Git Panel gives you a birds-eye view of the state of your working tree and of Git's staging area.
 
-You can open the Git Panel using {#action git_panel::ToggleFocus}, or by clicking the Git icon in the status bar.
+You can open the Git Panel using {#action git_panel::ToggleFocus}, or by clicking the Git icon in the dock header.
 
 In the panel you can see the state of your project at a glance—which repository and branch are active, what files have changed and the current staging state of each file.
 

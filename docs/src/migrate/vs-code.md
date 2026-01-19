@@ -118,7 +118,6 @@ The following VS Code settings are automatically imported when you use **Import 
 | `workbench.editor.editorActionsLocation`           | `tab_bar.show_tab_bar_buttons`                     |
 | `workbench.editor.limit.enabled` / `value`         | `max_tabs`                                         |
 | `workbench.editor.restoreViewState`                | `restore_on_file_reopen`                           |
-| `workbench.statusBar.visible`                      | `status_bar.show`                                  |
 
 **Project Panel (File Explorer)**
 
@@ -319,7 +318,7 @@ If you’re used to GitHub Copilot in VS Code, you can do the same in Zed. You c
 
 #### Configuring GitHub Copilot
 
-You should be able to sign-in to GitHub Copilot by clicking on the Zeta icon in the status bar and following the setup instructions.
+You should be able to sign-in to GitHub Copilot by clicking on the Zeta icon in the title bar and following the setup instructions.
 You can also add this to your settings:
 
 ```json

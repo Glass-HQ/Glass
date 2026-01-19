@@ -35,13 +35,14 @@ use std::{
     time::Duration,
 };
 use supermaven::{AccountStatus, Supermaven};
+use workspace::TitleBarItemView;
 use ui::{
     Clickable, ContextMenu, ContextMenuEntry, DocumentationSide, IconButton, IconButtonShape,
     Indicator, PopoverMenu, PopoverMenuHandle, ProgressBar, Tooltip, prelude::*,
 };
 use util::ResultExt as _;
 use workspace::{
-    StatusItemView, Toast, Workspace, create_and_open_local_file, item::ItemHandle,
+    Toast, Workspace, create_and_open_local_file, item::ItemHandle,
     notifications::NotificationId,
 };
 use zed_actions::{OpenBrowser, OpenSettingsAt};
@@ -280,13 +281,13 @@ impl Render for EditPredictionButton {
                                 .when(!has_api_key, |this| {
                                     this.indicator(Indicator::dot().color(Color::Error))
                                         .indicator_border_color(Some(
-                                            cx.theme().colors().status_bar_background,
+                                            cx.theme().colors().title_bar_background,
                                         ))
                                 })
                                 .when(has_api_key && !enabled, |this| {
                                     this.indicator(Indicator::dot().color(Color::Ignored))
                                         .indicator_border_color(Some(
-                                            cx.theme().colors().status_bar_background,
+                                            cx.theme().colors().title_bar_background,
                                         ))
                                 }),
                             move |_window, cx| {
@@ -354,7 +355,7 @@ impl Render for EditPredictionButton {
                         IconButton::new("zed-predict-pending-button", ep_icon)
                             .shape(IconButtonShape::Square)
                             .indicator(Indicator::dot().color(Color::Muted))
-                            .indicator_border_color(Some(cx.theme().colors().status_bar_background))
+                            .indicator_border_color(Some(cx.theme().colors().title_bar_background))
                             .tooltip(move |_window, cx| {
                                 Tooltip::with_meta("Edit Predictions", None, tooltip_meta, cx)
                             })
@@ -400,7 +401,7 @@ impl Render for EditPredictionButton {
                     .shape(IconButtonShape::Square)
                     .when_some(indicator_color, |this, color| {
                         this.indicator(Indicator::dot().color(color))
-                            .indicator_border_color(Some(cx.theme().colors().status_bar_background))
+                            .indicator_border_color(Some(cx.theme().colors().title_bar_background))
                     })
                     .when(!self.popover_menu_handle.is_deployed(), |element| {
                         let user = user.clone();
@@ -1204,7 +1205,7 @@ impl EditPredictionButton {
     }
 }
 
-impl StatusItemView for EditPredictionButton {
+impl TitleBarItemView for EditPredictionButton {
     fn set_active_pane_item(
         &mut self,
         item: Option<&dyn ItemHandle>,

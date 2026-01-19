@@ -3,15 +3,15 @@ use encoding_rs::{Encoding, UTF_8};
 use gpui::{
     Context, Entity, IntoElement, ParentElement, Render, Styled, Subscription, Window, div,
 };
+use workspace::TitleBarItemView;
 use ui::{Button, ButtonCommon, Clickable, LabelSize, Tooltip};
 use workspace::{
-    StatusBarSettings, StatusItemView, Workspace,
-    item::{ItemHandle, Settings},
+    Workspace,
+    item::ItemHandle,
 };
 
 pub struct ActiveBufferEncoding {
     active_encoding: Option<&'static Encoding>,
-    //workspace: WeakEntity<Workspace>,
     _observe_active_editor: Option<Subscription>,
     has_bom: bool,
 }
@@ -20,7 +20,6 @@ impl ActiveBufferEncoding {
     pub fn new(_workspace: &Workspace) -> Self {
         Self {
             active_encoding: None,
-            //workspace: workspace.weak_handle(),
             _observe_active_editor: None,
             has_bom: false,
         }
@@ -42,14 +41,14 @@ impl ActiveBufferEncoding {
 }
 
 impl Render for ActiveBufferEncoding {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let Some(active_encoding) = self.active_encoding else {
             return div().hidden();
         };
 
-        let display_option = StatusBarSettings::get_global(cx).active_encoding_button;
         let is_utf8 = active_encoding == UTF_8;
-        if !display_option.should_show(is_utf8, self.has_bom) {
+        let is_standard_utf8 = is_utf8 && !self.has_bom;
+        if is_standard_utf8 {
             return div().hidden();
         }
 
@@ -69,7 +68,7 @@ impl Render for ActiveBufferEncoding {
     }
 }
 
-impl StatusItemView for ActiveBufferEncoding {
+impl TitleBarItemView for ActiveBufferEncoding {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn ItemHandle>,

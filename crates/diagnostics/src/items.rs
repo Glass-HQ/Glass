@@ -8,13 +8,14 @@ use gpui::{
 use language::Diagnostic;
 use project::project_settings::{GoToDiagnosticSeverityFilter, ProjectSettings};
 use settings::Settings;
+use workspace::TitleBarItemView;
 use ui::{Button, ButtonLike, Color, Icon, IconName, Label, Tooltip, h_flex, prelude::*};
 use util::ResultExt;
-use workspace::{StatusItemView, ToolbarItemEvent, Workspace, item::ItemHandle};
+use workspace::{ToolbarItemEvent, Workspace, item::ItemHandle};
 
 use crate::{Deploy, IncludeWarnings, ProjectDiagnosticsEditor};
 
-/// The status bar item that displays diagnostic counts.
+/// The title bar item that displays diagnostic counts.
 pub struct DiagnosticIndicator {
     summary: project::DiagnosticSummary,
     workspace: WeakEntity<Workspace>,
@@ -205,7 +206,7 @@ impl DiagnosticIndicator {
 
 impl EventEmitter<ToolbarItemEvent> for DiagnosticIndicator {}
 
-impl StatusItemView for DiagnosticIndicator {
+impl TitleBarItemView for DiagnosticIndicator {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn ItemHandle>,

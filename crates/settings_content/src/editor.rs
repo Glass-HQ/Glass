@@ -782,7 +782,7 @@ pub enum SnippetSortOrder {
 #[with_fallible_options]
 #[derive(Clone, Default, Debug, Serialize, Deserialize, JsonSchema, MergeFrom, PartialEq, Eq)]
 pub struct SearchSettingsContent {
-    /// Whether to show the project search button in the status bar.
+    /// Whether to show the project search button in the title bar.
     pub button: Option<bool>,
     /// Whether to only match on whole words.
     pub whole_word: Option<bool>,

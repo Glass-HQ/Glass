@@ -18,7 +18,7 @@ You can confirm that Zeta is properly configured either by verifying whether you
 },
 ```
 
-Or you can also look for a little Z icon in the right of your status bar at the bottom.
+Or you can also look for a little Z icon in the title bar (right-hand side).
 
 ### Pricing and Plans
 
@@ -41,9 +41,9 @@ Toggle between them via the `mode` key:
 },
 ```
 
-Or directly via the UI through the status bar menu:
+Or directly via the UI through the title bar menu:
 
-![Edit Prediction status bar menu, with the modes toggle.](https://zed.dev/img/edit-prediction/status-bar-menu.webp)
+![Edit Prediction menu, with the modes toggle.](https://zed.dev/img/edit-prediction/status-bar-menu.webp)
 
 > Note that edit prediction modes work with any prediction provider.
 
@@ -305,7 +305,7 @@ To use GitHub Copilot as your provider, set this within `settings.json`:
 }
 ```
 
-To sign in to GitHub Copilot, click on the Copilot icon in the status bar. A popup window appears displaying a device code. Click the copy button to copy the code, then click "Connect to GitHub" to open the GitHub verification page in your browser. Paste the code when prompted. The popup window closes automatically after successful authorization.
+To sign in to GitHub Copilot, click on the Copilot icon in the title bar. A popup window appears displaying a device code. Click the copy button to copy the code, then click "Connect to GitHub" to open the GitHub verification page in your browser. Paste the code when prompted. The popup window closes automatically after successful authorization.
 
 #### Using GitHub Copilot Enterprise
 
@@ -324,7 +324,7 @@ If your organization uses GitHub Copilot Enterprise, you can configure Zed to us
 Replace `"https://your.enterprise.domain"` with the URL provided by your GitHub Enterprise administrator (e.g., `https://foo.ghe.com`).
 
 Once set, Zed will route Copilot requests through your enterprise endpoint.
-When you sign in by clicking the Copilot icon in the status bar, you will be redirected to your configured enterprise URL to complete authentication.
+When you sign in by clicking the Copilot icon in the title bar, you will be redirected to your configured enterprise URL to complete authentication.
 All other Copilot features and usage remain the same.
 
 Copilot can provide multiple completion alternatives, and these can be navigated with the following actions:
@@ -344,7 +344,7 @@ To use Supermaven as your provider, set this within `settings.json`:
 }
 ```
 
-You should be able to sign-in to Supermaven by clicking on the Supermaven icon in the status bar and following the setup instructions.
+You should be able to sign-in to Supermaven by clicking on the Supermaven icon in the title bar and following the setup instructions.
 
 ### Codestral {#codestral}
 
@@ -355,7 +355,7 @@ To use Mistral's Codestral as your provider:
 3. Find the Codestral section and enter your API key from the
    [Codestral dashboard](https://console.mistral.ai/codestral)
 
-Alternatively, click the edit prediction icon in the status bar and select
+Alternatively, click the edit prediction icon in the title bar and select
 **Configure Providers** from the menu.
 
 After adding your API key, set Codestral as your provider in `settings.json`:

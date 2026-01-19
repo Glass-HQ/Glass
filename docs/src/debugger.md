@@ -165,7 +165,7 @@ The settings for the debugger are grouped under the `debugger` key in `settings.
 - `dock`: Determines the position of the debug panel in the UI.
 - `stepping_granularity`: Determines the stepping granularity.
 - `save_breakpoints`: Whether the breakpoints should be reused across Zed sessions.
-- `button`: Whether to show the debug button in the status bar.
+- `button`: Whether to show the debugger panel button in the dock header.
 - `timeout`: Time in milliseconds until timeout error when connecting to a TCP debug adapter.
 - `log_dap_communications`: Whether to log messages between active debug adapters and Zed.
 - `format_dap_log_messages`: Whether to format DAP messages when adding them to the debug adapter logger.

@@ -20,8 +20,9 @@ use ui::{
     ContextMenu, ContextMenuEntry, Indicator, PopoverMenu, PopoverMenuHandle, Tooltip, prelude::*,
 };
 
+use workspace::TitleBarItemView;
 use util::{ResultExt, rel_path::RelPath};
-use workspace::{StatusItemView, Workspace};
+use workspace::Workspace;
 
 use crate::lsp_log_view;
 
@@ -1063,7 +1064,7 @@ impl LspButton {
     }
 }
 
-impl StatusItemView for LspButton {
+impl TitleBarItemView for LspButton {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn workspace::ItemHandle>,
@@ -1208,7 +1209,7 @@ impl Render for LspButton {
                     IconButton::new("zed-lsp-tool-button", IconName::BoltOutlined)
                         .when_some(indicator, IconButton::indicator)
                         .icon_size(IconSize::Small)
-                        .indicator_border_color(Some(cx.theme().colors().status_bar_background)),
+                        .indicator_border_color(Some(cx.theme().colors().title_bar_background)),
                     move |_window, cx| {
                         Tooltip::with_meta("Language Servers", Some(&ToggleMenu), description, cx)
                     },

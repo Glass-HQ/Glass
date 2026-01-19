@@ -1,18 +1,19 @@
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
-use crate::{Workspace, status_bar::StatusItemView};
+use crate::Workspace;
 use anyhow::Context as _;
 use client::proto;
 
 use gpui::{
-    Action, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter, FocusHandle,
-    Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement,
-    Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window, deferred, div,
-    px,
+    Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
+    FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
+    ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
+    deferred, div, px,
 };
 use settings::SettingsStore;
 use std::sync::Arc;
-use ui::{ContextMenu, Divider, DividerColor, IconButton, Tooltip, h_flex};
+use theme::ActiveTheme;
+use ui::{ContextMenu, IconButton, Tooltip, h_flex};
 use ui::{prelude::*, right_click_menu};
 use util::ResultExt as _;
 
@@ -331,12 +332,118 @@ struct PanelEntry {
     _subscriptions: [Subscription; 3],
 }
 
-pub struct PanelButtons {
-    dock: Entity<Dock>,
-    _settings_subscription: Subscription,
-}
-
 impl Dock {
+    fn render_dock_button_bar(
+        &self,
+        window: &mut Window,
+        cx: &Context<Self>,
+    ) -> Option<AnyElement> {
+        let active_index = self.active_panel_index;
+        let is_open = self.is_open;
+        let dock_position = self.position;
+
+        let (menu_anchor, menu_attach) = match self.position {
+            DockPosition::Left => (Corner::BottomLeft, Corner::TopLeft),
+            DockPosition::Bottom | DockPosition::Right => (Corner::BottomRight, Corner::TopRight),
+        };
+
+        let buttons: Vec<_> = self
+            .panel_entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, entry)| {
+                let icon = entry.panel.icon(window, cx)?;
+                let icon_tooltip = entry
+                    .panel
+                    .icon_tooltip(window, cx)
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("can't render a panel button without an icon tooltip")
+                    })
+                    .log_err()?;
+                let name = entry.panel.persistent_name();
+                let panel = entry.panel.clone();
+
+                let is_active_button = Some(i) == active_index && is_open;
+                let (action, tooltip) = if is_active_button {
+                    let action = self.toggle_action();
+                    let tooltip: SharedString = format!("Close {} Dock", self.position.label()).into();
+                    (action, tooltip)
+                } else {
+                    let action = entry.panel.toggle_action(window, cx);
+                    (action, icon_tooltip.into())
+                };
+
+                let focus_handle = self.focus_handle(cx);
+
+                Some(
+                    right_click_menu(name)
+                        .menu(move |window, cx| {
+                            const POSITIONS: [DockPosition; 3] = [
+                                DockPosition::Left,
+                                DockPosition::Right,
+                                DockPosition::Bottom,
+                            ];
+
+                            ContextMenu::build(window, cx, |mut menu, _, cx| {
+                                for position in POSITIONS {
+                                    if position != dock_position && panel.position_is_valid(position, cx) {
+                                        let panel = panel.clone();
+                                        menu = menu.entry(
+                                            format!("Dock {}", position.label()),
+                                            None,
+                                            move |window, cx| {
+                                                panel.set_position(position, window, cx);
+                                            },
+                                        )
+                                    }
+                                }
+                                menu
+                            })
+                        })
+                        .anchor(menu_anchor)
+                        .attach(menu_attach)
+                        .trigger({
+                            move |is_active, _window, _cx| {
+                            IconButton::new((name, is_active_button as u64), icon)
+                                .icon_size(IconSize::Small)
+                                .toggle_state(is_active_button)
+                                .on_click({
+                                    let action = action.boxed_clone();
+                                    let focus_handle = focus_handle.clone();
+                                    move |_, window, cx| {
+                                        window.focus(&focus_handle, cx);
+                                        window.dispatch_action(action.boxed_clone(), cx)
+                                    }
+                                })
+                                .when(!is_active, |this| {
+                                    this.tooltip(move |_window, cx| {
+                                        Tooltip::for_action(tooltip.clone(), &*action, cx)
+                                    })
+                                })
+                        }
+                        })
+                        .into_any_element(),
+                )
+            })
+            .collect();
+
+        if buttons.is_empty() {
+            return None;
+        }
+
+        Some(
+            h_flex()
+                .w_full()
+                .px_1()
+                .py_0p5()
+                .gap_1()
+                .border_b_1()
+                .border_color(cx.theme().colors().border)
+                .children(buttons)
+                .into_any_element(),
+        )
+    }
+
     pub fn new(
         position: DockPosition,
         modal_layer: Entity<ModalLayer>,
@@ -655,7 +762,7 @@ impl Dock {
             Ok(ix) => {
                 if cfg!(debug_assertions) {
                     panic!(
-                        "Panels `{}` and `{}` have the same activation priority. Each panel must have a unique priority so the status bar order is deterministic.",
+                        "Panels `{}` and `{}` have the same activation priority. Each panel must have a unique priority so the dock button order is deterministic.",
                         T::panel_key(),
                         self.panel_entries[ix].panel.panel_key()
                     );
@@ -690,10 +797,12 @@ impl Dock {
 
     pub fn restore_state(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if let Some(serialized) = self.serialized_dock.clone() {
+            let mut activated_panel = false;
             if let Some(active_panel) = serialized.active_panel.filter(|_| serialized.visible)
                 && let Some(idx) = self.panel_index_for_persistent_name(active_panel.as_str(), cx)
             {
                 self.activate_panel(idx, window, cx);
+                activated_panel = true;
             }
 
             if serialized.zoom
@@ -701,7 +810,11 @@ impl Dock {
             {
                 panel.set_zoomed(true, window, cx)
             }
-            self.set_open(serialized.visible, window, cx);
+
+            // Only open the dock if we actually activated a panel
+            if activated_panel {
+                self.set_open(serialized.visible, window, cx);
+            }
             return true;
         }
         false
@@ -942,11 +1055,22 @@ impl Render for Dock {
                             Axis::Horizontal => this.min_w(size).h_full(),
                             Axis::Vertical => this.min_h(size).w_full(),
                         })
+                        .flex()
+                        .flex_col()
+                        .when_some(self.render_dock_button_bar(window, &*cx), |this, header| {
+                            this.child(header)
+                        })
                         .child(
-                            entry
-                                .panel
-                                .to_any()
-                                .cached(StyleRefinement::default().v_flex().size_full()),
+                            div()
+                                .flex()
+                                .flex_1()
+                                .overflow_hidden()
+                                .child(
+                                    entry
+                                        .panel
+                                        .to_any()
+                                        .cached(StyleRefinement::default().v_flex().size_full()),
+                                ),
                         ),
                 )
                 .when(self.resizable(cx), |this| {
@@ -960,138 +1084,8 @@ impl Render for Dock {
     }
 }
 
-impl PanelButtons {
-    pub fn new(dock: Entity<Dock>, cx: &mut Context<Self>) -> Self {
-        cx.observe(&dock, |_, _, cx| cx.notify()).detach();
-        let settings_subscription = cx.observe_global::<SettingsStore>(|_, cx| cx.notify());
-        Self {
-            dock,
-            _settings_subscription: settings_subscription,
-        }
-    }
-}
-
-impl Render for PanelButtons {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let dock = self.dock.read(cx);
-        let active_index = dock.active_panel_index;
-        let is_open = dock.is_open;
-        let dock_position = dock.position;
-
-        let (menu_anchor, menu_attach) = match dock.position {
-            DockPosition::Left => (Corner::BottomLeft, Corner::TopLeft),
-            DockPosition::Bottom | DockPosition::Right => (Corner::BottomRight, Corner::TopRight),
-        };
-
-        let buttons: Vec<_> = dock
-            .panel_entries
-            .iter()
-            .enumerate()
-            .filter_map(|(i, entry)| {
-                let icon = entry.panel.icon(window, cx)?;
-                let icon_tooltip = entry
-                    .panel
-                    .icon_tooltip(window, cx)
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("can't render a panel button without an icon tooltip")
-                    })
-                    .log_err()?;
-                let name = entry.panel.persistent_name();
-                let panel = entry.panel.clone();
-
-                let is_active_button = Some(i) == active_index && is_open;
-                let (action, tooltip) = if is_active_button {
-                    let action = dock.toggle_action();
-
-                    let tooltip: SharedString =
-                        format!("Close {} Dock", dock.position.label()).into();
-
-                    (action, tooltip)
-                } else {
-                    let action = entry.panel.toggle_action(window, cx);
-
-                    (action, icon_tooltip.into())
-                };
-
-                let focus_handle = dock.focus_handle(cx);
-
-                Some(
-                    right_click_menu(name)
-                        .menu(move |window, cx| {
-                            const POSITIONS: [DockPosition; 3] = [
-                                DockPosition::Left,
-                                DockPosition::Right,
-                                DockPosition::Bottom,
-                            ];
-
-                            ContextMenu::build(window, cx, |mut menu, _, cx| {
-                                for position in POSITIONS {
-                                    if position != dock_position
-                                        && panel.position_is_valid(position, cx)
-                                    {
-                                        let panel = panel.clone();
-                                        menu = menu.entry(
-                                            format!("Dock {}", position.label()),
-                                            None,
-                                            move |window, cx| {
-                                                panel.set_position(position, window, cx);
-                                            },
-                                        )
-                                    }
-                                }
-                                menu
-                            })
-                        })
-                        .anchor(menu_anchor)
-                        .attach(menu_attach)
-                        .trigger(move |is_active, _window, _cx| {
-                            // Include active state in element ID to invalidate the cached
-                            // tooltip when panel state changes (e.g., via keyboard shortcut)
-                            IconButton::new((name, is_active_button as u64), icon)
-                                .icon_size(IconSize::Small)
-                                .toggle_state(is_active_button)
-                                .on_click({
-                                    let action = action.boxed_clone();
-                                    move |_, window, cx| {
-                                        window.focus(&focus_handle, cx);
-                                        window.dispatch_action(action.boxed_clone(), cx)
-                                    }
-                                })
-                                .when(!is_active, |this| {
-                                    this.tooltip(move |_window, cx| {
-                                        Tooltip::for_action(tooltip.clone(), &*action, cx)
-                                    })
-                                })
-                        }),
-                )
-            })
-            .collect();
-
-        let has_buttons = !buttons.is_empty();
-
-        h_flex()
-            .gap_1()
-            .when(
-                has_buttons && dock.position == DockPosition::Bottom,
-                |this| this.child(Divider::vertical().color(DividerColor::Border)),
-            )
-            .children(buttons)
-            .when(has_buttons && dock.position == DockPosition::Left, |this| {
-                this.child(Divider::vertical().color(DividerColor::Border))
-            })
-    }
-}
-
-impl StatusItemView for PanelButtons {
-    fn set_active_pane_item(
-        &mut self,
-        _active_pane_item: Option<&dyn crate::ItemHandle>,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) {
-        // Nothing to do, panel buttons don't depend on the active center item
-    }
-}
+// NOTE: Panel button rendering now lives inside `Dock::render`, so the buttons move with the
+// dock they control.
 
 #[cfg(any(test, feature = "test-support"))]
 pub mod test {

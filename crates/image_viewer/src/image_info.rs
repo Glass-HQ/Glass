@@ -1,9 +1,10 @@
 use gpui::{Context, Entity, IntoElement, ParentElement, Render, Subscription, div};
 use project::image_store::{ImageFormat, ImageMetadata};
 use settings::Settings;
+use workspace::TitleBarItemView;
 use ui::prelude::*;
 use util::size::format_file_size;
-use workspace::{ItemHandle, StatusItemView, Workspace};
+use workspace::{ItemHandle, Workspace};
 
 use crate::{ImageFileSizeUnit, ImageView, ImageViewerSettings};
 
@@ -81,7 +82,7 @@ impl Render for ImageInfo {
     }
 }
 
-impl StatusItemView for ImageInfo {
+impl TitleBarItemView for ImageInfo {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn ItemHandle>,

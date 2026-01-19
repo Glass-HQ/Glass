@@ -22,19 +22,20 @@ use std::{
     sync::Arc,
     time::{Duration, Instant},
 };
+use workspace::TitleBarItemView;
 use ui::{
     ButtonLike, CommonAnimationExt, ContextMenu, PopoverMenu, PopoverMenuHandle, Tooltip,
     prelude::*,
 };
 use util::truncate_and_trailoff;
-use workspace::{StatusItemView, Workspace, item::ItemHandle};
+use workspace::{Workspace, item::ItemHandle};
 
 const GIT_OPERATION_DELAY: Duration = Duration::from_millis(0);
 
 actions!(
     activity_indicator,
     [
-        /// Displays error messages from language servers in the status bar.
+        /// Displays error messages from language servers in the title bar.
         ShowErrorMessage
     ]
 );
@@ -913,7 +914,7 @@ impl Render for ActivityIndicator {
     }
 }
 
-impl StatusItemView for ActivityIndicator {
+impl TitleBarItemView for ActivityIndicator {
     fn set_active_pane_item(
         &mut self,
         _: Option<&dyn ItemHandle>,

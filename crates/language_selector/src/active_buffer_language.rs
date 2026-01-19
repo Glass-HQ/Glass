@@ -1,12 +1,12 @@
 use editor::Editor;
 use gpui::{
-    Context, Entity, IntoElement, ParentElement, Render, Styled, Subscription, WeakEntity, Window,
+    Context, Entity, IntoElement, ParentElement, Render, Subscription, WeakEntity, Window,
     div,
 };
 use language::LanguageName;
-use settings::Settings as _;
+use workspace::TitleBarItemView;
 use ui::{Button, ButtonCommon, Clickable, FluentBuilder, LabelSize, Tooltip};
-use workspace::{StatusBarSettings, StatusItemView, Workspace, item::ItemHandle};
+use workspace::{Workspace, item::ItemHandle};
 
 use crate::{LanguageSelector, Toggle};
 
@@ -41,10 +41,6 @@ impl ActiveBufferLanguage {
 
 impl Render for ActiveBufferLanguage {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if !StatusBarSettings::get_global(cx).active_language_button {
-            return div().hidden();
-        }
-
         div().when_some(self.active_language.as_ref(), |el, active_language| {
             let active_language_text = if let Some(active_language_text) = active_language {
                 active_language_text.to_string()
@@ -68,7 +64,7 @@ impl Render for ActiveBufferLanguage {
     }
 }
 
-impl StatusItemView for ActiveBufferLanguage {
+impl TitleBarItemView for ActiveBufferLanguage {
     fn set_active_pane_item(
         &mut self,
         active_pane_item: Option<&dyn ItemHandle>,

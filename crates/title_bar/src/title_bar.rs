@@ -7,6 +7,8 @@ mod project_dropdown;
 mod system_window_tabs;
 mod title_bar_settings;
 
+pub use workspace::TitleBarItemView;
+
 #[cfg(feature = "stories")]
 mod stories;
 
@@ -44,7 +46,10 @@ use ui::{
     PopoverMenuHandle, TintColor, Tooltip, prelude::*,
 };
 use util::ResultExt;
-use workspace::{SwitchProject, ToggleWorktreeSecurity, Workspace, notifications::NotifyResultExt};
+use workspace::{
+    Pane, SwitchProject, TitleBarItemViewHandle, ToggleWorktreeSecurity, Workspace,
+    notifications::NotifyResultExt,
+};
 use workspace_modes::{ModeId, ModeSwitcher, SwitchToEditorMode, SwitchToTerminalMode};
 use zed_actions::OpenRemote;
 
@@ -150,6 +155,8 @@ pub struct TitleBar {
     banner: Entity<OnboardingBanner>,
     screen_share_popover_handle: PopoverMenuHandle<ContextMenu>,
     project_dropdown_handle: PopoverMenuHandle<ProjectDropdown>,
+    right_items: Vec<Box<dyn TitleBarItemViewHandle>>,
+    active_pane: Option<Entity<Pane>>,
 }
 
 impl Render for TitleBar {
@@ -218,6 +225,7 @@ impl Render for TitleBar {
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .children(self.render_call_controls(window, cx))
                 .children(self.render_connection_status(status, cx))
+                .child(self.render_right_items())
                 .when(
                     user.is_none() && TitleBarSettings::get_global(cx).show_sign_in,
                     |this| this.child(self.render_sign_in_button(cx)),
@@ -291,12 +299,18 @@ impl TitleBar {
             }
         };
 
+        let workspace_handle = workspace.weak_handle().upgrade().unwrap();
         let mut subscriptions = Vec::new();
-        subscriptions.push(
-            cx.observe(&workspace.weak_handle().upgrade().unwrap(), |_, _, cx| {
-                cx.notify()
-            }),
-        );
+        subscriptions.push(cx.observe(&workspace_handle, |_, _, cx| cx.notify()));
+        subscriptions.push(cx.subscribe_in(
+            &workspace_handle,
+            window,
+            |this, workspace, event: &workspace::Event, window, cx| {
+                if matches!(event, workspace::Event::ActiveItemChanged) {
+                    this.set_active_pane(&workspace.read(cx).active_pane().clone(), window, cx);
+                }
+            },
+        ));
         subscriptions.push(
             cx.subscribe(&project, |this, _, event: &project::Event, cx| {
                 if let project::Event::BufferEdited = event {
@@ -356,7 +370,57 @@ impl TitleBar {
             banner,
             screen_share_popover_handle: PopoverMenuHandle::default(),
             project_dropdown_handle: PopoverMenuHandle::default(),
+            right_items: Vec::new(),
+            active_pane: None,
         }
+    }
+
+    pub fn add_right_item<T>(
+        &mut self,
+        item: Entity<T>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) where
+        T: 'static + TitleBarItemView,
+    {
+        if let Some(active_pane) = &self.active_pane {
+            let active_pane_item = active_pane.read(cx).active_item();
+            item.update(cx, |item, cx| {
+                item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
+            });
+        }
+        self.right_items.push(Box::new(item));
+        cx.notify();
+    }
+
+    pub fn set_active_pane(
+        &mut self,
+        pane: &Entity<Pane>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.active_pane = Some(pane.clone());
+        self._subscriptions
+            .push(cx.observe_in(pane, window, |this, _, window, cx| {
+                this.update_active_pane_item(window, cx);
+            }));
+        self.update_active_pane_item(window, cx);
+    }
+
+    fn update_active_pane_item(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let active_pane_item = self
+            .active_pane
+            .as_ref()
+            .and_then(|pane| pane.read(cx).active_item());
+        for item in &self.right_items {
+            item.set_active_pane_item(active_pane_item.as_deref(), window, cx);
+        }
+    }
+
+    fn render_right_items(&self) -> impl IntoElement {
+        h_flex()
+            .gap_1()
+            .children(self.right_items.iter().map(|item| item.to_any()))
     }
 
     fn worktree_count(&self, cx: &App) -> usize {
@@ -446,6 +510,7 @@ impl TitleBar {
         let options = self.project.read(cx).remote_connection_options(cx)?;
         let host: SharedString = options.display_name().into();
 
+        #[allow(unreachable_patterns)]
         let (nickname, tooltip_title, icon) = match options {
             RemoteConnectionOptions::Ssh(options) => (
                 options.nickname.map(|nick| nick.into()),
@@ -458,6 +523,7 @@ impl TitleBar {
             }
             #[cfg(any(test, feature = "test-support"))]
             RemoteConnectionOptions::Mock(_) => (None, "Mock Remote Project", IconName::Server),
+            _ => (None, "Unknown Remote", IconName::Server),
         };
 
         let nickname = nickname.unwrap_or_else(|| host.clone());

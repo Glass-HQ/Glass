@@ -205,7 +205,6 @@ impl VsCodeSettings {
             repl: None,
             server_url: None,
             session: None,
-            status_bar: self.status_bar_settings_content(),
             tab_bar: self.tab_bar_settings_content(),
             tabs: self.item_settings_content(),
             telemetry: self.telemetry_settings_content(),
@@ -648,16 +647,6 @@ impl VsCodeSettings {
                 .read_str("workbench.editor.editorActionsLocation")
                 .and_then(|str| if str == "hidden" { Some(false) } else { None }),
             show_pinned_tabs_in_separate_row: None,
-        })
-    }
-
-    fn status_bar_settings_content(&self) -> Option<StatusBarSettingsContent> {
-        skip_default(StatusBarSettingsContent {
-            show: self.read_bool("workbench.statusBar.visible"),
-            active_language_button: None,
-            cursor_position_button: None,
-            line_endings_button: None,
-            active_encoding_button: None,
         })
     }
 

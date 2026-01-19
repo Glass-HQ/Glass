@@ -37,7 +37,7 @@ pub struct WorkspaceSettingsContent {
     ///
     /// Default: false
     pub confirm_quit: Option<bool>,
-    /// Whether or not to show the call status icon in the status bar.
+    /// Whether or not to show the call status icon in the title bar.
     ///
     /// Default: true
     pub show_call_status_icon: Option<bool>,
@@ -420,32 +420,6 @@ pub struct TabBarSettingsContent {
     pub show_pinned_tabs_in_separate_row: Option<bool>,
 }
 
-#[with_fallible_options]
-#[derive(Clone, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug, PartialEq, Eq)]
-pub struct StatusBarSettingsContent {
-    /// Whether to show the status bar.
-    ///
-    /// Default: true
-    #[serde(rename = "experimental.show")]
-    pub show: Option<bool>,
-    /// Whether to display the active language button in the status bar.
-    ///
-    /// Default: true
-    pub active_language_button: Option<bool>,
-    /// Whether to show the cursor position button in the status bar.
-    ///
-    /// Default: true
-    pub cursor_position_button: Option<bool>,
-    /// Whether to show active line endings button in the status bar.
-    ///
-    /// Default: false
-    pub line_endings_button: Option<bool>,
-    /// Whether to show the active encoding button in the status bar.
-    ///
-    /// Default: non_utf8
-    pub active_encoding_button: Option<EncodingDisplayOptions>,
-}
-
 #[derive(
     Copy,
     Clone,
@@ -646,7 +620,7 @@ pub struct ProjectPanelAutoOpenSettings {
 #[with_fallible_options]
 #[derive(Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, MergeFrom, Debug)]
 pub struct ProjectPanelSettingsContent {
-    /// Whether to show the project panel button in the status bar.
+    /// Whether to show the project panel button in the dock header.
     ///
     /// Default: true
     pub button: Option<bool>,

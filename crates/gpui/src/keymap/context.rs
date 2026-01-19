@@ -59,9 +59,9 @@ impl KeyContext {
 
     /// Parse a key context from a string.
     /// The key context format is very simple:
-    /// - either a single identifier, such as `StatusBar`
+    /// - either a single identifier, such as `TitleBar`
     /// - or a key value pair, such as `mode = visible`
-    /// - separated by whitespace, such as `StatusBar mode = visible`
+    /// - separated by whitespace, such as `TitleBar mode = visible`
     pub fn parse(source: &str) -> Result<Self> {
         let mut context = Self::default();
         let source = skip_whitespace(source);
@@ -216,7 +216,7 @@ impl KeyBindingContextPredicate {
     /// A basic equivalence check against a set of identifiers can performed by
     /// simply writing a string:
     ///
-    /// `StatusBar` -> A predicate that will match a context with the identifier `StatusBar`
+    /// `TitleBar` -> A predicate that will match a context with the identifier `TitleBar`
     ///
     /// You can also specify a key-value pair:
     ///
@@ -225,15 +225,15 @@ impl KeyBindingContextPredicate {
     ///
     /// And a logical operations combining these two checks:
     ///
-    /// `StatusBar && mode == visible` -> A predicate that will match a context with the
-    ///                                   identifier `StatusBar` and the key `mode`
+    /// `TitleBar && mode == visible` -> A predicate that will match a context with the
+    ///                                   identifier `TitleBar` and the key `mode`
     ///                                   with the value `visible`
     ///
     ///
     /// There is also a special child `>` operator that will match a predicate that is
     /// below another predicate:
     ///
-    /// `StatusBar > mode == visible` -> A predicate that will match a context identifier `StatusBar`
+    /// `TitleBar > mode == visible` -> A predicate that will match a context identifier `TitleBar`
     ///                                  and a child context that has the key `mode` with the
     ///                                  value `visible`
     ///

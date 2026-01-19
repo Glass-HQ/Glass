@@ -1439,7 +1439,6 @@ impl Pane {
             }
             self.update_history(index);
             self.update_toolbar(window, cx);
-            self.update_status_bar(window, cx);
 
             if focus_item {
                 self.focus_active_item(window, cx);
@@ -2506,23 +2505,6 @@ impl Pane {
             .map(|item| item.as_ref());
         self.toolbar.update(cx, |toolbar, cx| {
             toolbar.set_active_item(active_item, window, cx);
-        });
-    }
-
-    fn update_status_bar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let workspace = self.workspace.clone();
-        let pane = cx.entity();
-
-        window.defer(cx, move |window, cx| {
-            let Ok(status_bar) =
-                workspace.read_with(cx, |workspace, _| workspace.status_bar.clone())
-            else {
-                return;
-            };
-
-            status_bar.update(cx, move |status_bar, cx| {
-                status_bar.set_active_pane(&pane, window, cx);
-            });
         });
     }
 

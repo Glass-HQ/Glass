@@ -1,10 +1,10 @@
 use gpui::{Context, Element, Entity, FontWeight, Render, Subscription, WeakEntity, Window, div};
 use ui::text_for_keystrokes;
-use workspace::{StatusItemView, item::ItemHandle, ui::prelude::*};
+use workspace::{TitleBarItemView, item::ItemHandle, ui::prelude::*};
 
 use crate::{Vim, VimEvent, VimGlobals};
 
-/// The ModeIndicator displays the current mode in the status bar.
+/// The ModeIndicator displays the current mode in the title bar.
 pub struct ModeIndicator {
     vim: Option<WeakEntity<Vim>>,
     pending_keys: Option<String>,
@@ -178,7 +178,7 @@ impl Render for ModeIndicator {
     }
 }
 
-impl StatusItemView for ModeIndicator {
+impl TitleBarItemView for ModeIndicator {
     fn set_active_pane_item(
         &mut self,
         _active_pane_item: Option<&dyn ItemHandle>,
