@@ -1491,8 +1491,7 @@ impl Workspace {
             window,
             cx,
         );
-        let bottom_dock =
-            Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
+        let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
         let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
         let session_id = app_state.session.read(cx).id().to_owned();
 
@@ -2724,9 +2723,9 @@ impl Workspace {
                                 if window.focused(cx) != focused {
                                     // dispatch_keystroke may cause the focus to change.
                                     // draw's side effect is to schedule the FocusChanged events in the current flush effect cycle
-                                    // And we need that to happen before the next keystroke to keep vim mode happy...
+                                    // And we need that to happen before the next keystroke to handle sequential keystrokes correctly.
                                     // (Note that the tests always do this implicitly, so you must manually test with something like:
-                                    //   "bindings": { "g z": ["workspace::SendKeystrokes", ": j <enter> u"]}
+                                    //   "bindings": { "g z": ["workspace::SendKeystrokes", "j <enter> u"]}
                                     // )
                                     window.draw(cx).clear();
                                 }
@@ -3496,7 +3495,11 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let mut found = None;
-        for position in [DockPosition::Left, DockPosition::Bottom, DockPosition::Right] {
+        for position in [
+            DockPosition::Left,
+            DockPosition::Bottom,
+            DockPosition::Right,
+        ] {
             let dock = self.dock_at_position(position);
             if let Some(panel_index) = dock.read(cx).panel_index_for_id(panel_id) {
                 found = Some((position, dock.clone(), panel_index));
@@ -3508,8 +3511,7 @@ impl Workspace {
             return;
         };
 
-        let other_is_zoomed =
-            self.zoomed.is_some() && self.zoomed_position != Some(dock_position);
+        let other_is_zoomed = self.zoomed.is_some() && self.zoomed_position != Some(dock_position);
         let is_visible = dock.read(cx).is_open()
             && dock.read(cx).active_panel_index() == Some(panel_index)
             && !other_is_zoomed;

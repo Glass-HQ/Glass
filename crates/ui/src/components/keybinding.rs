@@ -543,17 +543,6 @@ impl Component for KeyBinding {
     //                     ],
     //                 ),
     //                 example_group_with_title(
-    //                     "Vim Mode",
-    //                     vec![single_example(
-    //                         "Vim Mode Enabled",
-    //                         KeyBinding::new_from_gpui(
-    //                             gpui::KeyBinding::new("dd", gpui::NoAction, None),
-    //                             cx,
-    //                         )
-    //                         .into_any_element(),
-    //                     )],
-    //                 ),
-    //                 example_group_with_title(
     //                     "Complex Bindings",
     //                     vec![
     //                         single_example(

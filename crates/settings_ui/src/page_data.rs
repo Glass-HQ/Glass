@@ -1276,7 +1276,6 @@ fn keymap_page() -> SettingsPage {
         ]
     }
 
-
     let items: Box<[SettingsPageItem]> =
         concat_sections!(keybindings_section(), base_keymap_section(),);
 
@@ -2372,7 +2371,6 @@ fn editor_page() -> SettingsPage {
             }),
         ]
     }
-
 
     let items = concat_sections!(
         auto_save_section(),
@@ -5677,7 +5675,7 @@ fn terminal_page() -> SettingsPage {
             }),
             SettingsPageItem::SettingItem(SettingItem {
                 title: "Alternate Scroll",
-                description: "Whether alternate scroll mode is active by default (converts mouse scroll to arrow keys in apps like Vim).",
+                description: "Whether alternate scroll mode is active by default (converts mouse scroll to arrow keys in terminal applications).",
                 field: Box::new(SettingField {
                     json_path: Some("terminal.alternate_scroll"),
                     pick: |settings_content| {
