@@ -17031,6 +17031,7 @@ dependencies = [
  "util",
  "windows 0.61.3",
  "workspace",
+ "workspace_modes",
  "zed_actions",
 ]
 
@@ -20392,6 +20393,7 @@ dependencies = [
  "util",
  "uuid",
  "windows 0.61.3",
+ "workspace_modes",
  "zed_actions",
  "zlog",
 ]
@@ -20963,6 +20965,7 @@ dependencies = [
  "windows 0.61.3",
  "winresource",
  "workspace",
+ "workspace_modes",
  "zed-reqwest",
  "zed_actions",
  "zed_env_vars",

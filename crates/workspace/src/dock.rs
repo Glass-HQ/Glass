@@ -459,6 +459,14 @@ impl Dock {
             .map(|entry| &entry.panel)
     }
 
+    /// Get a panel by its key (e.g., "TerminalPanel")
+    pub fn panel_for_key(&self, key: &str) -> Option<&Arc<dyn PanelHandle>> {
+        self.panel_entries
+            .iter()
+            .find(|entry| entry.panel.panel_key() == key)
+            .map(|entry| &entry.panel)
+    }
+
     pub fn first_enabled_panel_idx(&mut self, cx: &mut Context<Self>) -> anyhow::Result<usize> {
         self.panel_entries
             .iter()

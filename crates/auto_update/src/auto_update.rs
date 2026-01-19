@@ -10,6 +10,8 @@ use paths::remote_servers_dir;
 use release_channel::{AppCommitSha, ReleaseChannel};
 use semver::Version;
 use serde::{Deserialize, Serialize};
+// GLASS: SettingsStore is unused while auto-updates are disabled, but preserved for re-enabling later
+#[allow(unused_imports)]
 use settings::{RegisterSetting, Settings, SettingsStore};
 use smol::fs::File;
 use smol::{fs, io::AsyncReadExt};
@@ -147,6 +149,8 @@ impl Drop for MacOsUnmounter<'_> {
     }
 }
 
+// GLASS: Field is unused while auto-updates are disabled, but preserved for re-enabling later
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, RegisterSetting)]
 struct AutoUpdateSetting(bool);
 

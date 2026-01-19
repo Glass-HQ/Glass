@@ -171,7 +171,8 @@
       "cmd-f": "buffer_search::Deploy",
       "cmd-alt-f": "buffer_search::DeployReplace",
       "cmd-alt-l": ["buffer_search::Deploy", { "selection_search_enabled": true }],
-      "cmd-e": ["buffer_search::Deploy", { "focus": false }],
+      // cmd-e reserved for workspace_modes::SwitchToEditorMode
+      // "cmd-e": ["buffer_search::Deploy", { "focus": false }],
       "cmd->": "agent::AddSelectionToThread",
       "cmd-<": "assistant::InsertIntoEditor",
       "cmd-alt-e": "editor::SelectEnclosingSymbol",
@@ -651,7 +652,9 @@
       "cmd-b": "workspace::ToggleLeftDock",
       "cmd-alt-b": "workspace::ToggleRightDock",
       "cmd-r": "workspace::ToggleRightDock",
-      "cmd-j": "workspace::ToggleBottomDock",
+      "cmd-shift-j": "workspace::ToggleBottomDock",
+      "cmd-j": "workspace_modes::SwitchToTerminalMode",
+      "cmd-e": "workspace_modes::SwitchToEditorMode",
       "alt-cmd-y": "workspace::ToggleAllDocks",
       // For 0px parameter, uses UI font size value.
       "ctrl-alt-0": "workspace::ResetActiveDockSize",
@@ -1129,7 +1132,8 @@
     "use_key_equivalents": true,
     "bindings": {
       "cmd-shift-p": "file_finder::SelectPrevious",
-      "cmd-j": "pane::SplitDown",
+      // cmd-j reserved for workspace_modes::SwitchToTerminalMode
+      "cmd-shift-down": "pane::SplitDown",
       "cmd-k": "pane::SplitUp",
       "cmd-h": "pane::SplitLeft",
       "cmd-l": "pane::SplitRight",
@@ -1306,7 +1310,8 @@
       "cmd-c": "keymap_editor::CopyAction",
       "cmd-shift-c": "keymap_editor::CopyContext",
       "cmd-t": "keymap_editor::ShowMatchingKeybinds",
-      "cmd-e": "zed::OpenKeymapFile",
+      // cmd-e reserved for workspace_modes::SwitchToEditorMode
+      "cmd-shift-e": "zed::OpenKeymapFile",
     },
   },
   {

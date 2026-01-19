@@ -52,16 +52,20 @@ A segmented control appears at the **far left of the title bar**, before the pro
 |------------|--------|---------|
 | `Cmd+J` | Switch to Terminal Mode | Global |
 | `Cmd+E` | Switch to Editor Mode | Global |
-| `Cmd+Shift+J` | Toggle terminal dock panel | Editor Mode only |
+| `Cmd+Shift+J` | Toggle bottom dock | Workspace (has effect in Editor Mode) |
 
 ### Terminal Mode Behavior
 
 When entering Terminal Mode:
 - If terminal sessions exist: Focus the last active terminal
-- If no terminals exist: Create one in the project's working directory
-- If no project is open: Create one in the user's home directory
+- If no terminals exist: One is auto-created via `TerminalPanel::set_active(true)`
+- If no project is open: Terminal opens in the user's home directory
 
-There is always at least one terminal in Terminal Mode (like a standalone terminal app).
+**Re-opening terminals:** If a user closes all terminals while in Terminal Mode, they can:
+- Press `Cmd+N` (or equivalent) to create a new terminal
+- Switch back to Editor Mode
+
+Unlike standalone terminal apps, we do NOT auto-recreate a terminal when the last one closes. This mirrors how editor panes work - closing all editors doesn't auto-create a new one.
 
 ### Available Features in Terminal Mode
 
@@ -86,15 +90,9 @@ crates/workspace_modes/
 ├── docs/
 │   └── design.md                   # This file
 └── src/
-    ├── workspace_modes.rs          # Crate root, init(), re-exports
-    ├── mode_registry.rs            # ModeRegistry: tracks registered modes
+    ├── workspace_modes.rs          # Crate root, init(), ModeId, actions
     ├── mode_switcher.rs            # UI: segmented control component
-    ├── mode_container.rs           # Container that renders active mode
-    ├── persistence.rs              # Save/restore mode state
-    └── modes/
-        ├── mod.rs
-        ├── editor_mode.rs          # Wraps existing workspace center
-        └── terminal_mode.rs        # Full terminal experience
+    └── persistence.rs              # Save/restore mode state (in workspace crate)
 ```
 
 ### Core Types
@@ -108,48 +106,24 @@ impl ModeId {
     pub const EDITOR: ModeId = ModeId("editor");
     pub const TERMINAL: ModeId = ModeId("terminal");
 }
-
-/// Trait that all workspace modes must implement
-pub trait WorkspaceMode: Render + Focusable + EventEmitter<ModeEvent> {
-    /// Unique identifier for this mode
-    fn id(&self) -> ModeId;
-    
-    /// Display name shown in the mode switcher
-    fn name(&self) -> &'static str;
-    
-    /// Key context for mode-specific keybindings
-    fn key_context(&self) -> KeyContext;
-    
-    /// Called when switching TO this mode
-    fn activate(&mut self, window: &mut Window, cx: &mut Context<Self>);
-    
-    /// Called when switching AWAY from this mode
-    fn deactivate(&mut self, window: &mut Window, cx: &mut Context<Self>);
-    
-    /// Whether this mode can be activated
-    fn can_activate(&self, cx: &App) -> bool;
-}
-
-/// Events emitted by modes
-pub enum ModeEvent {
-    /// Request to switch to another mode (e.g., when clicking a file link in terminal)
-    RequestSwitchTo(ModeId),
-}
-
-/// Registry that tracks all available modes
-pub struct ModeRegistry {
-    modes: HashMap<ModeId, Box<dyn Fn(&mut Window, &mut App) -> AnyView>>,
-    order: Vec<ModeId>,  // Display order in switcher
-}
-
-/// Container that manages mode instances and renders the active one
-pub struct ModeContainer {
-    workspace: WeakEntity<Workspace>,
-    active_mode_id: ModeId,
-    modes: HashMap<ModeId, AnyView>,
-    registry: Arc<ModeRegistry>,
-}
 ```
+
+### Simplified Architecture
+
+Rather than adding a separate mode registry/container abstraction, the actual implementation uses **conditional rendering directly in `Workspace`**:
+
+- `Workspace` stores an `active_mode: ModeId` field
+- `Workspace::render()` checks `active_mode` and renders differently:
+  - **Editor Mode**: Normal dock layout (left/right/bottom docks + center panes)
+  - **Terminal Mode**: Terminal panel rendered full-screen, replacing all other content
+- `switch_to_mode()` changes the mode and handles focus transitions
+- Mode is persisted via the existing workspace serialization system
+
+This approach:
+- Avoids circular dependencies (workspace_modes doesn't depend on workspace)
+- Reuses existing `TerminalPanel` from bottom dock (no separate terminal mode struct)
+- Keeps all mode logic in one place (Workspace)
+- Is simpler to understand and maintain
 
 ### Integration Diagram
 
@@ -164,25 +138,19 @@ pub struct ModeContainer {
 │ │ └──────────────────┘                                        │ │
 │ └─────────────────────────────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────────────────────────────┐ │
-│ │ ModeContainer                                                │ │
+│ │ Workspace::render()                                          │ │
 │ │                                                              │ │
 │ │   ┌─────────────────────────────────────────────────────┐   │ │
-│ │   │ EditorMode                                           │   │ │
-│ │   │   - Left dock (Project Panel, etc.)                  │   │ │
-│ │   │   - Center (Editor Panes)                            │   │ │
-│ │   │   - Right dock (Outline, etc.)                       │   │ │
-│ │   │   - Bottom dock (Terminal Panel, etc.)               │   │ │
+│ │   │ Editor Mode                                          │   │ │
+│ │   │   - Left/Right/Bottom docks + center panes            │   │ │
 │ │   └─────────────────────────────────────────────────────┘   │ │
 │ │                                                              │ │
 │ │                        ─── OR ───                            │ │
 │ │                                                              │ │
 │ │   ┌─────────────────────────────────────────────────────┐   │ │
-│ │   │ TerminalMode                                         │   │ │
-│ │   │   - Full-window terminal PaneGroup                   │   │ │
-│ │   │   - Tab bar with terminal tabs                       │   │ │
-│ │   │   - Supports splits, search, all terminal features   │   │ │
+│ │   │ Terminal Mode                                        │   │ │
+│ │   │   - `TerminalPanel` rendered full-screen              │   │ │
 │ │   └─────────────────────────────────────────────────────┘   │ │
-│ │                                                              │ │
 │ └─────────────────────────────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────────────────────────────┐ │
 │ │ StatusBar                                                    │ │
@@ -190,9 +158,9 @@ pub struct ModeContainer {
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Terminal: One System, Two Presentations
+### Terminal: One System, Two Layouts
 
-The key architectural principle: **one terminal implementation, two presentation contexts**.
+The key architectural principle: **one terminal implementation, multiple layouts**.
 
 ```
                     ┌─────────────────────┐
@@ -211,17 +179,18 @@ The key architectural principle: **one terminal implementation, two presentation
                     │ - Input handling    │
                     └──────────┬──────────┘
                                │
-              ┌────────────────┴────────────────┐
-              │                                 │
-              ▼                                 ▼
-    ┌─────────────────┐               ┌─────────────────┐
-    │  TerminalPanel  │               │  TerminalMode   │
-    │ (dock in Editor │◄─── shared ──►│ (full window in │
-    │     Mode)       │    sessions   │  Terminal Mode) │
-    └─────────────────┘               └─────────────────┘
+                      ┌───────────────┐
+                      │ TerminalPanel │
+                      └───────┬───────┘
+                              │
+                ┌─────────────┴─────────────┐
+                │                           │
+                ▼                           ▼
+      Rendered in bottom dock         Rendered full-screen
+         (Editor Mode)                 (Terminal Mode)
 ```
 
-Both `TerminalPanel` and `TerminalMode` access the same terminal sessions. When you switch modes, you're switching the container, not recreating terminals.
+Terminal sessions are shared because **the same `TerminalPanel` is reused**. Switching modes changes *where* it’s rendered (dock vs full-screen), without recreating sessions.
 
 ### Session Sharing
 
@@ -234,90 +203,51 @@ Terminal sessions are owned by the `Project` (via `TerminalProvider`), not by th
 5. The terminal is still there in the dock
 
 Implementation approach:
-- `TerminalPanel` continues to own its `PaneGroup` for dock presentation
-- `TerminalMode` has its own `PaneGroup` for full-screen presentation
-- Both can display the same `TerminalView` instances
-- When switching modes, active terminal views can be "moved" between containers
+- `Workspace` renders the existing `TerminalPanel`:
+  - In Editor Mode: as the bottom dock panel (normal behavior)
+  - In Terminal Mode: full-screen (dock layout is not rendered)
+- `Workspace::switch_to_mode(ModeId::TERMINAL, ...)` calls `TerminalPanel::set_active(true)` to ensure a terminal exists and then focuses the panel
+- No terminal views are moved between containers; the layout changes, not the underlying session ownership
 
 ## Implementation Plan
 
-### Phase 1: Foundation (New Crate + Core Types)
+### Phase 1: Foundation (New Crate + Core Types) ✓
 
-**Files to create:**
-- `crates/workspace_modes/Cargo.toml` ✓
-- `crates/workspace_modes/src/workspace_modes.rs` ✓
-- `crates/workspace_modes/src/mode_registry.rs` ✓
+**Files created:**
+- `crates/workspace_modes/Cargo.toml`
+- `crates/workspace_modes/src/workspace_modes.rs`
 
-**Tasks:**
-1. ✓ Create the `workspace_modes` crate with proper dependencies
-2. ✓ Define `ModeId`, `WorkspaceMode` trait, `ModeEvent` enum
-3. Implement `ModeRegistry` for tracking modes (flesh out stub)
-4. Add crate to workspace `Cargo.toml`
-5. Write unit tests for registry
+**Tasks completed:**
+1. Created the `workspace_modes` crate with proper dependencies
+2. Defined `ModeId` with EDITOR and TERMINAL constants
+3. Defined actions: `SwitchToEditorMode`, `SwitchToTerminalMode`
+4. Added crate to workspace `Cargo.toml`
 
-### Phase 2: Mode Container
+### Phase 5: Mode Switcher UI ✓
 
-**Files to modify:**
-- `crates/workspace_modes/src/mode_container.rs`
-
-**Tasks:**
-1. Implement `ModeContainer` struct
-2. Handle mode instantiation (lazy, on first switch)
-3. Handle mode activation/deactivation lifecycle
-4. Implement `Render` for `ModeContainer`
-5. Handle focus management when switching modes
-
-### Phase 3: Editor Mode
-
-**Files to modify:**
-- `crates/workspace_modes/src/modes/editor_mode.rs`
-
-**Tasks:**
-1. Create `EditorMode` that wraps existing workspace center + docks
-2. Implement `WorkspaceMode` trait fully
-3. Ensure all existing functionality works unchanged
-4. This is largely a "pass-through" to existing workspace rendering
-
-### Phase 4: Terminal Mode
-
-**Files to modify:**
-- `crates/workspace_modes/src/modes/terminal_mode.rs`
-- `crates/terminal_view/src/terminal_view.rs` (export utilities)
-- `crates/terminal_view/src/terminal_panel.rs` (share session management)
-
-**Tasks:**
-1. Create `TerminalMode` struct with its own `PaneGroup`
-2. Implement `WorkspaceMode` trait fully
-3. Reuse existing `TerminalView`, pane splitting, tab bar logic
-4. Ensure at least one terminal always exists
-5. Handle terminal creation with correct working directory
-6. Wire up all terminal features (search, splits, etc.)
-
-### Phase 5: Mode Switcher UI
-
-**Files to modify:**
+**Files modified:**
 - `crates/workspace_modes/src/mode_switcher.rs`
 - `crates/title_bar/src/title_bar.rs`
-- `crates/title_bar/Cargo.toml` (add dependency)
+- `crates/title_bar/Cargo.toml`
 
-**Tasks:**
-1. Create `ModeSwitcher` segmented control component
-2. Style to match Glass design system
-3. Handle click events to dispatch mode switch actions
-4. Integrate into `TitleBar` at far left position
-5. Ensure proper visual feedback for active mode
+**Tasks completed:**
+1. Created `ModeSwitcher` segmented control component using `ToggleButtonGroup`
+2. Integrated into `TitleBar` at far left position
+3. Click events dispatch `SwitchToEditorMode` / `SwitchToTerminalMode` actions
 
-### Phase 6: Workspace Integration
+### Phase 6: Workspace Integration ✓
 
-**Files to modify:**
+**Files modified:**
 - `crates/workspace/src/workspace.rs`
 - `crates/workspace/Cargo.toml`
 
-**Tasks:**
-1. Add `ModeContainer` to `Workspace` struct
-2. Modify `Workspace::render()` to delegate to `ModeContainer`
-3. Register mode switch actions (`SwitchToEditorMode`, `SwitchToTerminalMode`)
-4. Ensure existing workspace serialization still works
+**Tasks completed:**
+1. Added `active_mode: ModeId` field to `Workspace` struct
+2. Implemented conditional rendering in `Workspace::render()`:
+   - Editor Mode: normal dock layout
+   - Terminal Mode: terminal panel full-screen
+3. Registered mode switch action handlers
+4. Added `switch_to_mode()` method with proper focus management
 
 ### Phase 7: Keybindings
 
@@ -329,19 +259,20 @@ Implementation approach:
 **Tasks:**
 1. Add `Cmd+J` / `Ctrl+J` → `workspace_modes::SwitchToTerminalMode`
 2. Add `Cmd+E` / `Ctrl+E` → `workspace_modes::SwitchToEditorMode`
-3. Change `Cmd+Shift+J` → `terminal_panel::Toggle` (dock panel in Editor Mode)
-4. Add key context conditions so dock toggle only works in Editor Mode
+3. Move `workspace::ToggleBottomDock` to `Cmd+Shift+J` / `Ctrl+Shift+J` (freeing up `Cmd+J` / `Ctrl+J`)
+4. Resolve any keybinding conflicts in default keymaps (comment out or remap as needed)
 
-### Phase 8: Persistence
+### Phase 8: Persistence ✓
 
-**Files to modify:**
-- `crates/workspace_modes/src/persistence.rs`
-- `crates/workspace/src/persistence.rs` (or integrate there)
+**Files modified:**
+- `crates/workspace/src/persistence.rs`
+- `crates/workspace/src/persistence/model.rs`
 
-**Tasks:**
-1. Serialize active mode ID per workspace
-2. Restore mode on workspace load
-3. Handle migration (existing workspaces default to Editor Mode)
+**Tasks completed:**
+1. Added `active_mode` column to workspaces table
+2. Mode is serialized when workspace is serialized
+3. Mode is restored when workspace is loaded
+4. Existing workspaces default to Editor Mode
 
 ### Phase 9: Polish & Testing
 
@@ -361,14 +292,8 @@ Implementation approach:
 | File | Purpose |
 |------|---------|
 | `crates/workspace_modes/Cargo.toml` | Crate manifest |
-| `crates/workspace_modes/src/workspace_modes.rs` | Crate root |
-| `crates/workspace_modes/src/mode_registry.rs` | Mode registration |
-| `crates/workspace_modes/src/mode_container.rs` | Active mode rendering |
-| `crates/workspace_modes/src/mode_switcher.rs` | UI component |
-| `crates/workspace_modes/src/persistence.rs` | State persistence |
-| `crates/workspace_modes/src/modes/mod.rs` | Modes module |
-| `crates/workspace_modes/src/modes/editor_mode.rs` | Editor Mode |
-| `crates/workspace_modes/src/modes/terminal_mode.rs` | Terminal Mode |
+| `crates/workspace_modes/src/workspace_modes.rs` | Crate root, ModeId, actions |
+| `crates/workspace_modes/src/mode_switcher.rs` | UI component (segmented control) |
 | `crates/workspace_modes/docs/design.md` | This design document |
 
 ### Modified Files
@@ -377,10 +302,11 @@ Implementation approach:
 |------|---------|
 | `Cargo.toml` (root) | Add workspace_modes to members |
 | `crates/workspace/Cargo.toml` | Add workspace_modes dependency |
-| `crates/workspace/src/workspace.rs` | Integrate ModeContainer |
+| `crates/workspace/src/workspace.rs` | Track `active_mode` and render conditionally |
 | `crates/title_bar/Cargo.toml` | Add workspace_modes dependency |
 | `crates/title_bar/src/title_bar.rs` | Add ModeSwitcher |
-| `crates/terminal_view/src/terminal_panel.rs` | Share session utilities |
+| `crates/workspace/src/persistence.rs` | Persist `active_mode` in workspace DB |
+| `crates/workspace/src/persistence/model.rs` | Serialize `active_mode` with workspace state |
 | `crates/zed/Cargo.toml` | Add workspace_modes dependency |
 | `crates/zed/src/zed.rs` | Initialize modes |
 | `assets/keymaps/default-*.json` | New keybindings |
@@ -388,7 +314,6 @@ Implementation approach:
 ## Testing Strategy
 
 ### Unit Tests
-- `ModeRegistry` registration and lookup
 - `ModeId` equality and hashing
 - Persistence serialization/deserialization
 
@@ -414,9 +339,9 @@ When Glass is opened without a project folder:
 
 ### File Links in Terminal
 When a file link is clicked in Terminal Mode:
-- Emit `ModeEvent::RequestSwitchTo(ModeId::EDITOR)`
-- Switch to Editor Mode
-- Open the file in the editor
+- The existing `terminal_path_like_target.rs` handles this via `workspace.open_paths()`
+- Files open in the editor pane automatically (mode-agnostic)
+- No special handling needed - the same terminal panel code works in both dock and full-screen mode
 
 ### Remote/SSH Projects
 - If the terminal dock panel supports SSH, Terminal Mode supports it too
@@ -427,10 +352,10 @@ When a file link is clicked in Terminal Mode:
 
 ### Browser Mode
 When implementing Browser Mode, follow the same pattern:
-1. Create `browser_mode.rs` in `modes/`
-2. Implement `WorkspaceMode` trait
-3. Register with `ModeRegistry`
-4. Add to `ModeSwitcher`
+1. Add a new `ModeId` constant (e.g. `ModeId::BROWSER`)
+2. Add a new segment to `ModeSwitcher`
+3. Update `Workspace::render()` to render browser UI when `active_mode` matches
+4. Extend persistence so the mode string can be restored for the new mode
 
 ### Session Sidebar (Terminal Mode)
 Future enhancement for Terminal Mode:
@@ -466,3 +391,113 @@ Future enhancement:
 2. **Always visible**: User always knows which mode they're in
 3. **Future-proof**: Works well with 2, 3, or more modes
 4. **Compact**: Doesn't take much title bar space
+
+---
+
+## Implementation Progress
+
+This section tracks the actual implementation progress and decisions made.
+
+### Completed (2026-01-19)
+
+#### Phase 1: Foundation ✓
+- Created `workspace_modes` crate with proper structure
+- Implemented `ModeId` with `EDITOR` and `TERMINAL` constants
+- Defined actions: `SwitchToEditorMode`, `SwitchToTerminalMode`
+
+#### Phase 5: ModeSwitcher UI ✓
+- Implemented `ModeSwitcher` component using `ToggleButtonGroup`
+- Segmented control with "Editor" and "Terminal" buttons
+- Tooltips on each button
+- Dispatches `SwitchToEditorMode` / `SwitchToTerminalMode` actions
+
+#### Phase 6: Basic Workspace Integration ✓
+- Added `workspace_modes` dependency to `workspace`, `title_bar`, `zed` crates
+- Added `ModeSwitcher` to title bar (after application menu, before project items)
+- Called `workspace_modes::init(cx)` in zed initialization
+
+#### Phase 8: Persistence Types ✓
+- Persisted `active_mode` as part of workspace serialization and workspace DB state
+
+#### Phase 7: Keybindings ✓
+**Status**: Completed across all platforms.
+
+**macOS** (`default-macos.json`):
+- `Cmd+J` → `workspace_modes::SwitchToTerminalMode`
+- `Cmd+E` → `workspace_modes::SwitchToEditorMode`
+- `Cmd+Shift+J` → `workspace::ToggleBottomDock` (moved from Cmd+J)
+- Commented out conflicting `Cmd+E` bindings (buffer_search, keymap_editor)
+
+**Linux** (`default-linux.json`):
+- `Ctrl+J` → `workspace_modes::SwitchToTerminalMode`
+- `Ctrl+E` → `workspace_modes::SwitchToEditorMode`
+- `Ctrl+Shift+J` → `workspace::ToggleBottomDock` (moved from Ctrl+J)
+- `Ctrl+Shift+Down` → `pane::SplitDown` in FileFinder (moved from Ctrl+J)
+- `Ctrl+Shift+K` → `zed::OpenKeymapFile` in KeymapEditor (moved from Ctrl+E)
+- Commented out conflicting terminal `Ctrl+E` SendKeystroke
+
+**Windows** (`default-windows.json`):
+- `Ctrl+J` → `workspace_modes::SwitchToTerminalMode`
+- `Ctrl+E` → `workspace_modes::SwitchToEditorMode`
+- `Ctrl+Shift+J` → `workspace::ToggleBottomDock` (moved from Ctrl+J)
+- `Ctrl+Shift+Down` → `pane::SplitDown` in FileFinder (moved from Ctrl+J)
+- `Ctrl+Shift+K` → `zed::OpenKeymapFile` in KeymapEditor (moved from Ctrl+E)
+- Commented out conflicting file_finder `Ctrl+E` and terminal `Ctrl+E` SendKeystroke
+
+#### Phase 8: Persistence ✓
+**Status**: Completed.
+
+- Added `active_mode` column to `workspaces` table in workspace persistence schema
+- Migration added for existing workspaces (default to "editor" via `ModeId::from_str`)
+- Active mode is saved when workspace is serialized (`serialize_workspace_internal`)
+- Active mode is restored when workspace is loaded (`new_local` function)
+
+#### Phase 6: Full Workspace Integration ✓ (2026-01-19 - Second Session)
+**Status**: Completed - properly implemented mode switching in workspace.
+
+**What was fixed:**
+1. Removed the broken overlay hack that rendered terminal panel on top of editor content
+2. Implemented proper conditional rendering in `Workspace::render()`:
+   - When in Editor mode: renders normal dock layout (left/right/bottom docks + center panes)
+   - When in Terminal mode: renders terminal panel full-screen, replacing all other content
+3. Added proper focus management in `switch_to_mode()`:
+   - Terminal mode: focuses the terminal panel
+   - Editor mode: focuses the active editor pane
+4. Mode switching now serializes workspace state for persistence
+5. Active mode is restored from serialized workspace on load
+
+**Technical approach:**
+- Used conditional rendering with `if self.active_mode == ModeId::TERMINAL { ... } else { ... }` 
+- Terminal mode uses the existing `TerminalPanel` from bottom dock, rendered full-screen
+- No separate container entity needed - modes are tracked directly in `Workspace`
+- This approach is simpler and avoids circular dependencies
+
+#### Phase 9: Testing ✓ (2026-01-19)
+**Status**: Integration tests completed.
+
+**Tests added:**
+- `test_mode_switching_basic` - Verifies switching between Editor and Terminal modes
+- `test_mode_switching_idempotent` - Verifies repeated switches to same mode are no-ops
+- `test_mode_switch_actions` - Verifies action dispatch works correctly
+- `test_active_mode_persistence` - Verifies mode is saved/loaded from database correctly
+
+All 116 workspace tests pass.
+
+### Remaining Work
+
+- **Manual Testing**: See manual testing checklist below
+- **Future**: Browser Mode can be added following the same pattern
+
+### Architecture Notes
+
+#### Avoiding Circular Dependencies
+- `workspace_modes` does NOT depend on `workspace`
+- `workspace` depends on `workspace_modes`
+- This keeps the dependency graph clean
+
+#### Terminal Session Sharing
+Terminal Mode reuses the existing `TerminalPanel` from the bottom dock, rendered full-screen. This means:
+- Same terminal sessions in dock and full-screen mode
+- No separate terminal mode struct needed
+- All existing terminal features (tabs, splits, search) work automatically
+- No PTY process recreation when switching modes

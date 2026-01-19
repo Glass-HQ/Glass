@@ -62,6 +62,8 @@ pub(crate) struct SerializedWorkspace {
     pub(crate) breakpoints: BTreeMap<Arc<Path>, Vec<SourceBreakpoint>>,
     pub(crate) user_toolchains: BTreeMap<ToolchainScope, IndexSet<Toolchain>>,
     pub(crate) window_id: Option<u64>,
+    /// The active workspace mode (e.g., "editor" or "terminal")
+    pub(crate) active_mode: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Clone, Default)]

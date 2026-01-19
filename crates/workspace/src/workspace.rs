@@ -128,6 +128,7 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
+use workspace_modes::{ModeId, SwitchToEditorMode, SwitchToTerminalMode};
 pub use workspace_settings::{
     AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, StatusBarSettings, TabBarSettings,
     WorkspaceSettings,
@@ -1221,6 +1222,11 @@ pub struct Workspace {
     serializable_items_tx: UnboundedSender<Box<dyn SerializableItemHandle>>,
     _items_serializer: Task<Result<()>>,
     session_id: Option<String>,
+    /// The active workspace mode (Editor or Terminal)
+    active_mode: ModeId,
+    /// Tracks whether the bottom dock was visible before entering Terminal Mode,
+    /// so we can restore it when returning to Editor Mode
+    bottom_dock_visible_before_terminal_mode: Option<bool>,
     scheduled_tasks: Vec<Task<()>>,
     last_open_dock_positions: Vec<DockPosition>,
     removing: bool,
@@ -1629,6 +1635,8 @@ impl Workspace {
             serializable_items_tx,
             _items_serializer,
             session_id: Some(session_id),
+            active_mode: ModeId::EDITOR,
+            bottom_dock_visible_before_terminal_mode: None,
 
             scheduled_tasks: Vec::new(),
             last_open_dock_positions: Vec::new(),
@@ -1749,6 +1757,11 @@ impl Workspace {
                     .as_ref()
                     .map(|w| w.centered_layout)
                     .unwrap_or(false);
+                let active_mode = serialized_workspace
+                    .as_ref()
+                    .and_then(|w| w.active_mode.as_ref())
+                    .map(|s| ModeId::from_str(s))
+                    .unwrap_or(ModeId::EDITOR);
 
                 cx.update_window(window.into(), |_, window, cx| {
                     window.replace_root(cx, |window, cx| {
@@ -1761,6 +1774,7 @@ impl Workspace {
                         );
 
                         workspace.centered_layout = centered_layout;
+                        workspace.active_mode = active_mode;
 
                         // Call init callback to add items before window renders
                         if let Some(init) = init {
@@ -1797,6 +1811,11 @@ impl Workspace {
                     .as_ref()
                     .map(|w| w.centered_layout)
                     .unwrap_or(false);
+                let active_mode = serialized_workspace
+                    .as_ref()
+                    .and_then(|w| w.active_mode.as_ref())
+                    .map(|s| ModeId::from_str(s))
+                    .unwrap_or(ModeId::EDITOR);
                 cx.open_window(options, {
                     let app_state = app_state.clone();
                     let project_handle = project_handle.clone();
@@ -1810,6 +1829,7 @@ impl Workspace {
                                 cx,
                             );
                             workspace.centered_layout = centered_layout;
+                            workspace.active_mode = active_mode;
 
                             // Call init callback to add items before window renders
                             if let Some(init) = init {
@@ -4673,6 +4693,68 @@ impl Workspace {
         &self.active_pane
     }
 
+    /// Get the currently active mode ID
+    pub fn active_mode_id(&self) -> ModeId {
+        self.active_mode
+    }
+
+    /// Switch to a specific mode
+    pub fn switch_to_mode(&mut self, mode_id: ModeId, window: &mut Window, cx: &mut Context<Self>) {
+        if self.active_mode != mode_id {
+            let previous_mode = self.active_mode;
+            self.active_mode = mode_id;
+
+            match mode_id {
+                ModeId::TERMINAL => {
+                    // Save the current bottom dock visibility so we can restore it later
+                    let bottom_dock_was_open = self.bottom_dock.read(cx).is_open();
+                    self.bottom_dock_visible_before_terminal_mode = Some(bottom_dock_was_open);
+
+                    // When switching to Terminal mode, activate and focus the terminal panel.
+                    // Calling set_active(true) triggers auto-creation of a terminal if none exist.
+                    let terminal_panel = self
+                        .bottom_dock
+                        .read(cx)
+                        .panel_for_key("TerminalPanel")
+                        .cloned();
+                    if let Some(terminal_panel) = terminal_panel {
+                        terminal_panel.set_active(true, window, cx);
+                        let focus_handle = terminal_panel.panel_focus_handle(cx);
+                        window.focus(&focus_handle, cx);
+                    }
+                }
+                ModeId::EDITOR => {
+                    // When switching to Editor mode, deactivate terminal panel and focus the editor
+                    let terminal_panel = self
+                        .bottom_dock
+                        .read(cx)
+                        .panel_for_key("TerminalPanel")
+                        .cloned();
+                    if let Some(terminal_panel) = terminal_panel {
+                        terminal_panel.set_active(false, window, cx);
+                    }
+
+                    // Restore the bottom dock visibility to what it was before entering Terminal Mode
+                    if previous_mode == ModeId::TERMINAL {
+                        if let Some(was_open) = self.bottom_dock_visible_before_terminal_mode.take()
+                        {
+                            self.bottom_dock.update(cx, |dock, cx| {
+                                dock.set_open(was_open, window, cx);
+                            });
+                        }
+                    }
+
+                    let active_pane = self.active_pane.clone();
+                    window.focus(&active_pane.focus_handle(cx), cx);
+                }
+                _ => {}
+            }
+
+            self.serialize_workspace(window, cx);
+            cx.notify();
+        }
+    }
+
     pub fn focused_pane(&self, window: &Window, cx: &App) -> Entity<Pane> {
         for dock in self.all_docks() {
             if dock.focus_handle(cx).contains_focused(window, cx)
@@ -5849,6 +5931,7 @@ impl Workspace {
                     breakpoints,
                     window_id: Some(window.window_handle().window_id().as_u64()),
                     user_toolchains,
+                    active_mode: Some(self.active_mode.0.to_string()),
                 };
 
                 window.spawn(cx, async move |_| {
@@ -6426,6 +6509,16 @@ impl Workspace {
                     if let Some(item) = pane.read(cx).active_item() {
                         item.toggle_read_only(window, cx);
                     }
+                }),
+            )
+            .on_action(
+                cx.listener(|workspace, _: &SwitchToEditorMode, window, cx| {
+                    workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+                }),
+            )
+            .on_action(
+                cx.listener(|workspace, _: &SwitchToTerminalMode, window, cx| {
+                    workspace.switch_to_mode(ModeId::TERMINAL, window, cx);
                 }),
             )
             .on_action(cx.listener(Workspace::cancel))
@@ -7281,7 +7374,23 @@ impl Render for Workspace {
                                     ))
                                 })
                                 .child({
-                                    match bottom_dock_layout {
+                                    if self.active_mode == ModeId::TERMINAL {
+                                        // Terminal Mode: render terminal panel full-screen
+                                        let terminal_panel = self
+                                            .bottom_dock
+                                            .read(cx)
+                                            .panel_for_key("TerminalPanel")
+                                            .map(|panel| panel.to_any());
+
+                                        div()
+                                            .size_full()
+                                            .flex()
+                                            .flex_col()
+                                            .when_some(terminal_panel, |this, panel| this.child(panel))
+                                            .into_any_element()
+                                    } else {
+                                        // Editor Mode: render normal dock layout
+                                        match bottom_dock_layout {
                                         BottomDockLayout::Full => div()
                                             .flex()
                                             .flex_col()
@@ -7588,6 +7697,7 @@ impl Render for Workspace {
                                                 window,
                                                 cx,
                                             )),
+                                        }.into_any_element()
                                     }
                                 })
                                 .children(self.zoomed.as_ref().and_then(|view| {
@@ -12278,6 +12388,103 @@ mod tests {
                     .map(|path| path.path.display(PathStyle::local()).into_owned())
             })
             .collect()
+    }
+
+    #[gpui::test]
+    async fn test_mode_switching_basic(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        // Default mode should be Editor
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+        });
+
+        // Switch to Terminal mode
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::TERMINAL, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::TERMINAL);
+        });
+
+        // Switch back to Editor mode
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+        });
+    }
+
+    #[gpui::test]
+    async fn test_mode_switching_idempotent(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        // Switching to the same mode multiple times should be a no-op
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+        });
+
+        // Switch to terminal and verify idempotency there too
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::TERMINAL, window, cx);
+            workspace.switch_to_mode(ModeId::TERMINAL, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::TERMINAL);
+        });
+    }
+
+    #[gpui::test]
+    async fn test_mode_switch_actions(cx: &mut TestAppContext) {
+        init_test(cx);
+
+        let fs = FakeFs::new(cx.executor());
+        let project = Project::test(fs, [], cx).await;
+        let (workspace, cx) =
+            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+
+        // Verify starting in Editor mode
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+        });
+
+        // Dispatch SwitchToTerminalMode action
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::TERMINAL, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::TERMINAL);
+        });
+
+        // Dispatch SwitchToEditorMode action
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+        });
+
+        workspace.read_with(cx, |workspace, _| {
+            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+        });
     }
 
     pub fn init_test(cx: &mut TestAppContext) {

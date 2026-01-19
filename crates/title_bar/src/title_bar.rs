@@ -45,6 +45,7 @@ use ui::{
 };
 use util::ResultExt;
 use workspace::{SwitchProject, ToggleWorktreeSecurity, Workspace, notifications::NotifyResultExt};
+use workspace_modes::{ModeId, ModeSwitcher, SwitchToEditorMode, SwitchToTerminalMode};
 use zed_actions::OpenRemote;
 
 pub use onboarding_banner::restore_banner;
@@ -174,6 +175,7 @@ impl Render for TitleBar {
                                 title_bar.child(menu)
                             },
                         )
+                        .child(self.render_mode_switcher(window, cx))
                         .children(self.render_restricted_mode(cx))
                         .when(render_project_items, |title_bar| {
                             title_bar
@@ -628,6 +630,33 @@ impl TitleBar {
                 })
                 .into_any_element(),
         )
+    }
+
+    fn render_mode_switcher(
+        &self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
+        let workspace = self.workspace.clone();
+        let active_mode = self
+            .workspace
+            .upgrade()
+            .map(|ws| ws.read(cx).active_mode_id())
+            .unwrap_or(ModeId::EDITOR);
+
+        ModeSwitcher::new(active_mode).on_mode_select(move |mode_id, _, window, cx| {
+            if let Some(workspace) = workspace.upgrade() {
+                workspace.update(cx, |_workspace, cx| match mode_id {
+                    ModeId::EDITOR => {
+                        window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
+                    }
+                    ModeId::TERMINAL => {
+                        window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
+                    }
+                    _ => {}
+                });
+            }
+        })
     }
 
     pub fn render_project_name(&self, cx: &mut Context<Self>) -> impl IntoElement {

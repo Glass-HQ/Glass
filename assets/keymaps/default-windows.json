@@ -581,7 +581,9 @@
       "alt-9": ["workspace::ActivatePane", 8],
       "ctrl-alt-b": "workspace::ToggleRightDock",
       "ctrl-b": "workspace::ToggleLeftDock",
-      "ctrl-j": "workspace::ToggleBottomDock",
+      "ctrl-shift-j": "workspace::ToggleBottomDock",
+      "ctrl-j": "workspace_modes::SwitchToTerminalMode",
+      "ctrl-e": "workspace_modes::SwitchToEditorMode",
       "ctrl-shift-y": "workspace::ToggleAllDocks",
       "alt-r": "workspace::ResetActiveDockSize",
       // For 0px parameter, uses UI font size value.
@@ -598,7 +600,8 @@
       "ctrl-p": "file_finder::Toggle",
       "ctrl-shift-tab": ["tab_switcher::Toggle", { "select_last": true }],
       "ctrl-tab": "tab_switcher::Toggle",
-      "ctrl-e": "file_finder::Toggle",
+      // ctrl-e reserved for workspace_modes::SwitchToEditorMode
+      // "ctrl-e": "file_finder::Toggle",
       "f1": "command_palette::Toggle",
       "ctrl-shift-p": "command_palette::Toggle",
       "ctrl-shift-m": "diagnostics::Deploy",
@@ -1076,7 +1079,8 @@
     "use_key_equivalents": true,
     "bindings": {
       "ctrl-shift-p": "file_finder::SelectPrevious",
-      "ctrl-j": "pane::SplitDown",
+      // ctrl-j reserved for workspace_modes::SwitchToTerminalMode
+      "ctrl-shift-down": "pane::SplitDown",
       "ctrl-k": "pane::SplitUp",
       "ctrl-h": "pane::SplitLeft",
       "ctrl-l": "pane::SplitRight",
@@ -1119,7 +1123,8 @@
       // Overrides for conflicting keybindings
       "ctrl-b": ["terminal::SendKeystroke", "ctrl-b"],
       "ctrl-c": ["terminal::SendKeystroke", "ctrl-c"],
-      "ctrl-e": ["terminal::SendKeystroke", "ctrl-e"],
+      // ctrl-e reserved for workspace_modes::SwitchToEditorMode (use ctrl-shift-e or escape to exit terminal mode)
+      // "ctrl-e": ["terminal::SendKeystroke", "ctrl-e"],
       "ctrl-o": ["terminal::SendKeystroke", "ctrl-o"],
       "ctrl-w": ["terminal::SendKeystroke", "ctrl-w"],
       "ctrl-q": ["terminal::SendKeystroke", "ctrl-q"],
@@ -1232,7 +1237,8 @@
       "ctrl-c": "keymap_editor::CopyAction",
       "ctrl-shift-c": "keymap_editor::CopyContext",
       "ctrl-t": "keymap_editor::ShowMatchingKeybinds",
-      "ctrl-e": "zed::OpenKeymapFile",
+      // ctrl-e reserved for workspace_modes::SwitchToEditorMode
+      "ctrl-shift-k": "zed::OpenKeymapFile",
     },
   },
   {

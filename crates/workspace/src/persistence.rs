@@ -884,6 +884,10 @@ impl Domain for WorkspaceDb {
         sql!(
             ALTER TABLE remote_connections ADD COLUMN use_podman BOOLEAN;
         ),
+        // Add active_mode column for workspace_modes feature
+        sql!(
+            ALTER TABLE workspaces ADD COLUMN active_mode TEXT;
+        ),
     ];
 
     // Allow recovering from bad migration that was initially shipped to nightly
@@ -935,6 +939,7 @@ impl WorkspaceDb {
             centered_layout,
             docks,
             window_id,
+            active_mode,
         ): (
             WorkspaceId,
             String,
@@ -944,6 +949,7 @@ impl WorkspaceDb {
             Option<bool>,
             DockStructure,
             Option<u64>,
+            Option<String>,
         ) = self
             .select_row_bound(sql! {
                 SELECT
@@ -966,7 +972,8 @@ impl WorkspaceDb {
                     bottom_dock_visible,
                     bottom_dock_active_panel,
                     bottom_dock_zoom,
-                    window_id
+                    window_id,
+                    active_mode
                 FROM workspaces
                 WHERE
                     paths IS ? AND
@@ -1015,6 +1022,7 @@ impl WorkspaceDb {
             breakpoints: self.breakpoints(workspace_id),
             window_id,
             user_toolchains: self.user_toolchains(workspace_id, remote_connection_id),
+            active_mode,
         })
     }
 
@@ -1247,9 +1255,10 @@ impl WorkspaceDb {
                         bottom_dock_zoom,
                         session_id,
                         window_id,
+                        active_mode,
                         timestamp
                     )
-                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, CURRENT_TIMESTAMP)
+                    VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, CURRENT_TIMESTAMP)
                     ON CONFLICT DO
                     UPDATE SET
                         paths = ?2,
@@ -1266,6 +1275,7 @@ impl WorkspaceDb {
                         bottom_dock_zoom = ?13,
                         session_id = ?14,
                         window_id = ?15,
+                        active_mode = ?16,
                         timestamp = CURRENT_TIMESTAMP
                 );
                 let mut prepared_query = conn.exec_bound(query)?;
@@ -1277,6 +1287,7 @@ impl WorkspaceDb {
                     workspace.docks,
                     workspace.session_id,
                     workspace.window_id,
+                    workspace.active_mode,
                 );
 
                 prepared_query(args).context("Updating workspace")?;
@@ -2249,6 +2260,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace.clone()).await;
@@ -2370,6 +2382,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace.clone()).await;
@@ -2404,6 +2417,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace_without_breakpoint.clone())
@@ -2502,6 +2516,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let workspace_2 = SerializedWorkspace {
@@ -2517,6 +2532,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace_1.clone()).await;
@@ -2624,6 +2640,7 @@ mod tests {
             session_id: None,
             window_id: Some(999),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace.clone()).await;
@@ -2637,6 +2654,83 @@ mod tests {
 
         let round_trip_workspace = db.workspace_for_roots(&["/tmp", "/tmp2"]);
         assert_eq!(workspace, round_trip_workspace.unwrap());
+    }
+
+    #[gpui::test]
+    async fn test_active_mode_persistence() {
+        zlog::init_test();
+
+        let db = WorkspaceDb::open_test_db("test_active_mode_persistence").await;
+
+        // Test with Editor mode (default)
+        let workspace_editor = SerializedWorkspace {
+            id: WorkspaceId(1),
+            paths: PathList::new(&["/tmp/editor"]),
+            location: SerializedWorkspaceLocation::Local,
+            center_group: Default::default(),
+            window_bounds: Default::default(),
+            breakpoints: Default::default(),
+            display: Default::default(),
+            docks: Default::default(),
+            centered_layout: false,
+            session_id: None,
+            window_id: None,
+            user_toolchains: Default::default(),
+            active_mode: Some("editor".to_string()),
+        };
+
+        db.save_workspace(workspace_editor.clone()).await;
+        let loaded = db.workspace_for_roots(&["/tmp/editor"]).unwrap();
+        assert_eq!(loaded.active_mode, Some("editor".to_string()));
+
+        // Test with Terminal mode
+        let workspace_terminal = SerializedWorkspace {
+            id: WorkspaceId(2),
+            paths: PathList::new(&["/tmp/terminal"]),
+            location: SerializedWorkspaceLocation::Local,
+            center_group: Default::default(),
+            window_bounds: Default::default(),
+            breakpoints: Default::default(),
+            display: Default::default(),
+            docks: Default::default(),
+            centered_layout: false,
+            session_id: None,
+            window_id: None,
+            user_toolchains: Default::default(),
+            active_mode: Some("terminal".to_string()),
+        };
+
+        db.save_workspace(workspace_terminal.clone()).await;
+        let loaded = db.workspace_for_roots(&["/tmp/terminal"]).unwrap();
+        assert_eq!(loaded.active_mode, Some("terminal".to_string()));
+
+        // Test with None (for legacy workspaces)
+        let workspace_none = SerializedWorkspace {
+            id: WorkspaceId(3),
+            paths: PathList::new(&["/tmp/legacy"]),
+            location: SerializedWorkspaceLocation::Local,
+            center_group: Default::default(),
+            window_bounds: Default::default(),
+            breakpoints: Default::default(),
+            display: Default::default(),
+            docks: Default::default(),
+            centered_layout: false,
+            session_id: None,
+            window_id: None,
+            user_toolchains: Default::default(),
+            active_mode: None,
+        };
+
+        db.save_workspace(workspace_none.clone()).await;
+        let loaded = db.workspace_for_roots(&["/tmp/legacy"]).unwrap();
+        assert_eq!(loaded.active_mode, None);
+
+        // Test update from editor to terminal
+        let mut workspace_update = workspace_editor.clone();
+        workspace_update.active_mode = Some("terminal".to_string());
+        db.save_workspace(workspace_update.clone()).await;
+        let loaded = db.workspace_for_roots(&["/tmp/editor"]).unwrap();
+        assert_eq!(loaded.active_mode, Some("terminal".to_string()));
     }
 
     #[gpui::test]
@@ -2658,6 +2752,7 @@ mod tests {
             session_id: None,
             window_id: Some(1),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let mut workspace_2 = SerializedWorkspace {
@@ -2673,6 +2768,7 @@ mod tests {
             session_id: None,
             window_id: Some(2),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace_1.clone()).await;
@@ -2715,6 +2811,7 @@ mod tests {
             session_id: None,
             window_id: Some(3),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace_3.clone()).await;
@@ -2753,6 +2850,7 @@ mod tests {
             session_id: Some("session-id-1".to_owned()),
             window_id: Some(10),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let workspace_2 = SerializedWorkspace {
@@ -2768,6 +2866,7 @@ mod tests {
             session_id: Some("session-id-1".to_owned()),
             window_id: Some(20),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let workspace_3 = SerializedWorkspace {
@@ -2783,6 +2882,7 @@ mod tests {
             session_id: Some("session-id-2".to_owned()),
             window_id: Some(30),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let workspace_4 = SerializedWorkspace {
@@ -2798,6 +2898,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let connection_id = db
@@ -2824,6 +2925,7 @@ mod tests {
             session_id: Some("session-id-2".to_owned()),
             window_id: Some(50),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         let workspace_6 = SerializedWorkspace {
@@ -2839,6 +2941,7 @@ mod tests {
             session_id: Some("session-id-3".to_owned()),
             window_id: Some(60),
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         db.save_workspace(workspace_1.clone()).await;
@@ -2891,6 +2994,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         }
     }
 
@@ -2926,6 +3030,7 @@ mod tests {
             breakpoints: Default::default(),
             window_id: Some(window_id),
             user_toolchains: Default::default(),
+            active_mode: None,
         })
         .collect::<Vec<_>>();
 
@@ -3024,6 +3129,7 @@ mod tests {
             breakpoints: Default::default(),
             window_id: Some(window_id),
             user_toolchains: Default::default(),
+            active_mode: None,
         })
         .collect::<Vec<_>>();
 
@@ -3376,6 +3482,7 @@ mod tests {
             session_id: None,
             window_id: None,
             user_toolchains: Default::default(),
+            active_mode: None,
         };
 
         // Save the workspace (this creates the record with empty paths)
