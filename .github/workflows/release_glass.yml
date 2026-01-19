@@ -13,6 +13,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: '1'
+  CARGO_INCREMENTAL: '0'
 
 jobs:
   build-macos:
@@ -28,32 +29,41 @@ jobs:
           # - target: x86_64-apple-darwin
           #   runner: macos-14
           #   arch: x86_64
-    
+
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
       APPLE_NOTARIZATION_KEY: ${{ secrets.APPLE_NOTARIZATION_KEY }}
       APPLE_NOTARIZATION_KEY_ID: ${{ secrets.APPLE_NOTARIZATION_KEY_ID }}
       APPLE_NOTARIZATION_ISSUER_ID: ${{ secrets.APPLE_NOTARIZATION_ISSUER_ID }}
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
+      # Use Namespace Labs cache (like Zed) for better distributed caching
       - name: Cache Rust dependencies
-        uses: swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2
+        uses: namespacelabs/nscloud-cache-action@v1
         with:
-          # Cache is keyed by target architecture
-          key: ${{ matrix.target }}
-          # Save cache even if build fails (helps debug)
-          save-if: true
+          cache: rust
+
+      # Cache cargo-bundle separately to avoid rebuilding it every time
+      - name: Cache cargo-bundle
+        id: cache-cargo-bundle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-bundle
+          key: cargo-bundle-${{ runner.os }}-${{ runner.arch }}-v1
 
       - name: Install cargo-bundle
+        if: steps.cache-cargo-bundle.outputs.cache-hit != 'true'
         run: cargo install cargo-bundle --git https://github.com/zed-industries/cargo-bundle.git --branch zed-deploy
 
       - name: Setup Node.js
@@ -61,8 +71,17 @@ jobs:
         with:
           node-version: '20'
 
+      # Cache Homebrew packages
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /opt/homebrew/Cellar/cmake
+          key: homebrew-${{ runner.os }}-${{ runner.arch }}-cmake-v1
+
       - name: Install cmake
-        run: brew install cmake
+        run: brew install cmake || true
 
       - name: Generate licenses
         run: script/generate-licenses
