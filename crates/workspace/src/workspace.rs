@@ -33,7 +33,7 @@ use client::{
     proto::{self, ErrorCode, PanelId, PeerId},
 };
 use collections::{HashMap, HashSet, hash_map};
-use dock::{Dock, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE};
+use dock::{Dock, DockButtonBar, DockPosition, PanelHandle, RESIZE_HANDLE_SIZE};
 use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use futures::{
     Future, FutureExt, StreamExt,
@@ -1483,9 +1483,17 @@ impl Workspace {
         )
         .detach();
 
-        let left_dock = Dock::new(DockPosition::Left, modal_layer.clone(), window, cx);
-        let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), window, cx);
-        let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), window, cx);
+        let dock_button_bar = DockButtonBar::new(weak_handle.clone(), cx);
+        let left_dock = Dock::new(
+            DockPosition::Left,
+            modal_layer.clone(),
+            Some(dock_button_bar),
+            window,
+            cx,
+        );
+        let bottom_dock =
+            Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
+        let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
         let session_id = app_state.session.read(cx).id().to_owned();
 
         let mut active_call = None;
@@ -7365,8 +7373,17 @@ impl Render for Workspace {
                                         div()
                                             .size_full()
                                             .flex()
-                                            .flex_col()
-                                            .when_some(terminal_panel, |this, panel| this.child(panel))
+                                            .flex_row()
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .flex_1()
+                                                    .overflow_hidden()
+                                                    .when_some(terminal_panel, |this, panel| {
+                                                        this.child(panel)
+                                                    }),
+                                            )
                                             .into_any_element()
                                     } else {
                                         // Editor Mode: render normal dock layout

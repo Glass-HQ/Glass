@@ -735,13 +735,7 @@ impl LspButton {
             lsp_menu_refresh: Task::ready(()),
             _subscriptions: vec![settings_subscription, lsp_store_subscription],
         };
-        if !lsp_button
-            .server_state
-            .read(cx)
-            .language_servers
-            .binary_statuses
-            .is_empty()
-        {
+        if ProjectSettings::get_global(cx).global_lsp_settings.button {
             lsp_button.refresh_lsp_menu(true, window, cx);
         }
 
@@ -1150,14 +1144,42 @@ impl TitleBarItemView for LspButton {
 
 impl Render for LspButton {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl ui::IntoElement {
-        if self.server_state.read(cx).language_servers.is_empty() || self.lsp_menu.is_none() {
+        if !ProjectSettings::get_global(cx).global_lsp_settings.button || self.lsp_menu.is_none() {
             return div().hidden();
+        }
+
+        let state = self.server_state.read(cx);
+        if state.language_servers.is_empty() {
+            let lsp_button = cx.weak_entity();
+            return div().child(
+                PopoverMenu::new("lsp-tool")
+                    .menu(move |_, cx| {
+                        lsp_button
+                            .read_with(cx, |lsp_button, _| lsp_button.lsp_menu.clone())
+                            .ok()
+                            .flatten()
+                    })
+                    .anchor(Corner::BottomLeft)
+                    .with_handle(self.popover_menu_handle.clone())
+                    .trigger_with_tooltip(
+                        IconButton::new("zed-lsp-tool-button", IconName::BoltOutlined)
+                            .icon_size(IconSize::Small)
+                            .indicator_border_color(Some(cx.theme().colors().title_bar_background)),
+                        move |_window, cx| {
+                            Tooltip::with_meta(
+                                "Language Servers",
+                                Some(&ToggleMenu),
+                                "No language servers",
+                                cx,
+                            )
+                        },
+                    ),
+            );
         }
 
         let mut has_errors = false;
         let mut has_warnings = false;
         let mut has_other_notifications = false;
-        let state = self.server_state.read(cx);
         for binary_status in state.language_servers.binary_statuses.values() {
             has_errors |= matches!(binary_status.status, BinaryStatus::Failed { .. });
             has_other_notifications |= binary_status.message.is_some();
