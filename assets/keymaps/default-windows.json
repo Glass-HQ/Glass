@@ -545,7 +545,6 @@
     "context": "Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
-      "ctrl-shift-o": "outline::Toggle",
       "ctrl-g": "go_to_line::Toggle",
     },
   },
@@ -606,7 +605,8 @@
       "ctrl-shift-p": "command_palette::Toggle",
       "ctrl-shift-m": "diagnostics::Deploy",
       "ctrl-shift-e": "project_panel::ToggleFocus",
-      "ctrl-shift-b": "outline_panel::ToggleFocus",
+      "ctrl-shift-o": "outline_panel::ToggleFocus",
+      "ctrl-shift-b": "workspace_modes::SwitchToBrowserMode",
       "ctrl-shift-g": "git_panel::ToggleFocus",
       "ctrl-shift-d": "debug_panel::ToggleFocus",
       "ctrl-shift-/": "agent::ToggleFocus",

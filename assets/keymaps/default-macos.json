@@ -415,7 +415,6 @@
       "cmd-f": "search::FocusSearch",
       "cmd-alt-f": "search::ToggleReplace",
       "cmd-alt-l": "search::ToggleSelection",
-      "cmd-shift-o": "outline::Toggle",
     },
   },
   {
@@ -597,7 +596,6 @@
     "context": "Editor && mode == full",
     "use_key_equivalents": true,
     "bindings": {
-      "cmd-shift-o": "outline::Toggle",
       "ctrl-g": "go_to_line::Toggle",
       "cmd-shift-backspace": "editor::GoToPreviousChange",
       "cmd-shift-alt-backspace": "editor::GoToNextChange",
@@ -676,7 +674,8 @@
       "cmd-shift-p": "command_palette::Toggle",
       "cmd-shift-m": "diagnostics::Deploy",
       "cmd-shift-e": "project_panel::ToggleFocus",
-      "cmd-shift-b": "outline_panel::ToggleFocus",
+      "cmd-shift-o": "outline_panel::ToggleFocus",
+      "cmd-shift-b": "workspace_modes::SwitchToBrowserMode",
       "ctrl-shift-g": "git_panel::ToggleFocus",
       "cmd-shift-d": "debug_panel::ToggleFocus",
       "cmd-?": "agent::ToggleFocus",

@@ -76,6 +76,7 @@ auto_update.workspace = true
 auto_update_ui.workspace = true
 bincode.workspace = true
 breadcrumbs.workspace = true
+browser.workspace = true
 call.workspace = true
 channel.workspace = true
 clap.workspace = true

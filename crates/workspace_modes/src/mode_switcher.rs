@@ -14,7 +14,7 @@ pub type OnModeSelect = Arc<dyn Fn(ModeId, &ClickEvent, &mut Window, &mut App) +
 /// Segmented control UI component for switching between modes.
 ///
 /// This component is designed to be placed in the title bar and provides
-/// a visual way to switch between Editor and Terminal modes.
+/// a visual way to switch between Browser, Editor and Terminal modes.
 #[derive(IntoElement)]
 pub struct ModeSwitcher {
     active_mode_id: ModeId,
@@ -41,8 +41,9 @@ impl ModeSwitcher {
 
     fn selected_index(&self) -> usize {
         match self.active_mode_id {
-            ModeId::EDITOR => 0,
-            ModeId::TERMINAL => 1,
+            ModeId::BROWSER => 0,
+            ModeId::EDITOR => 1,
+            ModeId::TERMINAL => 2,
             _ => 0,
         }
     }
@@ -52,6 +53,16 @@ impl RenderOnce for ModeSwitcher {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let selected_index = self.selected_index();
         let active_mode_id = self.active_mode_id;
+
+        let on_browser_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App)> =
+            if let Some(ref callback) = self.on_mode_select {
+                let callback = callback.clone();
+                Box::new(move |event, window, cx| {
+                    callback(ModeId::BROWSER, event, window, cx);
+                })
+            } else {
+                Box::new(|_, _, _| {})
+            };
 
         let on_editor_click: Box<dyn Fn(&ClickEvent, &mut Window, &mut App)> =
             if let Some(ref callback) = self.on_mode_select {
@@ -75,6 +86,9 @@ impl RenderOnce for ModeSwitcher {
         ToggleButtonGroup::single_row(
             "mode-switcher",
             [
+                ToggleButtonSimple::new("Browser", on_browser_click)
+                    .selected(active_mode_id == ModeId::BROWSER)
+                    .tooltip(Tooltip::text("Switch to Browser Mode")),
                 ToggleButtonSimple::new("Editor", on_editor_click)
                     .selected(active_mode_id == ModeId::EDITOR)
                     .tooltip(Tooltip::text("Switch to Editor Mode")),

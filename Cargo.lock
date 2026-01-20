@@ -2332,6 +2332,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "browser"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "gpui",
+ "settings",
+ "theme",
+ "ui",
+ "workspace_modes",
+]
+
+[[package]]
 name = "bstr"
 version = "1.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20578,6 +20590,7 @@ dependencies = [
  "auto_update_ui",
  "bincode",
  "breadcrumbs",
+ "browser",
  "call",
  "channel",
  "chrono",

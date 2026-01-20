@@ -638,6 +638,7 @@ fn main() {
         diagnostics::init(cx);
 
         audio::init(cx);
+        workspace_modes::init(cx);
         workspace::init(app_state.clone(), cx);
         ui_prompt::init(cx);
 
@@ -653,6 +654,7 @@ fn main() {
         channel::init(&app_state.client.clone(), app_state.user_store.clone(), cx);
         search::init(cx);
         terminal_view::init(cx);
+        browser::init(cx);
         language_selector::init(cx);
         line_ending_selector::init(cx);
         toolchain_selector::init(cx);

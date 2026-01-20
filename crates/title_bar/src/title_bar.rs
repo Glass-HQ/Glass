@@ -47,7 +47,9 @@ use workspace::{
     Pane, SwitchProject, TitleBarItemViewHandle, ToggleWorktreeSecurity, Workspace,
     notifications::NotifyResultExt,
 };
-use workspace_modes::{ModeId, ModeSwitcher, SwitchToEditorMode, SwitchToTerminalMode};
+use workspace_modes::{
+    ModeId, ModeSwitcher, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
+};
 use zed_actions::OpenRemote;
 
 pub use onboarding_banner::restore_banner;
@@ -702,11 +704,14 @@ impl TitleBar {
             .workspace
             .upgrade()
             .map(|ws| ws.read(cx).active_mode_id())
-            .unwrap_or(ModeId::EDITOR);
+            .unwrap_or(ModeId::BROWSER);
 
         ModeSwitcher::new(active_mode).on_mode_select(move |mode_id, _, window, cx| {
             if let Some(workspace) = workspace.upgrade() {
                 workspace.update(cx, |_workspace, cx| match mode_id {
+                    ModeId::BROWSER => {
+                        window.dispatch_action(SwitchToBrowserMode.boxed_clone(), cx);
+                    }
                     ModeId::EDITOR => {
                         window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
                     }

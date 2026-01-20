@@ -127,7 +127,9 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
-use workspace_modes::{ModeId, SwitchToEditorMode, SwitchToTerminalMode};
+use workspace_modes::{
+    ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
+};
 pub use workspace_settings::{
     AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
 };
@@ -1219,7 +1221,7 @@ pub struct Workspace {
     serializable_items_tx: UnboundedSender<Box<dyn SerializableItemHandle>>,
     _items_serializer: Task<Result<()>>,
     session_id: Option<String>,
-    /// The active workspace mode (Editor or Terminal)
+    /// The active workspace mode (Browser, Editor, or Terminal)
     active_mode: ModeId,
     /// Tracks whether the bottom dock was visible before entering Terminal Mode,
     /// so we can restore it when returning to Editor Mode
@@ -1627,7 +1629,7 @@ impl Workspace {
             serializable_items_tx,
             _items_serializer,
             session_id: Some(session_id),
-            active_mode: ModeId::EDITOR,
+            active_mode: ModeId::BROWSER,
             bottom_dock_visible_before_terminal_mode: None,
 
             scheduled_tasks: Vec::new(),
@@ -1753,7 +1755,7 @@ impl Workspace {
                     .as_ref()
                     .and_then(|w| w.active_mode.as_ref())
                     .map(|s| ModeId::from_str(s))
-                    .unwrap_or(ModeId::EDITOR);
+                    .unwrap_or(ModeId::BROWSER);
 
                 cx.update_window(window.into(), |_, window, cx| {
                     window.replace_root(cx, |window, cx| {
@@ -1807,7 +1809,7 @@ impl Workspace {
                     .as_ref()
                     .and_then(|w| w.active_mode.as_ref())
                     .map(|s| ModeId::from_str(s))
-                    .unwrap_or(ModeId::EDITOR);
+                    .unwrap_or(ModeId::BROWSER);
                 cx.open_window(options, {
                     let app_state = app_state.clone();
                     let project_handle = project_handle.clone();
@@ -4731,6 +4733,15 @@ impl Workspace {
             self.active_mode = mode_id;
 
             match mode_id {
+                ModeId::BROWSER => {
+                    // When switching to Browser mode, focus the browser view from registry
+                    let focus_handle = ModeViewRegistry::try_global(cx)
+                        .and_then(|registry| registry.get(ModeId::BROWSER))
+                        .map(|mode_view| mode_view.focus_handle.clone());
+                    if let Some(focus_handle) = focus_handle {
+                        window.focus(&focus_handle, cx);
+                    }
+                }
                 ModeId::TERMINAL => {
                     // Save the current bottom dock visibility so we can restore it later
                     let bottom_dock_was_open = self.bottom_dock.read(cx).is_open();
@@ -6538,6 +6549,11 @@ impl Workspace {
                 }),
             )
             .on_action(
+                cx.listener(|workspace, _: &SwitchToBrowserMode, window, cx| {
+                    workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+                }),
+            )
+            .on_action(
                 cx.listener(|workspace, _: &SwitchToEditorMode, window, cx| {
                     workspace.switch_to_mode(ModeId::EDITOR, window, cx);
                 }),
@@ -7408,7 +7424,28 @@ impl Render for Workspace {
                                     ))
                                 })
                                 .child({
-                                    if self.active_mode == ModeId::TERMINAL {
+                                    if self.active_mode == ModeId::BROWSER {
+                                        // Browser Mode: render browser view full-screen from registry
+                                        let browser_view = ModeViewRegistry::try_global(cx)
+                                            .and_then(|registry| registry.get(ModeId::BROWSER))
+                                            .map(|mode_view| mode_view.view.clone());
+
+                                        div()
+                                            .size_full()
+                                            .flex()
+                                            .flex_row()
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .flex_1()
+                                                    .overflow_hidden()
+                                                    .when_some(browser_view, |this, view| {
+                                                        this.child(view)
+                                                    }),
+                                            )
+                                            .into_any_element()
+                                    } else if self.active_mode == ModeId::TERMINAL {
                                         // Terminal Mode: render terminal panel full-screen
                                         let terminal_panel = self
                                             .bottom_dock
@@ -12399,9 +12436,9 @@ mod tests {
         let (workspace, cx) =
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        // Default mode should be Editor
+        // Default mode should be Browser
         workspace.read_with(cx, |workspace, _| {
-            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+            assert_eq!(workspace.active_mode_id(), ModeId::BROWSER);
         });
 
         // Switch to Terminal mode
@@ -12434,13 +12471,13 @@ mod tests {
 
         // Switching to the same mode multiple times should be a no-op
         workspace.update_in(cx, |workspace, window, cx| {
-            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
-            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
-            workspace.switch_to_mode(ModeId::EDITOR, window, cx);
+            workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+            workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+            workspace.switch_to_mode(ModeId::BROWSER, window, cx);
         });
 
         workspace.read_with(cx, |workspace, _| {
-            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+            assert_eq!(workspace.active_mode_id(), ModeId::BROWSER);
         });
 
         // Switch to terminal and verify idempotency there too
@@ -12463,9 +12500,9 @@ mod tests {
         let (workspace, cx) =
             cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
 
-        // Verify starting in Editor mode
+        // Verify starting in Browser mode
         workspace.read_with(cx, |workspace, _| {
-            assert_eq!(workspace.active_mode_id(), ModeId::EDITOR);
+            assert_eq!(workspace.active_mode_id(), ModeId::BROWSER);
         });
 
         // Dispatch SwitchToTerminalMode action
