@@ -15,7 +15,7 @@ on:
         default: 'true'
 jobs:
   run_autofix:
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -101,7 +101,7 @@ jobs:
     needs:
     - run_autofix
     if: needs.run_autofix.outputs.has_changes == 'true'
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - id: get-app-token
       name: steps::authenticate_as_zippy

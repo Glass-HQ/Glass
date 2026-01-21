@@ -40,7 +40,7 @@ jobs:
     timeout-minutes: 60
   run_tests_linux:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -84,7 +84,7 @@ jobs:
     timeout-minutes: 60
   run_tests_windows:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -130,7 +130,7 @@ jobs:
     timeout-minutes: 60
   clippy_linux:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -160,7 +160,7 @@ jobs:
     timeout-minutes: 60
   clippy_windows:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -177,7 +177,7 @@ jobs:
     timeout-minutes: 60
   check_scripts:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -206,7 +206,7 @@ jobs:
     timeout-minutes: 60
   create_draft_release:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -234,7 +234,7 @@ jobs:
     - run_tests_linux
     - clippy_linux
     - check_scripts
-    runs-on: namespace-profile-8x32-ubuntu-2004-arm-m4
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -278,7 +278,7 @@ jobs:
     - run_tests_linux
     - clippy_linux
     - check_scripts
-    runs-on: namespace-profile-32x64-ubuntu-2004
+    runs-on: blacksmith-32vcpu-ubuntu-2404
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -416,7 +416,7 @@ jobs:
     - run_tests_windows
     - clippy_windows
     - check_scripts
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -455,7 +455,7 @@ jobs:
     - run_tests_windows
     - clippy_windows
     - check_scripts
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -498,7 +498,7 @@ jobs:
     - bundle_mac_x86_64
     - bundle_windows_aarch64
     - bundle_windows_x86_64
-    runs-on: namespace-profile-4x8-ubuntu-2204
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
     - name: release::download_workflow_artifacts
       uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
@@ -531,7 +531,7 @@ jobs:
     needs:
     - upload_release_assets
     if: startsWith(github.ref, 'refs/tags/v') && endsWith(github.ref, '-pre') && !endsWith(github.ref, '.0-pre')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - id: get-app-token
       name: steps::authenticate_as_zippy
@@ -549,7 +549,7 @@ jobs:
     - upload_release_assets
     - auto_release_preview
     if: failure()
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: release::notify_on_failure::notify_slack
       run: |-

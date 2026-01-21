@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 jobs:
   fetch_extension_repos:
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - id: list-repos
       name: extension_workflow_rollout::fetch_extension_repos::get_repositories
@@ -35,7 +35,7 @@ jobs:
     needs:
     - fetch_extension_repos
     if: needs.fetch_extension_repos.outputs.repos != '[]'
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     strategy:
       matrix:
         repo: ${{ fromJson(needs.fetch_extension_repos.outputs.repos) }}
