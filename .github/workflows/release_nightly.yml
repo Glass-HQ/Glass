@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 60
   run_tests_windows:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -58,7 +58,7 @@ jobs:
     timeout-minutes: 60
   clippy_windows:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -78,7 +78,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-8x32-ubuntu-2004-arm-m4
+    runs-on: blacksmith-8vcpu-ubuntu-2404-arm
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -129,7 +129,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-32x64-ubuntu-2004
+    runs-on: blacksmith-32vcpu-ubuntu-2404
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -288,7 +288,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -335,7 +335,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -382,7 +382,7 @@ jobs:
     - check_style
     - run_tests_windows
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-32x64-ubuntu-2004
+    runs-on: blacksmith-32vcpu-ubuntu-2404
     env:
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
       ZED_MINIDUMP_ENDPOINT: ${{ secrets.ZED_SENTRY_MINIDUMP_ENDPOINT }}
@@ -455,7 +455,7 @@ jobs:
     - bundle_windows_aarch64
     - bundle_windows_x86_64
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-4x8-ubuntu-2204
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -519,7 +519,7 @@ jobs:
     - bundle_windows_aarch64
     - bundle_windows_x86_64
     if: failure()
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: release::notify_on_failure::notify_slack
       run: |-

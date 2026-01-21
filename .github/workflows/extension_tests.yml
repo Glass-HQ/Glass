@@ -11,7 +11,7 @@ on:
 jobs:
   orchestrate:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -51,7 +51,7 @@ jobs:
     needs:
     - orchestrate
     if: needs.orchestrate.outputs.check_rust == 'true'
-    runs-on: namespace-profile-4x8-ubuntu-2204
+    runs-on: blacksmith-4vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -79,7 +79,7 @@ jobs:
     needs:
     - orchestrate
     if: needs.orchestrate.outputs.check_extension == 'true'
-    runs-on: namespace-profile-8x32-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -110,7 +110,7 @@ jobs:
     - check_rust
     - check_extension
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions') && always()
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: run_tests::tests_pass
       run: |

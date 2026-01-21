@@ -22,7 +22,7 @@ on:
 jobs:
   rebuild_releases_page:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: after_release::rebuild_releases_page::refresh_cloud_releases
       run: curl -fX POST https://cloud.zed.dev/releases/refresh?expect_tag=${{ github.event.release.tag_name || inputs.tag_name }}
@@ -40,7 +40,7 @@ jobs:
     needs:
     - rebuild_releases_page
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - id: get-release-url
       name: after_release::post_to_discord::get_release_url
@@ -69,7 +69,7 @@ jobs:
         webhook-url: ${{ secrets.DISCORD_WEBHOOK_RELEASE_NOTES }}
         content: ${{ steps.get-content.outputs.string }}
   publish_winget:
-    runs-on: self-32vcpu-windows-2022
+    runs-on: blacksmith-32vcpu-windows-2025
     steps:
     - name: after_release::publish_winget::sync_winget_pkgs_fork
       run: |
@@ -110,7 +110,7 @@ jobs:
         token: ${{ secrets.WINGET_TOKEN }}
   create_sentry_release:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -131,7 +131,7 @@ jobs:
     - publish_winget
     - create_sentry_release
     if: failure()
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: blacksmith-2vcpu-ubuntu-2404
     steps:
     - name: release::notify_on_failure::notify_slack
       run: |-
