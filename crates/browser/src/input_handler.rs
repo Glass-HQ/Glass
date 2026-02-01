@@ -23,7 +23,13 @@ pub fn handle_mouse_down(browser: &CefBrowser, event: &MouseDownEvent, offset: P
     let button = convert_mouse_button(event.button);
     let click_count = event.click_count as i32;
 
-    log::trace!("Mouse down at ({}, {}), button={:?}, clicks={}", x, y, button, click_count);
+    log::info!(
+        "MOUSE DEBUG: raw=({}, {}), offset=({}, {}), final=({}, {}), scale={}",
+        f32::from(event.position.x), f32::from(event.position.y),
+        f32::from(offset.x), f32::from(offset.y),
+        x, y,
+        browser.scale_factor()
+    );
     browser.send_mouse_click(x, y, button, true, click_count);
 }
 
@@ -33,7 +39,6 @@ pub fn handle_mouse_up(browser: &CefBrowser, event: &MouseUpEvent, offset: Point
     let y = f32::from(position.y) as i32;
     let button = convert_mouse_button(event.button);
 
-    log::trace!("Mouse up at ({}, {}), button={:?}", x, y, button);
     browser.send_mouse_click(x, y, button, false, 1);
 }
 

@@ -8,9 +8,9 @@ use crate::cef_instance::CefInstance;
 use crate::input_handler;
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Render,
-    Styled, Task, Window,
+    canvas, div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter,
+    FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
+    Render, Styled, Task, Window,
 };
 use std::time::Duration;
 use ui::{prelude::*, Icon, IconName, IconSize};
@@ -254,11 +254,37 @@ impl BrowserView {
 
         let has_frame = current_frame.is_some();
 
+        // Use a canvas to capture actual bounds during prepaint
+        let this = cx.entity().clone();
+        let bounds_tracker = canvas(
+            move |bounds, _window, cx| {
+                // This runs during prepaint - capture actual element bounds
+                this.update(cx, |view, _| {
+                    let old_bounds = view.content_bounds;
+                    view.content_bounds = bounds;
+                    log::info!(
+                        "BOUNDS CAPTURE: actual element bounds = origin({}, {}), size({}, {}), old_origin was ({}, {})",
+                        f32::from(bounds.origin.x),
+                        f32::from(bounds.origin.y),
+                        f32::from(bounds.size.width),
+                        f32::from(bounds.size.height),
+                        f32::from(old_bounds.origin.x),
+                        f32::from(old_bounds.origin.y),
+                    );
+                });
+            },
+            |_, _, _, _| {},
+        )
+        .absolute()
+        .size_full();
+
         div()
             .id("browser-content")
+            .relative()
             .flex_1()
             .w_full()
             .bg(theme.colors().editor_background)
+            .child(bounds_tracker)
             .on_mouse_down(MouseButton::Left, cx.listener(Self::handle_mouse_down))
             .on_mouse_down(MouseButton::Right, cx.listener(Self::handle_mouse_down))
             .on_mouse_down(MouseButton::Middle, cx.listener(Self::handle_mouse_down))
@@ -308,19 +334,28 @@ impl Render for BrowserView {
                 .into_any_element();
         }
 
-        // Schedule toolbar creation for next frame if not exists
-        if !self.ensure_toolbar_exists() && self.browser.is_some() {
-            cx.defer_in(window, |this, window, cx| {
-                this.create_toolbar(window, cx);
-            });
-        }
+        // TEMP: Toolbar disabled for testing mouse coordinate issue
+        // // Schedule toolbar creation for next frame if not exists
+        // if !self.ensure_toolbar_exists() && self.browser.is_some() {
+        //     cx.defer_in(window, |this, window, cx| {
+        //         this.create_toolbar(window, cx);
+        //     });
+        // }
 
-        let bounds = window.bounds();
+        let viewport_size = window.viewport_size();
         let scale_factor = window.scale_factor();
-        let toolbar_height = px(40.);
+        let toolbar_height = px(0.); // TEMP: Set to 0 for testing
 
-        let content_width = f32::from(bounds.size.width) as u32;
-        let content_height = (f32::from(bounds.size.height) - f32::from(toolbar_height)) as u32;
+        let content_width = f32::from(viewport_size.width) as u32;
+        let content_height = (f32::from(viewport_size.height) - f32::from(toolbar_height)) as u32;
+
+        log::info!(
+            "VIEWPORT DEBUG: viewport=({}, {}), toolbar={}, content=({}, {}), scale={}",
+            f32::from(viewport_size.width), f32::from(viewport_size.height),
+            f32::from(toolbar_height),
+            content_width, content_height,
+            scale_factor
+        );
 
         if content_width > 0 && content_height > 0 {
             if !self.browser_created {
@@ -335,11 +370,7 @@ impl Render for BrowserView {
                     browser.set_size(content_width, content_height);
                 });
             }
-
-            self.content_bounds = Bounds {
-                origin: point(px(0.), toolbar_height),
-                size: gpui::size(px(content_width as f32), px(content_height as f32)),
-            };
+            // Note: content_bounds is now captured dynamically by the canvas in render_browser_content
         }
 
         div()
@@ -348,9 +379,10 @@ impl Render for BrowserView {
             .size_full()
             .flex()
             .flex_col()
-            .when_some(self.toolbar.clone(), |this, toolbar| {
-                this.child(toolbar)
-            })
+            // TEMP: Toolbar disabled for testing
+            // .when_some(self.toolbar.clone(), |this, toolbar| {
+            //     this.child(toolbar)
+            // })
             .child(self.render_browser_content(cx))
             .into_any_element()
     }

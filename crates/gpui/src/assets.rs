@@ -67,6 +67,13 @@ impl RenderImage {
         }
     }
 
+    /// Set the scale factor for this image.
+    /// Use this when the image was rendered at a higher resolution (e.g., 2x for Retina displays).
+    pub fn with_scale_factor(mut self, scale_factor: f32) -> Self {
+        self.scale_factor = scale_factor;
+        self
+    }
+
     /// Convert this image into a byte slice.
     pub fn as_bytes(&self, frame_index: usize) -> Option<&[u8]> {
         self.data

@@ -59,6 +59,8 @@ wrap_render_handler! {
                 rect.y = 0;
                 rect.width = state.width as i32;
                 rect.height = state.height as i32;
+                log::info!("CEF view_rect: {}x{} (logical), scale={}",
+                    state.width, state.height, state.scale_factor);
             }
         }
 
@@ -143,11 +145,15 @@ wrap_render_handler! {
             };
 
             let frame = Frame::new(image);
-            let render_image = Arc::new(RenderImage::new(SmallVec::from_elem(frame, 1)));
 
             let mut state = self.handler.state.lock();
+            let scale_factor = state.scale_factor;
+            let render_image = Arc::new(
+                RenderImage::new(SmallVec::from_elem(frame, 1))
+                    .with_scale_factor(scale_factor)
+            );
             state.current_frame = Some(render_image);
-            log::debug!("CEF frame captured: {}x{}", width, height);
+            log::debug!("CEF frame captured: {}x{} at scale {}", width, height, scale_factor);
         }
     }
 }
