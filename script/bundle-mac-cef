@@ -1,0 +1,203 @@
+#!/usr/bin/env bash
+
+# Bundle Glass/Zed with CEF framework for macOS
+# This script creates a development .app bundle with CEF properly integrated
+# including the required helper app bundles for GPU, Renderer, etc.
+
+set -euo pipefail
+
+CEF_PATH="${CEF_PATH:-$HOME/.local/share/cef}"
+BUILD_TYPE="${1:-debug}"
+OPEN_AFTER_BUILD="${2:-false}"
+
+# Validate CEF installation
+if [[ ! -d "$CEF_PATH" ]]; then
+    echo "Error: CEF not found at $CEF_PATH"
+    echo "Please run: cargo run -p export-cef-dir -- --force \$HOME/.local/share/cef"
+    echo "from the cef-rs repository first."
+    exit 1
+fi
+
+if [[ ! -d "$CEF_PATH/Chromium Embedded Framework.framework" ]]; then
+    echo "Error: CEF framework not found at $CEF_PATH/Chromium Embedded Framework.framework"
+    exit 1
+fi
+
+echo "Using CEF from: $CEF_PATH"
+
+# Determine build flags
+if [[ "$BUILD_TYPE" == "release" ]]; then
+    BUILD_FLAG="--release"
+    TARGET_DIR="release"
+else
+    BUILD_FLAG=""
+    TARGET_DIR="debug"
+    export CARGO_INCREMENTAL=true
+fi
+
+# Get architecture
+version_info=$(rustc --version --verbose)
+host_line=$(echo "$version_info" | grep host)
+target_triple=${host_line#*: }
+
+echo "Building for: $target_triple ($BUILD_TYPE)"
+
+# Build the main application
+echo "Building zed..."
+cargo build $BUILD_FLAG --package zed --target $target_triple
+
+# Build the helper executable
+echo "Building glass_helper..."
+cargo build $BUILD_FLAG --package browser --bin glass_helper --target $target_triple
+
+# Set up paths
+BINARY_PATH="target/${target_triple}/${TARGET_DIR}/zed"
+HELPER_PATH="target/${target_triple}/${TARGET_DIR}/glass_helper"
+BUNDLE_DIR="target/${target_triple}/${TARGET_DIR}/bundle"
+APP_NAME="Glass"
+APP_PATH="${BUNDLE_DIR}/${APP_NAME}.app"
+
+# Create bundle structure
+echo "Creating application bundle at: $APP_PATH"
+rm -rf "$APP_PATH"
+mkdir -p "$APP_PATH/Contents/MacOS"
+mkdir -p "$APP_PATH/Contents/Frameworks"
+mkdir -p "$APP_PATH/Contents/Resources"
+
+# Copy the main executable
+cp "$BINARY_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
+
+# Copy CEF framework
+echo "Copying CEF framework..."
+cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+
+# Helper types required by CEF
+HELPERS=("Helper" "Helper (GPU)" "Helper (Renderer)" "Helper (Plugin)" "Helper (Alerts)")
+
+# Create helper app bundles
+echo "Creating helper app bundles..."
+for helper_suffix in "${HELPERS[@]}"; do
+    HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
+    HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
+
+    echo "  Creating: ${HELPER_APP_NAME}.app"
+    mkdir -p "$HELPER_APP_PATH/Contents/MacOS"
+
+    # Copy helper executable
+    cp "$HELPER_PATH" "$HELPER_APP_PATH/Contents/MacOS/${HELPER_APP_NAME}"
+
+    # Create helper Info.plist
+    cat > "$HELPER_APP_PATH/Contents/Info.plist" << HELPER_PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>${HELPER_APP_NAME}</string>
+    <key>CFBundleDisplayName</key>
+    <string>${HELPER_APP_NAME}</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.glass.Glass.helper</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>${HELPER_APP_NAME}</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSUIElement</key>
+    <string>1</string>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>MallocNanoZone</key>
+        <string>0</string>
+    </dict>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+</dict>
+</plist>
+HELPER_PLIST
+
+    # Create PkgInfo for helper
+    echo "APPL????" > "$HELPER_APP_PATH/Contents/PkgInfo"
+done
+
+# Create main Info.plist
+cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Glass</string>
+    <key>CFBundleDisplayName</key>
+    <string>Glass</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.glass.Glass</string>
+    <key>CFBundleVersion</key>
+    <string>0.1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>0.1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>Glass</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSSupportsAutomaticGraphicsSwitching</key>
+    <true/>
+    <key>LSEnvironment</key>
+    <dict>
+        <key>MallocNanoZone</key>
+        <string>0</string>
+    </dict>
+    <key>NSCameraUsageDescription</key>
+    <string>Glass needs camera access for video features</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Glass needs microphone access for audio features</string>
+</dict>
+</plist>
+PLIST
+
+# Create PkgInfo
+echo "APPL????" > "$APP_PATH/Contents/PkgInfo"
+
+# Ad-hoc code sign (required for running on macOS)
+echo "Code signing bundle..."
+# Sign helpers first (inside out)
+for helper_suffix in "${HELPERS[@]}"; do
+    HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
+    HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
+    codesign --force --sign - "$HELPER_APP_PATH"
+done
+# Sign framework
+codesign --force --sign - "$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework"
+# Sign main app
+codesign --force --sign - "$APP_PATH"
+
+echo ""
+echo "=========================================="
+echo "Bundle created successfully!"
+echo "Location: $APP_PATH"
+echo "=========================================="
+echo ""
+echo "To run the app:"
+echo "  open \"$APP_PATH\""
+echo ""
+echo "Or from command line:"
+echo "  \"$APP_PATH/Contents/MacOS/$APP_NAME\""
+echo ""
+
+if [[ "$OPEN_AFTER_BUILD" == "true" ]] || [[ "$OPEN_AFTER_BUILD" == "-o" ]]; then
+    echo "Opening app..."
+    open "$APP_PATH"
+fi

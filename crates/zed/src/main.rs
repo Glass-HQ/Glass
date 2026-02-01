@@ -179,6 +179,14 @@ static STARTUP_TIME: OnceLock<Instant> = OnceLock::new();
 fn main() {
     STARTUP_TIME.get_or_init(|| Instant::now());
 
+    // Handle CEF subprocess execution VERY early, before any other initialization.
+    // If this is a CEF subprocess, it will not return (calls process::exit).
+    #[cfg(target_os = "macos")]
+    if let Err(e) = browser::handle_cef_subprocess() {
+        // Log error but don't fail - CEF might not be available (not running from bundle)
+        eprintln!("CEF subprocess handling warning: {}", e);
+    }
+
     #[cfg(unix)]
     util::prevent_root_execution();
 
