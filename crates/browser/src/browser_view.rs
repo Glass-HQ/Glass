@@ -255,22 +255,13 @@ impl BrowserView {
         let has_frame = current_frame.is_some();
 
         // Use a canvas to capture actual bounds during prepaint
+        // This is necessary because the browser content element is offset by the workspace
+        // titlebar and other layout elements - we can't just assume it starts at (0, 0)
         let this = cx.entity().clone();
         let bounds_tracker = canvas(
             move |bounds, _window, cx| {
-                // This runs during prepaint - capture actual element bounds
                 this.update(cx, |view, _| {
-                    let old_bounds = view.content_bounds;
                     view.content_bounds = bounds;
-                    log::info!(
-                        "BOUNDS CAPTURE: actual element bounds = origin({}, {}), size({}, {}), old_origin was ({}, {})",
-                        f32::from(bounds.origin.x),
-                        f32::from(bounds.origin.y),
-                        f32::from(bounds.size.width),
-                        f32::from(bounds.size.height),
-                        f32::from(old_bounds.origin.x),
-                        f32::from(old_bounds.origin.y),
-                    );
                 });
             },
             |_, _, _, _| {},
@@ -334,28 +325,19 @@ impl Render for BrowserView {
                 .into_any_element();
         }
 
-        // TEMP: Toolbar disabled for testing mouse coordinate issue
-        // // Schedule toolbar creation for next frame if not exists
-        // if !self.ensure_toolbar_exists() && self.browser.is_some() {
-        //     cx.defer_in(window, |this, window, cx| {
-        //         this.create_toolbar(window, cx);
-        //     });
-        // }
+        // Schedule toolbar creation for next frame if not exists
+        if !self.ensure_toolbar_exists() && self.browser.is_some() {
+            cx.defer_in(window, |this, window, cx| {
+                this.create_toolbar(window, cx);
+            });
+        }
 
         let viewport_size = window.viewport_size();
         let scale_factor = window.scale_factor();
-        let toolbar_height = px(0.); // TEMP: Set to 0 for testing
+        let toolbar_height = px(36.);
 
         let content_width = f32::from(viewport_size.width) as u32;
         let content_height = (f32::from(viewport_size.height) - f32::from(toolbar_height)) as u32;
-
-        log::info!(
-            "VIEWPORT DEBUG: viewport=({}, {}), toolbar={}, content=({}, {}), scale={}",
-            f32::from(viewport_size.width), f32::from(viewport_size.height),
-            f32::from(toolbar_height),
-            content_width, content_height,
-            scale_factor
-        );
 
         if content_width > 0 && content_height > 0 {
             if !self.browser_created {
@@ -379,10 +361,9 @@ impl Render for BrowserView {
             .size_full()
             .flex()
             .flex_col()
-            // TEMP: Toolbar disabled for testing
-            // .when_some(self.toolbar.clone(), |this, toolbar| {
-            //     this.child(toolbar)
-            // })
+            .when_some(self.toolbar.clone(), |this, toolbar| {
+                this.child(toolbar)
+            })
             .child(self.render_browser_content(cx))
             .into_any_element()
     }

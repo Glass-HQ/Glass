@@ -59,8 +59,6 @@ wrap_render_handler! {
                 rect.y = 0;
                 rect.width = state.width as i32;
                 rect.height = state.height as i32;
-                log::info!("CEF view_rect: {}x{} (logical), scale={}",
-                    state.width, state.height, state.scale_factor);
             }
         }
 
@@ -111,14 +109,9 @@ wrap_render_handler! {
             width: ::std::os::raw::c_int,
             height: ::std::os::raw::c_int,
         ) {
-            log::info!("CEF on_paint called: type={:?}, width={}, height={}, buffer_null={}",
-                type_, width, height, buffer.is_null());
-
             // PaintElementType::PET_VIEW is the main view (0)
             // PaintElementType::PET_POPUP is for popups (1)
-            // Default is PET_VIEW which is what we want
             if type_ != PaintElementType::default() {
-                log::debug!("Skipping paint - not PET_VIEW type");
                 return;
             }
 
@@ -153,7 +146,6 @@ wrap_render_handler! {
                     .with_scale_factor(scale_factor)
             );
             state.current_frame = Some(render_image);
-            log::debug!("CEF frame captured: {}x{} at scale {}", width, height, scale_factor);
         }
     }
 }
