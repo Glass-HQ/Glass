@@ -7,6 +7,7 @@ mod browser_view;
 mod cef_browser;
 mod cef_client;
 mod cef_instance;
+mod cef_keyboard_handler;
 mod cef_load_handler;
 mod cef_render_handler;
 mod input_handler;

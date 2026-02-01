@@ -66,19 +66,83 @@ pub fn handle_scroll_wheel(browser: &CefBrowser, event: &ScrollWheelEvent, offse
 }
 
 pub fn handle_key_down(browser: &CefBrowser, event: &KeyDownEvent) {
-    let cef_event = convert_key_event(&event.keystroke, true, event.is_held);
-    browser.send_key_event(&cef_event);
-
-    if let Some(key_char) = &event.keystroke.key_char {
-        for ch in key_char.chars() {
-            let char_event = create_char_event(ch, &event.keystroke.modifiers);
-            browser.send_key_event(&char_event);
-        }
-    }
+    handle_key_down_deferred(browser, &event.keystroke, event.is_held);
 }
 
 pub fn handle_key_up(browser: &CefBrowser, event: &KeyUpEvent) {
-    let cef_event = convert_key_event(&event.keystroke, false, false);
+    handle_key_up_deferred(browser, &event.keystroke);
+}
+
+/// Deferred key down handler - called outside the GPUI event handler context
+/// to avoid re-entrant borrow panics when CEF triggers macOS menu checking.
+pub fn handle_key_down_deferred(browser: &CefBrowser, keystroke: &Keystroke, is_held: bool) {
+    // Send the key down event (RAWKEYDOWN)
+    let cef_event = convert_key_event(keystroke, true, is_held);
+    browser.send_key_event(&cef_event);
+
+    // For text input, send a CHAR event after the KEYDOWN event.
+    // IMPORTANT: Do NOT send CHAR events for:
+    // - Enter: KEYDOWN with VK_RETURN triggers form submission; CHAR would insert newline
+    // - Delete: VK_DELETE is a virtual key, not a character
+    // - Backspace: KEYDOWN with VK_BACK is sufficient; CHAR with 0x08 can cause issues
+    // - Arrow keys, function keys, etc.: These are navigation/action keys, not text input
+    let char_to_send: Option<u16> = if keystroke.modifiers.platform
+        || keystroke.modifiers.control
+    {
+        None
+    } else {
+        match keystroke.key.as_str() {
+            // Enter: KEYDOWN triggers form submission, no CHAR needed
+            // (CHAR with 0x0D would insert a newline, which is wrong for input fields)
+            "enter" => None,
+            // Backspace: KEYDOWN with VK_BACK (0x08) is sufficient
+            "backspace" => None,
+            // Tab: KEYDOWN handles focus navigation
+            "tab" => None,
+            // Delete: VK_DELETE (0x2E) is a virtual key, not a character
+            "delete" => None,
+            // Escape: no CHAR needed
+            "escape" => None,
+            // Space is a printable character, send as CHAR
+            "space" => Some(' ' as u16),
+            // Arrow keys and other non-character keys - no CHAR event needed
+            "left" | "right" | "up" | "down" | "home" | "end" | "pageup" | "pagedown" => None,
+            "f1" | "f2" | "f3" | "f4" | "f5" | "f6" | "f7" | "f8" | "f9" | "f10" | "f11" | "f12" => None,
+            _ => {
+                // Regular text input - send CHAR event
+                if let Some(key_char) = &keystroke.key_char {
+                    key_char.chars().next().map(|c| c as u16)
+                } else if keystroke.key.len() == 1 {
+                    if let Some(ch) = keystroke.key.chars().next() {
+                        if ch.is_ascii_graphic() || ch == ' ' {
+                            let c = if keystroke.modifiers.shift {
+                                ch.to_ascii_uppercase()
+                            } else {
+                                ch
+                            };
+                            Some(c as u16)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }
+    };
+
+    if let Some(char_code) = char_to_send {
+        let char_event = create_char_event_from_code(char_code, &keystroke.modifiers);
+        browser.send_key_event(&char_event);
+    }
+}
+
+/// Deferred key up handler - called outside the GPUI event handler context.
+pub fn handle_key_up_deferred(browser: &CefBrowser, keystroke: &Keystroke) {
+    let cef_event = convert_key_event(keystroke, false, false);
     browser.send_key_event(&cef_event);
 }
 
@@ -94,37 +158,129 @@ fn convert_mouse_button(button: MouseButton) -> CefMouseButton {
 fn convert_key_event(keystroke: &Keystroke, is_down: bool, _is_held: bool) -> CefKeyEvent {
     let modifiers = convert_modifiers(&keystroke.modifiers);
     let windows_key_code = key_to_windows_keycode(&keystroke.key);
+    let native_key_code = key_to_macos_keycode(&keystroke.key);
 
+    // Use RAWKEYDOWN for key press - this is what Chrome uses internally.
+    // RAWKEYDOWN triggers JavaScript 'keydown' event handlers.
     let event_type = if is_down {
         KeyEventType::RAWKEYDOWN
     } else {
         KeyEventType::KEYUP
     };
 
+    // For special keys, set the character field
+    let character = match keystroke.key.as_str() {
+        "enter" => 0x0D,
+        "backspace" => 0x08,
+        "tab" => 0x09,
+        "escape" => 0x1B,
+        _ => 0,
+    };
+
     CefKeyEvent {
         event_type,
         modifiers,
         windows_key_code,
-        native_key_code: 0,
+        native_key_code,
         is_system_key: 0,
-        character: 0,
-        unmodified_character: 0,
-        focus_on_editable_field: 0,
+        character,
+        unmodified_character: character,
+        focus_on_editable_field: 1,
     }
 }
 
-fn create_char_event(ch: char, modifiers: &Modifiers) -> CefKeyEvent {
+/// Convert key name to macOS virtual key code
+fn key_to_macos_keycode(key: &str) -> i32 {
+    match key {
+        "a" => 0x00,
+        "s" => 0x01,
+        "d" => 0x02,
+        "f" => 0x03,
+        "h" => 0x04,
+        "g" => 0x05,
+        "z" => 0x06,
+        "x" => 0x07,
+        "c" => 0x08,
+        "v" => 0x09,
+        "b" => 0x0B,
+        "q" => 0x0C,
+        "w" => 0x0D,
+        "e" => 0x0E,
+        "r" => 0x0F,
+        "y" => 0x10,
+        "t" => 0x11,
+        "1" => 0x12,
+        "2" => 0x13,
+        "3" => 0x14,
+        "4" => 0x15,
+        "6" => 0x16,
+        "5" => 0x17,
+        "=" => 0x18,
+        "9" => 0x19,
+        "7" => 0x1A,
+        "-" => 0x1B,
+        "8" => 0x1C,
+        "0" => 0x1D,
+        "]" => 0x1E,
+        "o" => 0x1F,
+        "u" => 0x20,
+        "[" => 0x21,
+        "i" => 0x22,
+        "p" => 0x23,
+        "enter" => 0x24,      // kVK_Return
+        "l" => 0x25,
+        "j" => 0x26,
+        "'" => 0x27,
+        "k" => 0x28,
+        ";" => 0x29,
+        "\\" => 0x2A,
+        "," => 0x2B,
+        "/" => 0x2C,
+        "n" => 0x2D,
+        "m" => 0x2E,
+        "." => 0x2F,
+        "tab" => 0x30,        // kVK_Tab
+        "space" => 0x31,      // kVK_Space
+        "`" => 0x32,
+        "backspace" => 0x33,  // kVK_Delete (backspace on Mac)
+        "escape" => 0x35,     // kVK_Escape
+        "left" => 0x7B,       // kVK_LeftArrow
+        "right" => 0x7C,      // kVK_RightArrow
+        "down" => 0x7D,       // kVK_DownArrow
+        "up" => 0x7E,         // kVK_UpArrow
+        "delete" => 0x75,     // kVK_ForwardDelete
+        "home" => 0x73,       // kVK_Home
+        "end" => 0x77,        // kVK_End
+        "pageup" => 0x74,     // kVK_PageUp
+        "pagedown" => 0x79,   // kVK_PageDown
+        "f1" => 0x7A,
+        "f2" => 0x78,
+        "f3" => 0x63,
+        "f4" => 0x76,
+        "f5" => 0x60,
+        "f6" => 0x61,
+        "f7" => 0x62,
+        "f8" => 0x64,
+        "f9" => 0x65,
+        "f10" => 0x6D,
+        "f11" => 0x67,
+        "f12" => 0x6F,
+        _ => 0,
+    }
+}
+
+fn create_char_event_from_code(char_code: u16, modifiers: &Modifiers) -> CefKeyEvent {
     let mods = convert_modifiers(modifiers);
 
     CefKeyEvent {
         event_type: KeyEventType::CHAR,
         modifiers: mods,
-        windows_key_code: ch as i32,
+        windows_key_code: char_code as i32,
         native_key_code: 0,
         is_system_key: 0,
-        character: ch as u16,
-        unmodified_character: ch as u16,
-        focus_on_editable_field: 0,
+        character: char_code,
+        unmodified_character: char_code,
+        focus_on_editable_field: 1,
     }
 }
 

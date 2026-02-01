@@ -155,6 +155,54 @@ impl CefBrowser {
         }
     }
 
+    pub fn copy(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.copy();
+            }
+        }
+    }
+
+    pub fn cut(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.cut();
+            }
+        }
+    }
+
+    pub fn paste(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.paste();
+            }
+        }
+    }
+
+    pub fn undo(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.undo();
+            }
+        }
+    }
+
+    pub fn redo(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.redo();
+            }
+        }
+    }
+
+    pub fn select_all(&self) {
+        if let Some(browser) = &self.browser {
+            if let Some(frame) = browser.focused_frame() {
+                frame.select_all();
+            }
+        }
+    }
+
     pub fn open_devtools(&self) {
         if let Some(browser) = &self.browser {
             if let Some(host) = browser.host() {
@@ -284,6 +332,19 @@ impl CefBrowser {
                     focus_on_editable_field: event.focus_on_editable_field,
                 };
                 host.send_key_event(Some(&cef_event));
+            } else {
+                log::warn!("[CEF] send_key_event: no host available");
+            }
+        } else {
+            log::warn!("[CEF] send_key_event: no browser available");
+        }
+    }
+
+    pub fn ime_commit_text(&self, text: &str) {
+        if let Some(browser) = &self.browser {
+            if let Some(host) = browser.host() {
+                let cef_text = cef::CefString::from(text);
+                host.ime_commit_text(Some(&cef_text), None, 0);
             }
         }
     }
@@ -355,7 +416,7 @@ impl Default for CefKeyEvent {
             is_system_key: 0,
             character: 0,
             unmodified_character: 0,
-            focus_on_editable_field: 0,
+            focus_on_editable_field: 1,
         }
     }
 }

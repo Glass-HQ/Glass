@@ -1212,6 +1212,18 @@
     },
   },
   {
+    "context": "BrowserView",
+    "use_key_equivalents": true,
+    "bindings": {
+      "cmd-c": "browser::Copy",
+      "cmd-x": "browser::Cut",
+      "cmd-v": "browser::Paste",
+      "cmd-z": "browser::Undo",
+      "cmd-shift-z": "browser::Redo",
+      "cmd-a": "browser::SelectAll"
+    }
+  },
+  {
     "context": "RatePredictionsModal",
     "use_key_equivalents": true,
     "bindings": {

@@ -8,12 +8,24 @@ use crate::cef_instance::CefInstance;
 use crate::input_handler;
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    canvas, div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter,
+    actions, canvas, div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
     Render, Styled, Task, Window,
 };
 use std::time::Duration;
 use ui::{prelude::*, Icon, IconName, IconSize};
+
+actions!(
+    browser,
+    [
+        Copy,
+        Cut,
+        Paste,
+        Undo,
+        Redo,
+        SelectAll,
+    ]
+);
 
 const DEFAULT_URL: &str = "https://www.google.com";
 const CEF_MESSAGE_PUMP_INTERVAL_MS: u64 = 16;
@@ -64,9 +76,12 @@ impl BrowserView {
                     break;
                 }
 
-                // Pump CEF messages on the main thread and request re-render
-                cx.update(|cx| {
-                    CefInstance::pump_messages();
+                // Pump CEF messages OUTSIDE of cx.update() to avoid re-entrant
+                // borrow panics when CEF events trigger macOS menu validation
+                CefInstance::pump_messages();
+
+                // Request re-render in a separate update
+                let _ = cx.update(|cx| {
                     if let Some(this) = this.upgrade() {
                         cx.notify(this.entity_id());
                     }
@@ -139,13 +154,18 @@ impl BrowserView {
     fn handle_mouse_down(
         &mut self,
         event: &gpui::MouseDownEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if let Some(browser) = &self.browser {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input_handler::handle_mouse_down(&browser.read(cx), event, offset);
+
+            browser.update(cx, |browser, _| {
+                browser.set_focus(true);
+            });
         }
+        window.focus(&self.focus_handle, cx);
     }
 
     fn handle_mouse_up(
@@ -191,7 +211,22 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) {
         if let Some(browser) = &self.browser {
-            input_handler::handle_key_down(&browser.read(cx), event);
+            browser.update(cx, |browser, _| {
+                browser.set_focus(true);
+            });
+
+            // Clone the event data we need - defer the actual CEF key event sending
+            // to avoid re-entrant borrow panics when CEF's message pump triggers
+            // macOS menu key equivalent checking
+            let keystroke = event.keystroke.clone();
+            let is_held = event.is_held;
+            let browser = browser.clone();
+
+            cx.defer(move |cx| {
+                browser.update(cx, |browser, _| {
+                    input_handler::handle_key_down_deferred(browser, &keystroke, is_held);
+                });
+            });
         }
     }
 
@@ -202,7 +237,51 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) {
         if let Some(browser) = &self.browser {
-            input_handler::handle_key_up(&browser.read(cx), event);
+            // Clone the event data we need - defer the actual CEF key event sending
+            let keystroke = event.keystroke.clone();
+            let browser = browser.clone();
+
+            cx.defer(move |cx| {
+                browser.update(cx, |browser, _| {
+                    input_handler::handle_key_up_deferred(browser, &keystroke);
+                });
+            });
+        }
+    }
+
+    fn handle_copy(&mut self, _: &Copy, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).copy();
+        }
+    }
+
+    fn handle_cut(&mut self, _: &Cut, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).cut();
+        }
+    }
+
+    fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).paste();
+        }
+    }
+
+    fn handle_undo(&mut self, _: &Undo, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).undo();
+        }
+    }
+
+    fn handle_redo(&mut self, _: &Redo, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).redo();
+        }
+    }
+
+    fn handle_select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(browser) = &self.browser {
+            browser.read(cx).select_all();
         }
     }
 
@@ -284,8 +363,6 @@ impl BrowserView {
             .on_mouse_up(MouseButton::Middle, cx.listener(Self::handle_mouse_up))
             .on_mouse_move(cx.listener(Self::handle_mouse_move))
             .on_scroll_wheel(cx.listener(Self::handle_scroll))
-            .on_key_down(cx.listener(Self::handle_key_down))
-            .on_key_up(cx.listener(Self::handle_key_up))
             .when_some(current_frame, |this, frame| {
                 this.child(img(frame).size_full().object_fit(gpui::ObjectFit::Fill))
             })
@@ -358,6 +435,15 @@ impl Render for BrowserView {
         div()
             .id("browser-view")
             .track_focus(&self.focus_handle)
+            .key_context("BrowserView")
+            .on_key_down(cx.listener(Self::handle_key_down))
+            .on_key_up(cx.listener(Self::handle_key_up))
+            .on_action(cx.listener(Self::handle_copy))
+            .on_action(cx.listener(Self::handle_cut))
+            .on_action(cx.listener(Self::handle_paste))
+            .on_action(cx.listener(Self::handle_undo))
+            .on_action(cx.listener(Self::handle_redo))
+            .on_action(cx.listener(Self::handle_select_all))
             .size_full()
             .flex()
             .flex_col()
