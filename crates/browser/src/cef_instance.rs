@@ -54,11 +54,12 @@ wrap_app! {
             command_line.append_switch(Some(&"no-startup-window".into()));
             command_line.append_switch(Some(&"noerrdialogs".into()));
             command_line.append_switch(Some(&"hide-crash-restore-bubble".into()));
-            command_line.append_switch(Some(&"use-mock-keychain".into()));
-            command_line.append_switch(Some(&"enable-logging=stderr".into()));
 
             #[cfg(debug_assertions)]
             {
+                // Use mock keychain in debug builds to avoid keychain prompts during development
+                command_line.append_switch(Some(&"use-mock-keychain".into()));
+                command_line.append_switch(Some(&"enable-logging=stderr".into()));
                 command_line.append_switch_with_value(
                     Some(&"remote-debugging-port".into()),
                     Some(&"9222".into()),
@@ -250,6 +251,17 @@ impl CefInstance {
         settings.external_message_pump = 1;
         settings.no_sandbox = 1;
         settings.log_severity = cef::sys::cef_log_severity_t::LOGSEVERITY_WARNING.into();
+
+        // Configure persistent storage for cookies, local storage, and cache
+        let cache_dir = paths::data_dir().join("browser_cache");
+        if let Err(e) = std::fs::create_dir_all(&cache_dir) {
+            log::warn!("Failed to create browser cache directory: {}", e);
+        }
+        if let Some(cache_path_str) = cache_dir.to_str() {
+            settings.cache_path = cef::CefString::from(cache_path_str);
+            settings.root_cache_path = cef::CefString::from(cache_path_str);
+        }
+        settings.persist_session_cookies = 1;
 
         #[cfg(debug_assertions)]
         {
