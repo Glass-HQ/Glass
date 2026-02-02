@@ -2,16 +2,15 @@ pub mod running;
 
 use crate::{StackTraceView, persistence::SerializedLayout, session::running::DebugTerminal};
 use dap::client::SessionId;
-use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, Task, WeakEntity};
+use gpui::{App, Axis, Entity, EventEmitter, FocusHandle, Focusable, WeakEntity};
 use project::debugger::session::Session;
 use project::worktree_store::WorktreeStore;
 use project::{Project, debugger::session::SessionQuirks};
-use rpc::proto;
 use running::RunningState;
 use std::cell::OnceCell;
 use ui::prelude::*;
 use workspace::{
-    CollaboratorId, FollowableItem, ViewId, Workspace,
+    CollaboratorId, FollowableItem, Workspace,
     item::{self, Item},
 };
 
@@ -139,42 +138,6 @@ impl Item for DebugSession {
 impl FollowableItem for DebugSession {
     fn remote_id(&self) -> Option<workspace::ViewId> {
         self.remote_id
-    }
-
-    fn to_state_proto(&self, _window: &Window, _cx: &App) -> Option<proto::view::Variant> {
-        None
-    }
-
-    fn from_state_proto(
-        _workspace: Entity<Workspace>,
-        _remote_id: ViewId,
-        _state: &mut Option<proto::view::Variant>,
-        _window: &mut Window,
-        _cx: &mut App,
-    ) -> Option<gpui::Task<anyhow::Result<Entity<Self>>>> {
-        None
-    }
-
-    fn add_event_to_update_proto(
-        &self,
-        _event: &Self::Event,
-        _update: &mut Option<proto::update_view::Variant>,
-        _window: &Window,
-        _cx: &App,
-    ) -> bool {
-        // update.get_or_insert_with(|| proto::update_view::Variant::DebugPanel(Default::default()));
-
-        true
-    }
-
-    fn apply_update_proto(
-        &mut self,
-        _project: &Entity<project::Project>,
-        _message: proto::update_view::Variant,
-        _window: &mut Window,
-        _cx: &mut Context<Self>,
-    ) -> gpui::Task<anyhow::Result<()>> {
-        Task::ready(Ok(()))
     }
 
     fn set_leader_id(

@@ -1697,10 +1697,6 @@ impl ProtoClient for ChannelClient {
         &self.message_handlers
     }
 
-    fn is_via_collab(&self) -> bool {
-        false
-    }
-
     fn has_wsl_interop(&self) -> bool {
         self.has_wsl_interop
     }

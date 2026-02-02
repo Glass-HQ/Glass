@@ -81,23 +81,6 @@ impl BrowserToolbar {
 
         window.blur();
     }
-
-    pub fn set_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.url_editor.update(cx, |editor, cx| {
-            editor.set_text(url, window, cx);
-        });
-    }
-
-    fn sync_url_from_browser(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let current_url = self.browser.read(cx).url();
-        if current_url != "about:blank" && !current_url.is_empty() {
-            self.url_editor.update(cx, |editor, cx| {
-                if editor.text(cx) != current_url {
-                    editor.set_text(current_url, window, cx);
-                }
-            });
-        }
-    }
 }
 
 impl Focusable for BrowserToolbar {

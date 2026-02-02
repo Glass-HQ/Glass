@@ -58,7 +58,6 @@ impl Settings for AudioSettings {
 pub(crate) struct LiveSettings {
     pub(crate) auto_microphone_volume: AtomicBool,
     pub(crate) auto_speaker_volume: AtomicBool,
-    pub(crate) denoise: AtomicBool,
 }
 
 impl LiveSettings {
@@ -72,20 +71,6 @@ impl LiveSettings {
                 AudioSettings::get_global(cx).auto_speaker_volume,
                 Ordering::Relaxed,
             );
-
-            let denoise_enabled = AudioSettings::get_global(cx).denoise;
-            #[cfg(debug_assertions)]
-            {
-                static DENOISE_WARNING_SEND: AtomicBool = AtomicBool::new(false);
-                if denoise_enabled && !DENOISE_WARNING_SEND.load(Ordering::Relaxed) {
-                    DENOISE_WARNING_SEND.store(true, Ordering::Relaxed);
-                    log::warn!("Denoise does not work on debug builds, not enabling")
-                }
-            }
-            #[cfg(not(debug_assertions))]
-            LIVE_SETTINGS
-                .denoise
-                .store(denoise_enabled, Ordering::Relaxed);
         })
         .detach();
 
@@ -96,15 +81,6 @@ impl LiveSettings {
         LIVE_SETTINGS
             .auto_speaker_volume
             .store(init_settings.auto_speaker_volume, Ordering::Relaxed);
-        let denoise_enabled = AudioSettings::get_global(cx).denoise;
-        #[cfg(debug_assertions)]
-        if denoise_enabled {
-            log::warn!("Denoise does not work on debug builds, not enabling")
-        }
-        #[cfg(not(debug_assertions))]
-        LIVE_SETTINGS
-            .denoise
-            .store(denoise_enabled, Ordering::Relaxed);
     }
 }
 
@@ -115,5 +91,4 @@ impl LiveSettings {
 pub(crate) static LIVE_SETTINGS: LiveSettings = LiveSettings {
     auto_microphone_volume: AtomicBool::new(true),
     auto_speaker_volume: AtomicBool::new(true),
-    denoise: AtomicBool::new(true),
 };

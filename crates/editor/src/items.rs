@@ -1,8 +1,7 @@
 use crate::{
     Anchor, Autoscroll, BufferSerialization, Capability, Editor, EditorEvent, EditorSettings,
-    ExcerptId, ExcerptRange, FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData,
-    ReportEditorEvent, SearchWithinRange, SelectionEffects, ToPoint as _,
-    display_map::HighlightKey,
+    FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData, ReportEditorEvent,
+    SearchWithinRange, SelectionEffects, ToPoint as _, display_map::HighlightKey,
     editor_settings::SeedQuerySetting,
     persistence::{DB, SerializedEditor},
     scroll::{ScrollAnchor, ScrollOffset},
@@ -10,15 +9,13 @@ use crate::{
 use anyhow::{Context as _, Result, anyhow};
 use collections::{HashMap, HashSet};
 use file_icons::FileIcons;
-use futures::future::try_join_all;
 use git::status::GitSummary;
 use gpui::{
-    AnyElement, App, AsyncWindowContext, Context, Entity, EntityId, EventEmitter, IntoElement,
-    ParentElement, Pixels, SharedString, Styled, Task, WeakEntity, Window, point,
+    AnyElement, App, Context, Entity, EntityId, EventEmitter, IntoElement, ParentElement, Pixels,
+    SharedString, Styled, Task, WeakEntity, Window,
 };
 use language::{
     Bias, Buffer, BufferRow, CharKind, CharScopeContext, LocalFile, Point, SelectionGoal,
-    proto::serialize_anchor as serialize_text_anchor,
 };
 use lsp::DiagnosticSeverity;
 use multi_buffer::MultiBufferOffset;
@@ -26,18 +23,16 @@ use project::{
     File, Project, ProjectItem as _, ProjectPath, lsp_store::FormatTrigger,
     project_settings::ProjectSettings, search::SearchQuery,
 };
-use rpc::proto::{self, update_view};
 use settings::Settings;
 use std::{
     any::{Any, TypeId},
     borrow::Cow,
     cmp::{self, Ordering},
-    iter,
     ops::Range,
     path::{Path, PathBuf},
     sync::Arc,
 };
-use text::{BufferId, BufferSnapshot, Selection};
+use text::{BufferSnapshot, Selection};
 use theme::Theme;
 use ui::{IconDecorationKind, prelude::*};
 use util::{ResultExt, TryFutureExt, paths::PathExt};
@@ -66,116 +61,6 @@ impl FollowableItem for Editor {
         self.remote_id
     }
 
-    fn from_state_proto(
-        workspace: Entity<Workspace>,
-        remote_id: ViewId,
-        state: &mut Option<proto::view::Variant>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Task<Result<Entity<Self>>>> {
-        let project = workspace.read(cx).project().to_owned();
-        let Some(proto::view::Variant::Editor(_)) = state else {
-            return None;
-        };
-        let Some(proto::view::Variant::Editor(state)) = state.take() else {
-            unreachable!()
-        };
-
-        let buffer_ids = state
-            .excerpts
-            .iter()
-            .map(|excerpt| excerpt.buffer_id)
-            .collect::<HashSet<_>>();
-        let buffers = project.update(cx, |project, cx| {
-            buffer_ids
-                .iter()
-                .map(|id| BufferId::new(*id).map(|id| project.open_buffer_by_id(id, cx)))
-                .collect::<Result<Vec<_>>>()
-        });
-
-        Some(window.spawn(cx, async move |cx| {
-            let mut buffers = futures::future::try_join_all(buffers?)
-                .await
-                .debug_assert_ok("leaders don't share views for unshared buffers")?;
-
-            let editor = cx.update(|window, cx| {
-                let multibuffer = cx.new(|cx| {
-                    let mut multibuffer;
-                    if state.singleton && buffers.len() == 1 {
-                        multibuffer = MultiBuffer::singleton(buffers.pop().unwrap(), cx)
-                    } else {
-                        multibuffer = MultiBuffer::new(project.read(cx).capability());
-                        let mut sorted_excerpts = state.excerpts.clone();
-                        sorted_excerpts.sort_by_key(|e| e.id);
-                        let sorted_excerpts = sorted_excerpts.into_iter().peekable();
-
-                        for excerpt in sorted_excerpts {
-                            let Ok(buffer_id) = BufferId::new(excerpt.buffer_id) else {
-                                continue;
-                            };
-
-                            let mut insert_position = ExcerptId::min();
-                            for e in &state.excerpts {
-                                if e.id == excerpt.id {
-                                    break;
-                                }
-                                if e.id < excerpt.id {
-                                    insert_position = ExcerptId::from_proto(e.id);
-                                }
-                            }
-
-                            let buffer =
-                                buffers.iter().find(|b| b.read(cx).remote_id() == buffer_id);
-
-                            let Some(excerpt) = deserialize_excerpt_range(excerpt) else {
-                                continue;
-                            };
-
-                            let Some(buffer) = buffer else { continue };
-
-                            multibuffer.insert_excerpts_with_ids_after(
-                                insert_position,
-                                buffer.clone(),
-                                [excerpt],
-                                cx,
-                            );
-                        }
-                    };
-
-                    if let Some(title) = &state.title {
-                        multibuffer = multibuffer.with_title(title.clone())
-                    }
-
-                    multibuffer
-                });
-
-                cx.new(|cx| {
-                    let mut editor =
-                        Editor::for_multibuffer(multibuffer, Some(project.clone()), window, cx);
-                    editor.remote_id = Some(remote_id);
-                    editor
-                })
-            })?;
-
-            update_editor_from_message(
-                editor.downgrade(),
-                project,
-                proto::update_view::Editor {
-                    selections: state.selections,
-                    pending_selection: state.pending_selection,
-                    scroll_top_anchor: state.scroll_top_anchor,
-                    scroll_x: state.scroll_x,
-                    scroll_y: state.scroll_y,
-                    ..Default::default()
-                },
-                cx,
-            )
-            .await?;
-
-            Ok(editor)
-        }))
-    }
-
     fn set_leader_id(
         &mut self,
         leader_id: Option<CollaboratorId>,
@@ -200,52 +85,6 @@ impl FollowableItem for Editor {
         cx.notify();
     }
 
-    fn to_state_proto(&self, _: &Window, cx: &App) -> Option<proto::view::Variant> {
-        let buffer = self.buffer.read(cx);
-        if buffer
-            .as_singleton()
-            .and_then(|buffer| buffer.read(cx).file())
-            .is_some_and(|file| file.is_private())
-        {
-            return None;
-        }
-
-        let scroll_anchor = self.scroll_manager.anchor();
-        let excerpts = buffer
-            .read(cx)
-            .excerpts()
-            .map(|(id, buffer, range)| proto::Excerpt {
-                id: id.to_proto(),
-                buffer_id: buffer.remote_id().into(),
-                context_start: Some(serialize_text_anchor(&range.context.start)),
-                context_end: Some(serialize_text_anchor(&range.context.end)),
-                primary_start: Some(serialize_text_anchor(&range.primary.start)),
-                primary_end: Some(serialize_text_anchor(&range.primary.end)),
-            })
-            .collect();
-        let snapshot = buffer.snapshot(cx);
-
-        Some(proto::view::Variant::Editor(proto::view::Editor {
-            singleton: buffer.is_singleton(),
-            title: buffer.explicit_title().map(ToOwned::to_owned),
-            excerpts,
-            scroll_top_anchor: Some(serialize_anchor(&scroll_anchor.anchor, &snapshot)),
-            scroll_x: scroll_anchor.offset.x,
-            scroll_y: scroll_anchor.offset.y,
-            selections: self
-                .selections
-                .disjoint_anchors_arc()
-                .iter()
-                .map(|s| serialize_selection(s, &snapshot))
-                .collect(),
-            pending_selection: self
-                .selections
-                .pending_anchor()
-                .as_ref()
-                .map(|s| serialize_selection(s, &snapshot)),
-        }))
-    }
-
     fn to_follow_event(event: &EditorEvent) -> Option<workspace::item::FollowEvent> {
         match event {
             EditorEvent::Edited { .. } => Some(FollowEvent::Unfollow),
@@ -259,88 +98,6 @@ impl FollowableItem for Editor {
             }
             _ => None,
         }
-    }
-
-    fn add_event_to_update_proto(
-        &self,
-        event: &EditorEvent,
-        update: &mut Option<proto::update_view::Variant>,
-        _: &Window,
-        cx: &App,
-    ) -> bool {
-        let update =
-            update.get_or_insert_with(|| proto::update_view::Variant::Editor(Default::default()));
-
-        match update {
-            proto::update_view::Variant::Editor(update) => match event {
-                EditorEvent::ExcerptsAdded {
-                    buffer,
-                    predecessor,
-                    excerpts,
-                } => {
-                    let buffer_id = buffer.read(cx).remote_id();
-                    let mut excerpts = excerpts.iter();
-                    if let Some((id, range)) = excerpts.next() {
-                        update.inserted_excerpts.push(proto::ExcerptInsertion {
-                            previous_excerpt_id: Some(predecessor.to_proto()),
-                            excerpt: serialize_excerpt(buffer_id, id, range),
-                        });
-                        update.inserted_excerpts.extend(excerpts.map(|(id, range)| {
-                            proto::ExcerptInsertion {
-                                previous_excerpt_id: None,
-                                excerpt: serialize_excerpt(buffer_id, id, range),
-                            }
-                        }))
-                    }
-                    true
-                }
-                EditorEvent::ExcerptsRemoved { ids, .. } => {
-                    update
-                        .deleted_excerpts
-                        .extend(ids.iter().copied().map(ExcerptId::to_proto));
-                    true
-                }
-                EditorEvent::ScrollPositionChanged { autoscroll, .. } if !autoscroll => {
-                    let snapshot = self.buffer.read(cx).snapshot(cx);
-                    let scroll_anchor = self.scroll_manager.anchor();
-                    update.scroll_top_anchor =
-                        Some(serialize_anchor(&scroll_anchor.anchor, &snapshot));
-                    update.scroll_x = scroll_anchor.offset.x;
-                    update.scroll_y = scroll_anchor.offset.y;
-                    true
-                }
-                EditorEvent::SelectionsChanged { .. } => {
-                    let snapshot = self.buffer.read(cx).snapshot(cx);
-                    update.selections = self
-                        .selections
-                        .disjoint_anchors_arc()
-                        .iter()
-                        .map(|s| serialize_selection(s, &snapshot))
-                        .collect();
-                    update.pending_selection = self
-                        .selections
-                        .pending_anchor()
-                        .as_ref()
-                        .map(|s| serialize_selection(s, &snapshot));
-                    true
-                }
-                _ => false,
-            },
-        }
-    }
-
-    fn apply_update_proto(
-        &mut self,
-        project: &Entity<Project>,
-        message: update_view::Variant,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<()>> {
-        let update_view::Variant::Editor(message) = message;
-        let project = project.clone();
-        cx.spawn_in(window, async move |this, cx| {
-            update_editor_from_message(this, project, message, cx).await
-        })
     }
 
     fn is_project_item(&self, _window: &Window, _cx: &App) -> bool {
@@ -379,198 +136,6 @@ impl FollowableItem for Editor {
         self.set_selections_from_remote(vec![selection], None, window, cx);
         self.request_autoscroll_remotely(Autoscroll::fit(), cx);
     }
-}
-
-async fn update_editor_from_message(
-    this: WeakEntity<Editor>,
-    project: Entity<Project>,
-    message: proto::update_view::Editor,
-    cx: &mut AsyncWindowContext,
-) -> Result<()> {
-    // Open all of the buffers of which excerpts were added to the editor.
-    let inserted_excerpt_buffer_ids = message
-        .inserted_excerpts
-        .iter()
-        .filter_map(|insertion| Some(insertion.excerpt.as_ref()?.buffer_id))
-        .collect::<HashSet<_>>();
-    let inserted_excerpt_buffers = project.update(cx, |project, cx| {
-        inserted_excerpt_buffer_ids
-            .into_iter()
-            .map(|id| BufferId::new(id).map(|id| project.open_buffer_by_id(id, cx)))
-            .collect::<Result<Vec<_>>>()
-    })?;
-    let _inserted_excerpt_buffers = try_join_all(inserted_excerpt_buffers).await?;
-
-    // Update the editor's excerpts.
-    this.update(cx, |editor, cx| {
-        editor.buffer.update(cx, |multibuffer, cx| {
-            let mut removed_excerpt_ids = message
-                .deleted_excerpts
-                .into_iter()
-                .map(ExcerptId::from_proto)
-                .collect::<Vec<_>>();
-            removed_excerpt_ids.sort_by({
-                let multibuffer = multibuffer.read(cx);
-                move |a, b| a.cmp(b, &multibuffer)
-            });
-
-            let mut insertions = message.inserted_excerpts.into_iter().peekable();
-            while let Some(insertion) = insertions.next() {
-                let Some(excerpt) = insertion.excerpt else {
-                    continue;
-                };
-                let Some(previous_excerpt_id) = insertion.previous_excerpt_id else {
-                    continue;
-                };
-                let buffer_id = BufferId::new(excerpt.buffer_id)?;
-                let Some(buffer) = project.read(cx).buffer_for_id(buffer_id, cx) else {
-                    continue;
-                };
-
-                let adjacent_excerpts = iter::from_fn(|| {
-                    let insertion = insertions.peek()?;
-                    if insertion.previous_excerpt_id.is_none()
-                        && insertion.excerpt.as_ref()?.buffer_id == u64::from(buffer_id)
-                    {
-                        insertions.next()?.excerpt
-                    } else {
-                        None
-                    }
-                });
-
-                multibuffer.insert_excerpts_with_ids_after(
-                    ExcerptId::from_proto(previous_excerpt_id),
-                    buffer,
-                    [excerpt]
-                        .into_iter()
-                        .chain(adjacent_excerpts)
-                        .filter_map(deserialize_excerpt_range),
-                    cx,
-                );
-            }
-
-            multibuffer.remove_excerpts(removed_excerpt_ids, cx);
-            anyhow::Ok(())
-        })
-    })??;
-
-    // Deserialize the editor state.
-    let selections = message
-        .selections
-        .into_iter()
-        .filter_map(deserialize_selection)
-        .collect::<Vec<_>>();
-    let pending_selection = message.pending_selection.and_then(deserialize_selection);
-    let scroll_top_anchor = message.scroll_top_anchor.and_then(deserialize_anchor);
-
-    // Wait until the buffer has received all of the operations referenced by
-    // the editor's new state.
-    this.update(cx, |editor, cx| {
-        editor.buffer.update(cx, |buffer, cx| {
-            buffer.wait_for_anchors(
-                selections
-                    .iter()
-                    .chain(pending_selection.as_ref())
-                    .flat_map(|selection| [selection.start, selection.end])
-                    .chain(scroll_top_anchor),
-                cx,
-            )
-        })
-    })?
-    .await?;
-
-    // Update the editor's state.
-    this.update_in(cx, |editor, window, cx| {
-        if !selections.is_empty() || pending_selection.is_some() {
-            editor.set_selections_from_remote(selections, pending_selection, window, cx);
-            editor.request_autoscroll_remotely(Autoscroll::newest(), cx);
-        } else if let Some(scroll_top_anchor) = scroll_top_anchor {
-            editor.set_scroll_anchor_remote(
-                ScrollAnchor {
-                    anchor: scroll_top_anchor,
-                    offset: point(message.scroll_x, message.scroll_y),
-                },
-                window,
-                cx,
-            );
-        }
-    })?;
-    Ok(())
-}
-
-fn serialize_excerpt(
-    buffer_id: BufferId,
-    id: &ExcerptId,
-    range: &ExcerptRange<language::Anchor>,
-) -> Option<proto::Excerpt> {
-    Some(proto::Excerpt {
-        id: id.to_proto(),
-        buffer_id: buffer_id.into(),
-        context_start: Some(serialize_text_anchor(&range.context.start)),
-        context_end: Some(serialize_text_anchor(&range.context.end)),
-        primary_start: Some(serialize_text_anchor(&range.primary.start)),
-        primary_end: Some(serialize_text_anchor(&range.primary.end)),
-    })
-}
-
-fn serialize_selection(
-    selection: &Selection<Anchor>,
-    buffer: &MultiBufferSnapshot,
-) -> proto::Selection {
-    proto::Selection {
-        id: selection.id as u64,
-        start: Some(serialize_anchor(&selection.start, buffer)),
-        end: Some(serialize_anchor(&selection.end, buffer)),
-        reversed: selection.reversed,
-    }
-}
-
-fn serialize_anchor(anchor: &Anchor, buffer: &MultiBufferSnapshot) -> proto::EditorAnchor {
-    proto::EditorAnchor {
-        excerpt_id: buffer.latest_excerpt_id(anchor.excerpt_id).to_proto(),
-        anchor: Some(serialize_text_anchor(&anchor.text_anchor)),
-    }
-}
-
-fn deserialize_excerpt_range(
-    excerpt: proto::Excerpt,
-) -> Option<(ExcerptId, ExcerptRange<language::Anchor>)> {
-    let context = {
-        let start = language::proto::deserialize_anchor(excerpt.context_start?)?;
-        let end = language::proto::deserialize_anchor(excerpt.context_end?)?;
-        start..end
-    };
-    let primary = excerpt
-        .primary_start
-        .zip(excerpt.primary_end)
-        .and_then(|(start, end)| {
-            let start = language::proto::deserialize_anchor(start)?;
-            let end = language::proto::deserialize_anchor(end)?;
-            Some(start..end)
-        })
-        .unwrap_or_else(|| context.clone());
-    Some((
-        ExcerptId::from_proto(excerpt.id),
-        ExcerptRange { context, primary },
-    ))
-}
-
-fn deserialize_selection(selection: proto::Selection) -> Option<Selection<Anchor>> {
-    Some(Selection {
-        id: selection.id as usize,
-        start: deserialize_anchor(selection.start?)?,
-        end: deserialize_anchor(selection.end?)?,
-        reversed: selection.reversed,
-        goal: SelectionGoal::None,
-    })
-}
-
-fn deserialize_anchor(anchor: proto::EditorAnchor) -> Option<Anchor> {
-    let excerpt_id = ExcerptId::from_proto(anchor.excerpt_id);
-    Some(Anchor::in_buffer(
-        excerpt_id,
-        language::proto::deserialize_anchor(anchor.anchor?)?,
-    ))
 }
 
 impl Item for Editor {

@@ -311,28 +311,6 @@ impl BreakpointStore {
         Ok(proto::Ack {})
     }
 
-    pub(crate) fn broadcast(&self) {
-        if let Some((client, project_id)) = &self.downstream_client {
-            for (path, breakpoint_set) in &self.breakpoints {
-                let _ = client.send(proto::BreakpointsForFile {
-                    project_id: *project_id,
-                    path: path.to_str().map(ToOwned::to_owned).unwrap(),
-                    breakpoints: breakpoint_set
-                        .breakpoints
-                        .iter()
-                        .filter_map(|breakpoint| {
-                            breakpoint.bp.bp.to_proto(
-                                path,
-                                breakpoint.position(),
-                                &breakpoint.session_state,
-                            )
-                        })
-                        .collect(),
-                });
-            }
-        }
-    }
-
     pub(crate) fn update_session_breakpoint(
         &mut self,
         session_id: SessionId,

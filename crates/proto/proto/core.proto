@@ -27,3 +27,11 @@ message Collaborator {
     optional string committer_name = 5;
     optional string committer_email = 6;
 }
+
+message GetUsers {
+    repeated uint64 user_ids = 1;
+}
+
+message UsersResponse {
+    repeated User users = 1;
+}

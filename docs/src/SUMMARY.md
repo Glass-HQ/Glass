@@ -46,12 +46,6 @@
   - [REPL](./repl.md)
 - [Git](./git.md)
 
-# Collaboration
-
-- [Overview](./collaboration/overview.md)
-  - [Channels](./collaboration/channels.md)
-  - [Contacts and Private Calls](./collaboration/contacts-and-private-calls.md)
-
 # Remote Development
 
 - [Overview](./remote-development.md)

@@ -71,7 +71,6 @@ pub enum DapStoreEvent {
 enum DapStoreMode {
     Local(LocalDapStore),
     Remote(RemoteDapStore),
-    Collab,
 }
 
 pub struct LocalDapStore {
@@ -173,23 +172,6 @@ impl DapStore {
         });
 
         Self::new(mode, breakpoint_store, worktree_store, fs, cx)
-    }
-
-    pub fn new_collab(
-        _project_id: u64,
-        _upstream_client: AnyProtoClient,
-        breakpoint_store: Entity<BreakpointStore>,
-        worktree_store: Entity<WorktreeStore>,
-        fs: Arc<dyn Fs>,
-        cx: &mut Context<Self>,
-    ) -> Self {
-        Self::new(
-            DapStoreMode::Collab,
-            breakpoint_store,
-            worktree_store,
-            fs,
-            cx,
-        )
     }
 
     fn new(
@@ -363,9 +345,6 @@ impl DapStore {
                     })
                 })
             }
-            DapStoreMode::Collab => {
-                Task::ready(Err(anyhow!("Debugging is not yet supported via collab")))
-            }
         }
     }
 
@@ -434,9 +413,6 @@ impl DapStore {
                     DebugRequest::from_proto(response)
                 })
             }
-            DapStoreMode::Collab => {
-                Task::ready(Err(anyhow!("Debugging is not yet supported via collab")))
-            }
         }
     }
 
@@ -471,7 +447,6 @@ impl DapStore {
                 Some(remote_dap_store.node_runtime.clone()),
                 Some(remote_dap_store.http_client.clone()),
             ),
-            DapStoreMode::Collab => (None, None, None),
         };
         let session = Session::new(
             self.breakpoint_store.clone(),

@@ -1,4 +1,4 @@
-use super::{Client, Status, TypedEnvelope, proto};
+use super::{Client, Status, proto};
 use anyhow::{Context as _, Result};
 use chrono::{DateTime, Utc};
 use cloud_api_client::websocket_protocol::MessageToClient;
@@ -7,13 +7,11 @@ use cloud_llm_client::{
     EDIT_PREDICTIONS_USAGE_AMOUNT_HEADER_NAME, EDIT_PREDICTIONS_USAGE_LIMIT_HEADER_NAME, Plan,
     UsageLimit,
 };
-use collections::{HashMap, HashSet, hash_map::Entry};
+use collections::HashMap;
 use derive_more::Deref;
 use feature_flags::FeatureFlagAppExt;
 use futures::{Future, StreamExt, channel::mpsc};
-use gpui::{
-    App, AsyncApp, Context, Entity, EventEmitter, SharedString, SharedUri, Task, WeakEntity,
-};
+use gpui::{App, Context, EventEmitter, SharedString, SharedUri, Task, WeakEntity};
 use http_client::http::{HeaderMap, HeaderValue};
 use postage::{sink::Sink, watch};
 use rpc::proto::{RequestMessage, UsersResponse};
@@ -147,7 +145,6 @@ pub enum ContactEventKind {
 impl EventEmitter<Event> for UserStore {}
 
 enum UpdateContacts {
-    Update(proto::UpdateContacts),
     Wait(postage::barrier::Sender),
     Clear(postage::barrier::Sender),
 }
@@ -165,10 +162,7 @@ impl UserStore {
     pub fn new(client: Arc<Client>, cx: &Context<Self>) -> Self {
         let (mut current_user_tx, current_user_rx) = watch::channel();
         let (update_contacts_tx, mut update_contacts_rx) = mpsc::unbounded();
-        let rpc_subscriptions = vec![
-            client.add_message_handler(cx.weak_entity(), Self::handle_update_contacts),
-            client.add_message_handler(cx.weak_entity(), Self::handle_show_contacts),
-        ];
+        let rpc_subscriptions: Vec<super::Subscription> = vec![];
 
         client.add_message_to_client_handler({
             let this = cx.weak_entity();
@@ -288,29 +282,8 @@ impl UserStore {
         self.by_github_login.clear();
     }
 
-    async fn handle_show_contacts(
-        this: Entity<Self>,
-        _: TypedEnvelope<proto::ShowContacts>,
-        mut cx: AsyncApp,
-    ) -> Result<()> {
-        this.update(&mut cx, |_, cx| cx.emit(Event::ShowContacts));
-        Ok(())
-    }
 
-    async fn handle_update_contacts(
-        this: Entity<Self>,
-        message: TypedEnvelope<proto::UpdateContacts>,
-        cx: AsyncApp,
-    ) -> Result<()> {
-        this.read_with(&cx, |this, _| {
-            this.update_contacts_tx
-                .unbounded_send(UpdateContacts::Update(message.payload))
-                .unwrap();
-        });
-        Ok(())
-    }
-
-    fn update_contacts(&mut self, message: UpdateContacts, cx: &Context<Self>) -> Task<Result<()>> {
+    fn update_contacts(&mut self, message: UpdateContacts, _cx: &Context<Self>) -> Task<Result<()>> {
         match message {
             UpdateContacts::Wait(barrier) => {
                 drop(barrier);
@@ -322,110 +295,6 @@ impl UserStore {
                 self.outgoing_contact_requests.clear();
                 drop(barrier);
                 Task::ready(Ok(()))
-            }
-            UpdateContacts::Update(message) => {
-                let mut user_ids = HashSet::default();
-                for contact in &message.contacts {
-                    user_ids.insert(contact.user_id);
-                }
-                user_ids.extend(message.incoming_requests.iter().map(|req| req.requester_id));
-                user_ids.extend(message.outgoing_requests.iter());
-
-                let load_users = self.get_users(user_ids.into_iter().collect(), cx);
-                cx.spawn(async move |this, cx| {
-                    load_users.await?;
-
-                    // Users are fetched in parallel above and cached in call to get_users
-                    // No need to parallelize here
-                    let mut updated_contacts = Vec::new();
-                    let this = this.upgrade().context("can't upgrade user store handle")?;
-                    for contact in message.contacts {
-                        updated_contacts
-                            .push(Arc::new(Contact::from_proto(contact, &this, cx).await?));
-                    }
-
-                    let mut incoming_requests = Vec::new();
-                    for request in message.incoming_requests {
-                        incoming_requests.push({
-                            this.update(cx, |this, cx| this.get_user(request.requester_id, cx))
-                                .await?
-                        });
-                    }
-
-                    let mut outgoing_requests = Vec::new();
-                    for requested_user_id in message.outgoing_requests {
-                        outgoing_requests.push(
-                            this.update(cx, |this, cx| this.get_user(requested_user_id, cx))
-                                .await?,
-                        );
-                    }
-
-                    let removed_contacts =
-                        HashSet::<u64>::from_iter(message.remove_contacts.iter().copied());
-                    let removed_incoming_requests =
-                        HashSet::<u64>::from_iter(message.remove_incoming_requests.iter().copied());
-                    let removed_outgoing_requests =
-                        HashSet::<u64>::from_iter(message.remove_outgoing_requests.iter().copied());
-
-                    this.update(cx, |this, cx| {
-                        // Remove contacts
-                        this.contacts
-                            .retain(|contact| !removed_contacts.contains(&contact.user.id));
-                        // Update existing contacts and insert new ones
-                        for updated_contact in updated_contacts {
-                            match this.contacts.binary_search_by_key(
-                                &&updated_contact.user.github_login,
-                                |contact| &contact.user.github_login,
-                            ) {
-                                Ok(ix) => this.contacts[ix] = updated_contact,
-                                Err(ix) => this.contacts.insert(ix, updated_contact),
-                            }
-                        }
-
-                        // Remove incoming contact requests
-                        this.incoming_contact_requests.retain(|user| {
-                            if removed_incoming_requests.contains(&user.id) {
-                                cx.emit(Event::Contact {
-                                    user: user.clone(),
-                                    kind: ContactEventKind::Cancelled,
-                                });
-                                false
-                            } else {
-                                true
-                            }
-                        });
-                        // Update existing incoming requests and insert new ones
-                        for user in incoming_requests {
-                            match this
-                                .incoming_contact_requests
-                                .binary_search_by_key(&&user.github_login, |contact| {
-                                    &contact.github_login
-                                }) {
-                                Ok(ix) => this.incoming_contact_requests[ix] = user,
-                                Err(ix) => this.incoming_contact_requests.insert(ix, user),
-                            }
-                        }
-
-                        // Remove outgoing contact requests
-                        this.outgoing_contact_requests
-                            .retain(|user| !removed_outgoing_requests.contains(&user.id));
-                        // Update existing incoming requests and insert new ones
-                        for request in outgoing_requests {
-                            match this
-                                .outgoing_contact_requests
-                                .binary_search_by_key(&&request.github_login, |contact| {
-                                    &contact.github_login
-                                }) {
-                                Ok(ix) => this.outgoing_contact_requests[ix] = request,
-                                Err(ix) => this.outgoing_contact_requests.insert(ix, request),
-                            }
-                        }
-
-                        cx.notify();
-                    });
-
-                    Ok(())
-                })
             }
         }
     }
@@ -478,14 +347,14 @@ impl UserStore {
 
     pub fn request_contact(
         &mut self,
-        responder_id: u64,
-        cx: &mut Context<Self>,
+        _responder_id: u64,
+        _cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        self.perform_contact_request(responder_id, proto::RequestContact { responder_id }, cx)
+        Task::ready(Err(anyhow::anyhow!("Contact requests are not supported")))
     }
 
-    pub fn remove_contact(&mut self, user_id: u64, cx: &mut Context<Self>) -> Task<Result<()>> {
-        self.perform_contact_request(user_id, proto::RemoveContact { user_id }, cx)
+    pub fn remove_contact(&mut self, _user_id: u64, _cx: &mut Context<Self>) -> Task<Result<()>> {
+        Task::ready(Err(anyhow::anyhow!("Contact management is not supported")))
     }
 
     pub fn has_incoming_contact_request(&self, user_id: u64) -> bool {
@@ -496,71 +365,19 @@ impl UserStore {
 
     pub fn respond_to_contact_request(
         &mut self,
-        requester_id: u64,
-        accept: bool,
-        cx: &mut Context<Self>,
+        _requester_id: u64,
+        _accept: bool,
+        _cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        self.perform_contact_request(
-            requester_id,
-            proto::RespondToContactRequest {
-                requester_id,
-                response: if accept {
-                    proto::ContactRequestResponse::Accept
-                } else {
-                    proto::ContactRequestResponse::Decline
-                } as i32,
-            },
-            cx,
-        )
+        Task::ready(Err(anyhow::anyhow!("Contact requests are not supported")))
     }
 
     pub fn dismiss_contact_request(
         &self,
-        requester_id: u64,
-        cx: &Context<Self>,
+        _requester_id: u64,
+        _cx: &Context<Self>,
     ) -> Task<Result<()>> {
-        let client = self.client.upgrade();
-        cx.spawn(async move |_, _| {
-            client
-                .context("can't upgrade client reference")?
-                .request(proto::RespondToContactRequest {
-                    requester_id,
-                    response: proto::ContactRequestResponse::Dismiss as i32,
-                })
-                .await?;
-            Ok(())
-        })
-    }
-
-    fn perform_contact_request<T: RequestMessage>(
-        &mut self,
-        user_id: u64,
-        request: T,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<()>> {
-        let client = self.client.upgrade();
-        *self.pending_contact_requests.entry(user_id).or_insert(0) += 1;
-        cx.notify();
-
-        cx.spawn(async move |this, cx| {
-            let response = client
-                .context("can't upgrade client reference")?
-                .request(request)
-                .await;
-            this.update(cx, |this, cx| {
-                if let Entry::Occupied(mut request_count) =
-                    this.pending_contact_requests.entry(user_id)
-                {
-                    *request_count.get_mut() -= 1;
-                    if *request_count.get() == 0 {
-                        request_count.remove();
-                    }
-                }
-                cx.notify();
-            })?;
-            response?;
-            Ok(())
-        })
+        Task::ready(Err(anyhow::anyhow!("Contact requests are not supported")))
     }
 
     pub fn clear_contacts(&self) -> impl Future<Output = ()> + use<> {
@@ -616,14 +433,6 @@ impl UserStore {
                     .collect()
             })?
         })
-    }
-
-    pub fn fuzzy_search_users(
-        &self,
-        query: String,
-        cx: &Context<Self>,
-    ) -> Task<Result<Vec<Arc<User>>>> {
-        self.load_users(proto::FuzzySearchUsers { query }, cx)
     }
 
     pub fn get_cached_user(&self, user_id: u64) -> Option<Arc<User>> {
@@ -874,24 +683,6 @@ impl User {
     }
 }
 
-impl Contact {
-    async fn from_proto(
-        contact: proto::Contact,
-        user_store: &Entity<UserStore>,
-        cx: &mut AsyncApp,
-    ) -> Result<Self> {
-        let user = user_store
-            .update(cx, |user_store, cx| {
-                user_store.get_user(contact.user_id, cx)
-            })
-            .await?;
-        Ok(Self {
-            user,
-            online: contact.online,
-            busy: contact.busy,
-        })
-    }
-}
 
 impl Collaborator {
     pub fn from_proto(message: proto::Collaborator) -> Result<Self> {

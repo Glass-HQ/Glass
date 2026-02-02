@@ -14,7 +14,6 @@ doctest = false
 
 [features]
 test-support = [
-    "channel/test-support",
     "collections/test-support",
     "gpui/test-support",
     "rpc/test-support",
@@ -22,7 +21,6 @@ test-support = [
 
 [dependencies]
 anyhow.workspace = true
-channel.workspace = true
 client.workspace = true
 component.workspace = true
 db.workspace = true

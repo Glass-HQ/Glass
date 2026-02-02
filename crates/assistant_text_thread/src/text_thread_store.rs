@@ -178,12 +178,7 @@ impl TextThreadStore {
     ) -> Result<proto::OpenContextResponse> {
         let context_id = TextThreadId::from_proto(envelope.payload.context_id);
         let operations = this.update(&mut cx, |this, cx| {
-            let project = this.project.upgrade().context("project not found")?;
-
-            anyhow::ensure!(
-                !project.read(cx).is_via_collab(),
-                "only the host contexts can be opened"
-            );
+            let _project = this.project.upgrade().context("project not found")?;
 
             let text_thread = this
                 .loaded_text_thread_for_id(&context_id, cx)
@@ -211,11 +206,7 @@ impl TextThreadStore {
         mut cx: AsyncApp,
     ) -> Result<proto::CreateContextResponse> {
         let (context_id, operations) = this.update(&mut cx, |this, cx| {
-            let project = this.project.upgrade().context("project not found")?;
-            anyhow::ensure!(
-                !project.read(cx).is_via_collab(),
-                "can only create contexts as the host"
-            );
+            let _project = this.project.upgrade().context("project not found")?;
 
             let text_thread = this.create(cx);
             let context_id = text_thread.read(cx).id().clone();
@@ -256,11 +247,7 @@ impl TextThreadStore {
         mut cx: AsyncApp,
     ) -> Result<proto::SynchronizeContextsResponse> {
         this.update(&mut cx, |this, cx| {
-            let project = this.project.upgrade().context("project not found")?;
-            anyhow::ensure!(
-                !project.read(cx).is_via_collab(),
-                "only the host can synchronize contexts"
-            );
+            let _project = this.project.upgrade().context("project not found")?;
 
             let mut local_versions = Vec::new();
             for remote_version_proto in envelope.payload.contexts {
@@ -336,12 +323,6 @@ impl TextThreadStore {
         match event {
             project::Event::RemoteIdChanged(_) => {
                 self.handle_project_shared(cx);
-            }
-            project::Event::Reshared => {
-                self.advertise_contexts(cx);
-            }
-            project::Event::HostReshared | project::Event::Rejoined => {
-                self.synchronize_contexts(cx);
             }
             project::Event::DisconnectedFromHost => {
                 self.text_threads.retain_mut(|text_thread| {
@@ -697,10 +678,6 @@ impl TextThreadStore {
         let Some(project_id) = project.read(cx).remote_id() else {
             return;
         };
-        // For now, only the host can advertise their open contexts.
-        if project.read(cx).is_via_collab() {
-            return;
-        }
 
         let contexts = self
             .text_threads

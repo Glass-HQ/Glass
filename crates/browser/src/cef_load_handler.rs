@@ -39,10 +39,6 @@ impl OsrLoadHandler {
     pub fn new(state: Arc<Mutex<LoadState>>) -> Self {
         Self { state }
     }
-
-    pub fn state(&self) -> &Arc<Mutex<LoadState>> {
-        &self.state
-    }
 }
 
 wrap_load_handler! {

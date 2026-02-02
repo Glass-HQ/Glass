@@ -6,7 +6,7 @@ use acp_thread::{
 };
 use acp_thread::{AgentConnection, Plan};
 use action_log::{ActionLog, ActionLogTelemetry};
-use agent::{NativeAgentServer, NativeAgentSessionList, SharedThread, ThreadStore};
+use agent::{NativeAgentSessionList, SharedThread, ThreadStore};
 use agent_client_protocol::{self as acp, PromptCapabilities};
 use agent_servers::{AgentServer, AgentServerDelegate};
 use agent_settings::{AgentProfileId, AgentSettings};
@@ -589,13 +589,6 @@ impl AcpThreadView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> ThreadState {
-        if project.read(cx).is_via_collab()
-            && agent.clone().downcast::<NativeAgentServer>().is_none()
-        {
-            return ThreadState::LoadError(LoadError::Other(
-                "External agents are not yet supported in shared projects.".into(),
-            ));
-        }
         let mut worktrees = project.read(cx).visible_worktrees(cx).collect::<Vec<_>>();
         // Pick the first non-single-file worktree for the root directory if there are any,
         // and otherwise the parent of a single-file worktree, falling back to $HOME if there are no visible worktrees.

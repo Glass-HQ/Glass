@@ -40,10 +40,6 @@ impl OsrRenderHandler {
     pub fn new(state: Arc<Mutex<RenderState>>) -> Self {
         Self { state }
     }
-
-    pub fn state(&self) -> &Arc<Mutex<RenderState>> {
-        &self.state
-    }
 }
 
 wrap_render_handler! {

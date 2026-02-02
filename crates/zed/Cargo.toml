@@ -77,13 +77,10 @@ auto_update_ui.workspace = true
 bincode.workspace = true
 breadcrumbs.workspace = true
 browser.workspace = true
-call.workspace = true
-channel.workspace = true
 clap.workspace = true
 cli.workspace = true
 client.workspace = true
 codestral.workspace = true
-collab_ui.workspace = true
 collections.workspace = true
 command_palette.workspace = true
 component.workspace = true
@@ -235,7 +232,6 @@ winresource = "0.1"
 ashpd.workspace = true
 
 [dev-dependencies]
-call = { workspace = true, features = ["test-support"] }
 dap = { workspace = true, features = ["test-support"] }
 editor = { workspace = true, features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support", "screen-capture"] }

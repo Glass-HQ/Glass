@@ -143,7 +143,8 @@ enum AgentServerStoreState {
         project_id: u64,
         upstream_client: Entity<RemoteClient>,
     },
-    Collab,
+    #[cfg(test)]
+    Test,
 }
 
 struct ExternalAgentEntry {
@@ -183,11 +184,11 @@ mod ext_agent_tests {
     use super::*;
     use std::{collections::HashSet, fmt::Write as _};
 
-    // Helper to build a store in Collab mode so we can mutate internal maps without
+    // Helper to build a store in Test mode so we can mutate internal maps without
     // needing to spin up a full project environment.
-    fn collab_store() -> AgentServerStore {
+    fn test_store() -> AgentServerStore {
         AgentServerStore {
-            state: AgentServerStoreState::Collab,
+            state: AgentServerStoreState::Test,
             external_agents: HashMap::default(),
         }
     }
@@ -230,7 +231,7 @@ mod ext_agent_tests {
 
     #[test]
     fn sync_extension_agents_removes_previous_extension_entries() {
-        let mut store = collab_store();
+        let mut store = test_store();
 
         // Seed with a couple of agents that will be replaced by extensions
         store.external_agents.insert(
@@ -498,9 +499,6 @@ impl AgentServerStore {
                         agents,
                     })
                     .log_err();
-            }
-            AgentServerStoreState::Collab => {
-                // Do nothing
             }
         }
 
@@ -906,13 +904,6 @@ impl AgentServerStore {
         }
     }
 
-    pub(crate) fn collab(_cx: &mut Context<Self>) -> Self {
-        Self {
-            state: AgentServerStoreState::Collab,
-            external_agents: Default::default(),
-        }
-    }
-
     pub fn shared(&mut self, project_id: u64, client: AnyProtoClient, cx: &mut Context<Self>) {
         match &mut self.state {
             AgentServerStoreState::Local {
@@ -940,9 +931,6 @@ impl AgentServerStore {
                 debug_panic!(
                     "external agents over collab not implemented, remote project should not be shared"
                 );
-            }
-            AgentServerStoreState::Collab => {
-                debug_panic!("external agents over collab not implemented, should not be shared");
             }
         }
     }
@@ -2679,7 +2667,7 @@ mod extension_agent_tests {
     #[test]
     fn sync_removes_only_extension_provided_agents() {
         let mut store = AgentServerStore {
-            state: AgentServerStoreState::Collab,
+            state: AgentServerStoreState::Test,
             external_agents: HashMap::default(),
         };
 

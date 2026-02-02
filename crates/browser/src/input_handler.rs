@@ -7,8 +7,8 @@
 use crate::cef_browser::{CefBrowser, CefKeyEvent, MouseButton as CefMouseButton};
 use cef::KeyEventType;
 use gpui::{
-    KeyDownEvent, KeyUpEvent, Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Point, ScrollDelta, ScrollWheelEvent,
+    Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
+    Point, ScrollDelta, ScrollWheelEvent,
 };
 
 const EVENTFLAG_SHIFT_DOWN: u32 = 1 << 1;
@@ -43,10 +43,6 @@ pub fn handle_mouse_move(browser: &CefBrowser, event: &MouseMoveEvent, offset: P
     browser.send_mouse_move(x, y, false);
 }
 
-pub fn handle_mouse_exit(browser: &CefBrowser) {
-    browser.send_mouse_move(0, 0, true);
-}
-
 pub fn handle_scroll_wheel(browser: &CefBrowser, event: &ScrollWheelEvent, offset: Point<Pixels>) {
     let position = event.position - offset;
     let x = f32::from(position.x) as i32;
@@ -63,14 +59,6 @@ pub fn handle_scroll_wheel(browser: &CefBrowser, event: &ScrollWheelEvent, offse
     };
 
     browser.send_mouse_wheel(x, y, delta_x, delta_y);
-}
-
-pub fn handle_key_down(browser: &CefBrowser, event: &KeyDownEvent) {
-    handle_key_down_deferred(browser, &event.keystroke, event.is_held);
-}
-
-pub fn handle_key_up(browser: &CefBrowser, event: &KeyUpEvent) {
-    handle_key_up_deferred(browser, &event.keystroke);
 }
 
 /// Deferred key down handler - called outside the GPUI event handler context

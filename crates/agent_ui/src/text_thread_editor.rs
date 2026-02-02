@@ -6,7 +6,7 @@ use crate::{
 use anyhow::Result;
 use assistant_slash_command::{SlashCommand, SlashCommandOutputSection, SlashCommandWorkingSet};
 use assistant_slash_commands::{DefaultSlashCommand, FileSlashCommand, selections_creases};
-use client::{proto, zed_urls};
+use client::zed_urls;
 use collections::{BTreeSet, HashMap, HashSet, hash_map};
 use editor::{
     Anchor, Editor, EditorEvent, MenuEditPredictionsPolicy, MultiBuffer, MultiBufferOffset,
@@ -2973,98 +2973,8 @@ impl FollowableItem for TextThreadEditor {
         self.remote_id
     }
 
-    fn to_state_proto(&self, window: &Window, cx: &App) -> Option<proto::view::Variant> {
-        let text_thread = self.text_thread.read(cx);
-        Some(proto::view::Variant::ContextEditor(
-            proto::view::ContextEditor {
-                context_id: text_thread.id().to_proto(),
-                editor: if let Some(proto::view::Variant::Editor(proto)) =
-                    self.editor.read(cx).to_state_proto(window, cx)
-                {
-                    Some(proto)
-                } else {
-                    None
-                },
-            },
-        ))
-    }
-
-    fn from_state_proto(
-        workspace: Entity<Workspace>,
-        id: workspace::ViewId,
-        state: &mut Option<proto::view::Variant>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Task<Result<Entity<Self>>>> {
-        let proto::view::Variant::ContextEditor(_) = state.as_ref()? else {
-            return None;
-        };
-        let Some(proto::view::Variant::ContextEditor(state)) = state.take() else {
-            unreachable!()
-        };
-
-        let text_thread_id = TextThreadId::from_proto(state.context_id);
-        let editor_state = state.editor?;
-
-        let project = workspace.read(cx).project().clone();
-        let agent_panel_delegate = <dyn AgentPanelDelegate>::try_global(cx)?;
-
-        let text_thread_editor_task = workspace.update(cx, |workspace, cx| {
-            agent_panel_delegate.open_remote_text_thread(workspace, text_thread_id, window, cx)
-        });
-
-        Some(window.spawn(cx, async move |cx| {
-            let text_thread_editor = text_thread_editor_task.await?;
-            text_thread_editor
-                .update_in(cx, |text_thread_editor, window, cx| {
-                    text_thread_editor.remote_id = Some(id);
-                    text_thread_editor.editor.update(cx, |editor, cx| {
-                        editor.apply_update_proto(
-                            &project,
-                            proto::update_view::Variant::Editor(proto::update_view::Editor {
-                                selections: editor_state.selections,
-                                pending_selection: editor_state.pending_selection,
-                                scroll_top_anchor: editor_state.scroll_top_anchor,
-                                scroll_x: editor_state.scroll_y,
-                                scroll_y: editor_state.scroll_y,
-                                ..Default::default()
-                            }),
-                            window,
-                            cx,
-                        )
-                    })
-                })?
-                .await?;
-            Ok(text_thread_editor)
-        }))
-    }
-
     fn to_follow_event(event: &Self::Event) -> Option<item::FollowEvent> {
         Editor::to_follow_event(event)
-    }
-
-    fn add_event_to_update_proto(
-        &self,
-        event: &Self::Event,
-        update: &mut Option<proto::update_view::Variant>,
-        window: &Window,
-        cx: &App,
-    ) -> bool {
-        self.editor
-            .read(cx)
-            .add_event_to_update_proto(event, update, window, cx)
-    }
-
-    fn apply_update_proto(
-        &mut self,
-        project: &Entity<Project>,
-        message: proto::update_view::Variant,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Task<Result<()>> {
-        self.editor.update(cx, |editor, cx| {
-            editor.apply_update_proto(project, message, window, cx)
-        })
     }
 
     fn is_project_item(&self, _window: &Window, _cx: &App) -> bool {

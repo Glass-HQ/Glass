@@ -63,3 +63,8 @@ message AskPassRequest {
 message AskPassResponse {
   string response = 1;
 }
+
+enum PanelId {
+    AssistantPanel = 0;
+    DebugPanel = 1;
+}

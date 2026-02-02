@@ -21,15 +21,12 @@ pub const REMOTE_SERVER_PROJECT_ID: u64 = 0;
 
 messages!(
     (Ack, Foreground),
-    (AckBufferOperation, Background),
-    (AckChannelMessage, Background),
     (ActivateToolchain, Foreground),
     (ActiveToolchain, Foreground),
     (ActiveToolchainResponse, Foreground),
     (ResolveToolchain, Background),
     (ResolveToolchainResponse, Background),
     (AddNotification, Foreground),
-    (AddProjectCollaborator, Foreground),
     (AddWorktree, Foreground),
     (AddWorktreeResponse, Foreground),
     (AdvertiseContexts, Foreground),
@@ -41,27 +38,16 @@ messages!(
     (BlameBufferResponse, Foreground),
     (BufferReloaded, Foreground),
     (BufferSaved, Foreground),
-    (Call, Foreground),
-    (CallCanceled, Foreground),
-    (CancelCall, Foreground),
     (CancelLanguageServerWork, Foreground),
-    (ChannelMessageSent, Foreground),
-    (ChannelMessageUpdate, Foreground),
     (CloseBuffer, Foreground),
     (Commit, Background),
     (RunGitHook, Background),
     (CopyProjectEntry, Foreground),
     (CreateBufferForPeer, Foreground),
     (CreateImageForPeer, Foreground),
-    (CreateChannel, Foreground),
-    (CreateChannelResponse, Foreground),
     (CreateContext, Foreground),
     (CreateContextResponse, Foreground),
     (CreateProjectEntry, Foreground),
-    (CreateRoom, Foreground),
-    (CreateRoomResponse, Foreground),
-    (DeclineCall, Foreground),
-    (DeleteChannel, Foreground),
     (DeleteNotification, Foreground),
     (DeleteProjectEntry, Foreground),
     (EndStream, Foreground),
@@ -72,18 +58,10 @@ messages!(
     (FlushBufferedMessages, Foreground),
     (ExpandAllForProjectEntry, Foreground),
     (ExpandAllForProjectEntryResponse, Foreground),
-    (Follow, Foreground),
-    (FollowResponse, Foreground),
     (ApplyCodeActionKind, Foreground),
     (ApplyCodeActionKindResponse, Foreground),
     (FormatBuffers, Foreground),
     (FormatBuffersResponse, Foreground),
-    (FuzzySearchUsers, Foreground),
-    (GetChannelMembers, Foreground),
-    (GetChannelMembersResponse, Foreground),
-    (GetChannelMessages, Background),
-    (GetChannelMessagesById, Background),
-    (GetChannelMessagesResponse, Background),
     (GetCodeActions, Background),
     (GetCodeActionsResponse, Background),
     (GetCompletions, Background),
@@ -127,27 +105,12 @@ messages!(
     (GitBranchesResponse, Background),
     (Hello, Foreground),
     (HideToast, Background),
-    (IncomingCall, Foreground),
     (InlayHints, Background),
     (InlayHintsResponse, Background),
     (InstallExtension, Background),
-    (InviteChannelMember, Foreground),
-    (JoinChannel, Foreground),
-    (JoinChannelBuffer, Foreground),
-    (JoinChannelBufferResponse, Foreground),
-    (JoinChannelChat, Foreground),
-    (JoinChannelChatResponse, Foreground),
-    (JoinProject, Foreground),
-    (JoinProjectResponse, Foreground),
-    (JoinRoom, Foreground),
-    (JoinRoomResponse, Foreground),
     (LanguageServerLog, Foreground),
     (LanguageServerPromptRequest, Foreground),
     (LanguageServerPromptResponse, Foreground),
-    (LeaveChannelBuffer, Background),
-    (LeaveChannelChat, Foreground),
-    (LeaveProject, Foreground),
-    (LeaveRoom, Foreground),
     (LinkedEditingRange, Background),
     (LinkedEditingRangeResponse, Background),
     (ListRemoteDirectory, Background),
@@ -170,8 +133,6 @@ messages!(
     (LspExtRunFlycheck, Background),
     (LspExtClearFlycheck, Background),
     (MarkNotificationRead, Foreground),
-    (MoveChannel, Foreground),
-    (ReorderChannel, Foreground),
     (LspQuery, Background),
     (LspQueryResponse, Background),
     (OnTypeFormatting, Background),
@@ -196,23 +157,12 @@ messages!(
     (ProjectEntryResponse, Foreground),
     (RefreshInlayHints, Foreground),
     (RegisterBufferWithLanguageServers, Background),
-    (RejoinChannelBuffers, Foreground),
-    (RejoinChannelBuffersResponse, Foreground),
     (RejoinRemoteProjects, Foreground),
     (RejoinRemoteProjectsResponse, Foreground),
-    (RejoinRoom, Foreground),
-    (RejoinRoomResponse, Foreground),
     (ReloadBuffers, Foreground),
     (ReloadBuffersResponse, Foreground),
-    (RemoveChannelMember, Foreground),
-    (RemoveChannelMessage, Foreground),
-    (RemoveContact, Foreground),
-    (RemoveProjectCollaborator, Foreground),
     (RemoveWorktree, Foreground),
-    (RenameChannel, Foreground),
-    (RenameChannelResponse, Foreground),
     (RenameProjectEntry, Foreground),
-    (RequestContact, Foreground),
     (ResolveCompletionDocumentation, Background),
     (ResolveCompletionDocumentationResponse, Background),
     (ResolveInlayHint, Background),
@@ -224,24 +174,12 @@ messages!(
     (RefreshCodeLens, Background),
     (GetCodeLens, Background),
     (GetCodeLensResponse, Background),
-    (RespondToChannelInvite, Foreground),
-    (RespondToContactRequest, Foreground),
     (RestartLanguageServers, Foreground),
     (StopLanguageServers, Background),
-    (RoomUpdated, Foreground),
     (SaveBuffer, Foreground),
-    (SendChannelMessage, Background),
-    (SendChannelMessageResponse, Background),
-    (SetChannelMemberRole, Foreground),
-    (SetChannelVisibility, Foreground),
-    (SetRoomParticipantRole, Foreground),
-    (ShareProject, Foreground),
-    (ShareProjectResponse, Foreground),
-    (ShowContacts, Foreground),
     (ShutdownRemoteServer, Foreground),
     (Stage, Background),
     (StartLanguageServer, Foreground),
-    (SubscribeToChannels, Foreground),
     (SyncExtensions, Background),
     (SyncExtensionsResponse, Background),
     (BreakpointsForFile, Background),
@@ -254,8 +192,6 @@ messages!(
     (TaskContextForLocation, Background),
     (Test, Foreground),
     (Toast, Background),
-    (Unfollow, Foreground),
-    (UnshareProject, Foreground),
     (Unstage, Background),
     (Stash, Background),
     (StashPop, Background),
@@ -263,22 +199,13 @@ messages!(
     (StashDrop, Background),
     (UpdateBuffer, Foreground),
     (UpdateBufferFile, Foreground),
-    (UpdateChannelBuffer, Foreground),
-    (UpdateChannelBufferCollaborators, Foreground),
-    (UpdateChannelMessage, Foreground),
-    (UpdateChannels, Foreground),
-    (UpdateContacts, Foreground),
     (UpdateContext, Foreground),
     (UpdateDiagnosticSummary, Foreground),
     (UpdateDiffBases, Foreground),
-    (UpdateFollowers, Foreground),
     (UpdateGitBranch, Background),
     (UpdateLanguageServer, Foreground),
     (UpdateNotification, Foreground),
-    (UpdateParticipantLocation, Foreground),
     (UpdateProject, Foreground),
-    (UpdateProjectCollaborator, Foreground),
-    (UpdateUserChannels, Foreground),
     (UpdateWorktree, Foreground),
     (UpdateWorktreeSettings, Foreground),
     (UpdateUserSettings, Background),
@@ -357,26 +284,15 @@ request_messages!(
         ApplyCompletionAdditionalEdits,
         ApplyCompletionAdditionalEditsResponse
     ),
-    (Call, Ack),
-    (CancelCall, Ack),
     (Commit, Ack),
     (RunGitHook, Ack),
     (CopyProjectEntry, ProjectEntryResponse),
-    (CreateChannel, CreateChannelResponse),
     (CreateProjectEntry, ProjectEntryResponse),
-    (CreateRoom, CreateRoomResponse),
-    (DeclineCall, Ack),
-    (DeleteChannel, Ack),
     (DeleteProjectEntry, ProjectEntryResponse),
     (ExpandProjectEntry, ExpandProjectEntryResponse),
     (ExpandAllForProjectEntry, ExpandAllForProjectEntryResponse),
-    (Follow, FollowResponse),
     (ApplyCodeActionKind, ApplyCodeActionKindResponse),
     (FormatBuffers, FormatBuffersResponse),
-    (FuzzySearchUsers, UsersResponse),
-    (GetChannelMembers, GetChannelMembersResponse),
-    (GetChannelMessages, GetChannelMessagesResponse),
-    (GetChannelMessagesById, GetChannelMessagesResponse),
     (GetCodeActions, GetCodeActionsResponse),
     (GetCompletions, GetCompletionsResponse),
     (GetDefinition, GetDefinitionResponse),
@@ -395,20 +311,10 @@ request_messages!(
     (LinkedEditingRange, LinkedEditingRangeResponse),
     (ListRemoteDirectory, ListRemoteDirectoryResponse),
     (GetUsers, UsersResponse),
-    (IncomingCall, Ack),
     (InlayHints, InlayHintsResponse),
     (GetCodeLens, GetCodeLensResponse),
-    (InviteChannelMember, Ack),
-    (JoinChannel, JoinRoomResponse),
-    (JoinChannelBuffer, JoinChannelBufferResponse),
-    (JoinChannelChat, JoinChannelChatResponse),
-    (JoinProject, JoinProjectResponse),
-    (JoinRoom, JoinRoomResponse),
-    (LeaveChannelBuffer, Ack),
-    (LeaveRoom, Ack),
     (LoadCommitDiff, LoadCommitDiffResponse),
     (MarkNotificationRead, Ack),
-    (MoveChannel, Ack),
     (OnTypeFormatting, OnTypeFormattingResponse),
     (OpenBufferById, OpenBufferResponse),
     (OpenBufferByPath, OpenBufferResponse),
@@ -421,17 +327,8 @@ request_messages!(
     (PrepareRename, PrepareRenameResponse),
     (RefreshInlayHints, Ack),
     (RefreshCodeLens, Ack),
-    (RejoinChannelBuffers, RejoinChannelBuffersResponse),
-    (RejoinRoom, RejoinRoomResponse),
     (ReloadBuffers, ReloadBuffersResponse),
-    (RemoveChannelMember, Ack),
-    (RemoveChannelMessage, Ack),
-    (UpdateChannelMessage, Ack),
-    (RemoveContact, Ack),
-    (RenameChannel, RenameChannelResponse),
     (RenameProjectEntry, ProjectEntryResponse),
-    (ReorderChannel, Ack),
-    (RequestContact, Ack),
     (
         ResolveCompletionDocumentation,
         ResolveCompletionDocumentationResponse
@@ -439,17 +336,11 @@ request_messages!(
     (ResolveInlayHint, ResolveInlayHintResponse),
     (GetDocumentColor, GetDocumentColorResponse),
     (GetColorPresentation, GetColorPresentationResponse),
-    (RespondToChannelInvite, Ack),
-    (RespondToContactRequest, Ack),
     (SaveBuffer, BufferSaved),
     (Stage, Ack),
     (FindSearchCandidates, Ack),
-    (SendChannelMessage, SendChannelMessageResponse),
-    (SetChannelMemberRole, Ack),
-    (SetChannelVisibility, Ack),
     (ShareAgentThread, Ack),
     (GetSharedAgentThread, GetSharedAgentThreadResponse),
-    (ShareProject, ShareProjectResponse),
     (SynchronizeBuffers, SynchronizeBuffersResponse),
     (TaskContextForLocation, TaskContext),
     (Test, Test),
@@ -459,7 +350,6 @@ request_messages!(
     (StashApply, Ack),
     (StashDrop, Ack),
     (UpdateBuffer, Ack),
-    (UpdateParticipantLocation, Ack),
     (UpdateProject, Ack),
     (UpdateWorktree, Ack),
     (UpdateRepository, Ack),
@@ -467,7 +357,6 @@ request_messages!(
     (LspExtExpandMacro, LspExtExpandMacroResponse),
     (LspExtOpenDocs, LspExtOpenDocsResponse),
     (LspExtRunnables, LspExtRunnablesResponse),
-    (SetRoomParticipantRole, Ack),
     (BlameBuffer, BlameBufferResponse),
     (RejoinRemoteProjects, RejoinRemoteProjectsResponse),
     (LspQuery, Ack),
@@ -558,8 +447,7 @@ lsp_messages!(
 );
 
 entity_messages!(
-    {project_id, ShareProject},
-    AddProjectCollaborator,
+    {project_id, UpdateProject},
     AddWorktree,
     ApplyCodeAction,
     ApplyCompletionAdditionalEdits,
@@ -597,8 +485,6 @@ entity_messages!(
     OpenUncommittedDiff,
     GetTypeDefinition,
     InlayHints,
-    JoinProject,
-    LeaveProject,
     LinkedEditingRange,
     LoadCommitDiff,
     LspQuery,
@@ -617,7 +503,6 @@ entity_messages!(
     RefreshInlayHints,
     RefreshCodeLens,
     ReloadBuffers,
-    RemoveProjectCollaborator,
     RenameProjectEntry,
     ResolveCompletionDocumentation,
     ResolveInlayHint,
@@ -626,7 +511,6 @@ entity_messages!(
     StartLanguageServer,
     SynchronizeBuffers,
     TaskContextForLocation,
-    UnshareProject,
     Unstage,
     Stash,
     StashPop,
@@ -638,7 +522,6 @@ entity_messages!(
     UpdateDiffBases,
     UpdateLanguageServer,
     UpdateProject,
-    UpdateProjectCollaborator,
     UpdateWorktree,
     UpdateRepository,
     RemoveRepository,
@@ -720,16 +603,6 @@ entity_messages!(
     FindSearchCandidatesCancelled,
 );
 
-entity_messages!(
-    {channel_id, Channel},
-    ChannelMessageSent,
-    ChannelMessageUpdate,
-    RemoveChannelMessage,
-    UpdateChannelMessage,
-    UpdateChannelBuffer,
-    UpdateChannelBufferCollaborators,
-);
-
 impl From<Timestamp> for SystemTime {
     fn from(val: Timestamp) -> Self {
         UNIX_EPOCH
@@ -798,43 +671,7 @@ pub fn split_worktree_update(mut message: UpdateWorktree) -> impl Iterator<Item 
             .drain(..removed_entries_chunk_size)
             .collect();
 
-        let mut updated_repositories = Vec::new();
-        let mut limit = MAX_WORKTREE_UPDATE_MAX_CHUNK_SIZE;
-        while let Some(repo) = message.updated_repositories.first_mut() {
-            let updated_statuses_limit = cmp::min(repo.updated_statuses.len(), limit);
-            let removed_statuses_limit = cmp::min(repo.removed_statuses.len(), limit);
-
-            updated_repositories.push(RepositoryEntry {
-                repository_id: repo.repository_id,
-                branch_summary: repo.branch_summary.clone(),
-                updated_statuses: repo
-                    .updated_statuses
-                    .drain(..updated_statuses_limit)
-                    .collect(),
-                removed_statuses: repo
-                    .removed_statuses
-                    .drain(..removed_statuses_limit)
-                    .collect(),
-                current_merge_conflicts: repo.current_merge_conflicts.clone(),
-            });
-            if repo.removed_statuses.is_empty() && repo.updated_statuses.is_empty() {
-                message.updated_repositories.remove(0);
-            }
-            limit = limit.saturating_sub(removed_statuses_limit + updated_statuses_limit);
-            if limit == 0 {
-                break;
-            }
-        }
-
-        done = message.updated_entries.is_empty()
-            && message.removed_entries.is_empty()
-            && message.updated_repositories.is_empty();
-
-        let removed_repositories = if done {
-            mem::take(&mut message.removed_repositories)
-        } else {
-            Default::default()
-        };
+        done = message.updated_entries.is_empty() && message.removed_entries.is_empty();
 
         Some(UpdateWorktree {
             project_id: message.project_id,
@@ -845,8 +682,6 @@ pub fn split_worktree_update(mut message: UpdateWorktree) -> impl Iterator<Item 
             removed_entries,
             scan_id: message.scan_id,
             is_last_update: done && message.is_last_update,
-            updated_repositories,
-            removed_repositories,
         })
     })
 }

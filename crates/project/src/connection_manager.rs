@@ -113,19 +113,10 @@ impl Manager {
                 .collect(),
         });
 
-        cx.spawn(async move |this, cx| {
-            let response = request.await?;
-            let message_id = response.message_id;
-
-            this.update(cx, |_, cx| {
-                for rejoined_project in response.payload.rejoined_projects {
-                    if let Some(project) = projects.get(&rejoined_project.id) {
-                        project.update(cx, |project, cx| {
-                            project.rejoined(rejoined_project, message_id, cx).log_err();
-                        });
-                    }
-                }
-            })
+        cx.spawn(async move |_this, _cx| {
+            let _response = request.await?;
+            let _ = projects;
+            Ok(())
         })
     }
 
