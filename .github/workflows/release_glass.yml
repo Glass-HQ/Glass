@@ -3,17 +3,17 @@ name: Release Glass
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (e.g., v0.0.1)'
+        description: "Version to release (e.g., v0.0.1)"
         required: false
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_BACKTRACE: '1'
-  CARGO_INCREMENTAL: '0'
+  RUST_BACKTRACE: "1"
+  CARGO_INCREMENTAL: "0"
 
 jobs:
   build-macos:
@@ -25,10 +25,12 @@ jobs:
           - target: aarch64-apple-darwin
             runner: macos-15
             arch: aarch64
+            cef_platform: macosarm64
           # Intel build disabled for now - uncomment to re-enable
           # - target: x86_64-apple-darwin
           #   runner: macos-14
           #   arch: x86_64
+          #   cef_platform: macosx64
 
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
@@ -82,7 +84,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       # Cache Homebrew packages
       - name: Cache Homebrew
@@ -99,12 +101,55 @@ jobs:
       - name: Generate licenses
         run: script/generate-licenses
 
+      # Cache CEF download to avoid re-downloading on each build
+      - name: Cache CEF framework
+        id: cache-cef
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/cef
+          key: cef-${{ matrix.cef_platform }}-v144
+
+      - name: Download and extract CEF
+        run: |
+          CEF_PATH="$HOME/.local/share/cef"
+          mkdir -p "$CEF_PATH"
+
+          # Get CEF version from cef crate - we need to match what the build expects
+          # The cef-rs crate downloads from https://cef-builds.spotifycdn.com
+          # We'll use the export-cef-dir tool which handles this correctly
+
+          # Set CEF_PATH for the build
+          echo "CEF_PATH=$CEF_PATH" >> $GITHUB_ENV
+
+          # Check if CEF is already cached and valid
+          if [ -d "$CEF_PATH/Chromium Embedded Framework.framework" ]; then
+            echo "CEF framework found in cache"
+          else
+            echo "Downloading CEF using export-cef-dir..."
+            # Build and run the export-cef-dir tool to download CEF
+            cargo run -p export-cef-dir -- --force "$CEF_PATH" --target ${{ matrix.target }}
+          fi
+
+          # Verify CEF was downloaded
+          if [ ! -d "$CEF_PATH/Chromium Embedded Framework.framework" ]; then
+            echo "Error: CEF framework not found after download"
+            exit 1
+          fi
+
+          echo "CEF framework ready at: $CEF_PATH"
+          ls -la "$CEF_PATH"
+
       - name: Build Glass
         run: |
           export ZED_BUNDLE=true
           export CXXFLAGS="-stdlib=libc++"
           cargo build --release --package zed --package cli --target ${{ matrix.target }}
           cargo build --release --package remote_server --target ${{ matrix.target }}
+
+      - name: Build glass_helper
+        run: |
+          export CXXFLAGS="-stdlib=libc++"
+          cargo build --release --package browser --bin glass_helper --target ${{ matrix.target }}
 
       - name: Generate debug symbols (for crash reports)
         run: |
@@ -117,6 +162,7 @@ jobs:
           dsymutil --flat -o "$SYMBOLS_DIR/zed.dwarf" "target/${{ matrix.target }}/release/zed"
           dsymutil --flat -o "$SYMBOLS_DIR/cli.dwarf" "target/${{ matrix.target }}/release/cli"
           dsymutil --flat -o "$SYMBOLS_DIR/remote_server.dwarf" "target/${{ matrix.target }}/release/remote_server"
+          dsymutil --flat -o "$SYMBOLS_DIR/glass_helper.dwarf" "target/${{ matrix.target }}/release/glass_helper"
 
           ditto -c -k --sequesterRsrc --keepParent "$SYMBOLS_DIR" "$SYMBOLS_ZIP"
 
@@ -124,15 +170,15 @@ jobs:
         run: |
           export ZED_BUNDLE=true
           cd crates/zed
-          
+
           # Backup and modify Cargo.toml for bundling
           cp Cargo.toml Cargo.toml.backup
           channel=$(cat RELEASE_CHANNEL)
           sed -i.backup "s/package.metadata.bundle-${channel}/package.metadata.bundle/" Cargo.toml
-          
+
           # Create the bundle
           cargo bundle --release --target ${{ matrix.target }} --select-workspace-root
-          
+
           # Restore original Cargo.toml
           mv Cargo.toml.backup Cargo.toml
 
@@ -146,15 +192,83 @@ jobs:
             curl -L "https://github.com/desktop/dugite-native/releases/download/v2.43.3/dugite-native-v2.43.3-fa29823-macOS-x64.tar.gz" | tar -xz bin/git
           fi
 
-      - name: Prepare app bundle
+      - name: Prepare app bundle with CEF
         run: |
           APP_PATH=$(find target/${{ matrix.target }}/release -name "*.app" -type d | head -1)
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
-          
+
           # Copy binaries
           cp target/${{ matrix.target }}/release/zed "$APP_PATH/Contents/MacOS/zed"
           cp target/${{ matrix.target }}/release/cli "$APP_PATH/Contents/MacOS/cli"
           cp /tmp/git-download/bin/git "$APP_PATH/Contents/MacOS/git"
+
+          # Create Frameworks directory
+          mkdir -p "$APP_PATH/Contents/Frameworks"
+
+          # Copy CEF framework
+          echo "Copying CEF framework..."
+          cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+
+          # Create CEF helper app bundles
+          APP_NAME="Glass"
+          HELPER_PATH="target/${{ matrix.target }}/release/glass_helper"
+          HELPERS=("Helper" "Helper (GPU)" "Helper (Renderer)" "Helper (Plugin)" "Helper (Alerts)")
+
+          echo "Creating CEF helper app bundles..."
+          for helper_suffix in "${HELPERS[@]}"; do
+            HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
+            HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
+
+            echo "  Creating: ${HELPER_APP_NAME}.app"
+            mkdir -p "$HELPER_APP_PATH/Contents/MacOS"
+
+            # Copy helper executable
+            cp "$HELPER_PATH" "$HELPER_APP_PATH/Contents/MacOS/${HELPER_APP_NAME}"
+
+            # Create helper Info.plist
+            cat > "$HELPER_APP_PATH/Contents/Info.plist" << HELPER_PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>${HELPER_APP_NAME}</string>
+              <key>CFBundleDisplayName</key>
+              <string>${HELPER_APP_NAME}</string>
+              <key>CFBundleIdentifier</key>
+              <string>dev.glass.Glass.helper</string>
+              <key>CFBundleVersion</key>
+              <string>0.1.0</string>
+              <key>CFBundleShortVersionString</key>
+              <string>0.1.0</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleExecutable</key>
+              <string>${HELPER_APP_NAME}</string>
+              <key>CFBundleInfoDictionaryVersion</key>
+              <string>6.0</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+              <key>LSUIElement</key>
+              <string>1</string>
+              <key>LSEnvironment</key>
+              <dict>
+                  <key>MallocNanoZone</key>
+                  <string>0</string>
+              </dict>
+              <key>NSSupportsAutomaticGraphicsSwitching</key>
+              <true/>
+          </dict>
+          </plist>
+          HELPER_PLIST
+
+            # Create PkgInfo for helper
+            echo "APPL????" > "$HELPER_APP_PATH/Contents/PkgInfo"
+          done
+
+          echo "CEF bundling complete"
+          echo "Frameworks directory contents:"
+          ls -la "$APP_PATH/Contents/Frameworks/"
 
       - name: Setup code signing
         if: env.MACOS_CERTIFICATE != ''
@@ -165,15 +279,15 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings build.keychain
-          
+
           # Import certificate
           echo "$MACOS_CERTIFICATE" | base64 --decode > /tmp/certificate.p12
           security import /tmp/certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           rm /tmp/certificate.p12
-          
+
           # Allow codesign to access keychain
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
-          
+
           # Get the signing identity
           IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
           echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
@@ -182,31 +296,60 @@ jobs:
       - name: Code sign app bundle
         run: |
           ENTITLEMENTS="crates/zed/resources/zed.entitlements"
-          
+          APP_NAME="Glass"
+          HELPERS=("Helper" "Helper (GPU)" "Helper (Renderer)" "Helper (Plugin)" "Helper (Alerts)")
+
           if [ "$CAN_SIGN" = "true" ]; then
             echo "Signing with Developer ID: $SIGNING_IDENTITY"
             echo "Using entitlements: $ENTITLEMENTS"
-            
+
+            # Sign CEF helper apps first (inside out signing order)
+            for helper_suffix in "${HELPERS[@]}"; do
+              HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
+              HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
+              echo "Signing helper: $HELPER_APP_NAME"
+              /usr/bin/codesign --force --timestamp --options runtime \
+                --entitlements "$ENTITLEMENTS" \
+                --sign "$SIGNING_IDENTITY" "$HELPER_APP_PATH" -v
+            done
+
+            # Sign CEF framework
+            echo "Signing CEF framework..."
+            /usr/bin/codesign --force --timestamp --options runtime \
+              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework" -v
+
             # Sign helper binaries with entitlements
             /usr/bin/codesign --force --timestamp --options runtime \
               --entitlements "$ENTITLEMENTS" \
               --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/cli" -v
-            
+
             /usr/bin/codesign --force --timestamp --options runtime \
               --entitlements "$ENTITLEMENTS" \
               --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/git" -v
-            
+
             # Sign main executable with entitlements (this is the one that needs JIT)
             /usr/bin/codesign --force --timestamp --options runtime \
               --entitlements "$ENTITLEMENTS" \
               --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/zed" -v
-            
+
             # Sign the app bundle itself with entitlements
             /usr/bin/codesign --force --timestamp --options runtime \
               --entitlements "$ENTITLEMENTS" \
               --sign "$SIGNING_IDENTITY" "$APP_PATH" -v
           else
             echo "No signing certificate available, using ad-hoc signing"
+
+            # Sign CEF helpers first
+            for helper_suffix in "${HELPERS[@]}"; do
+              HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
+              HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
+              codesign --force --sign - "$HELPER_APP_PATH"
+            done
+
+            # Sign CEF framework
+            codesign --force --sign - "$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework"
+
+            # Sign other binaries
             codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/cli"
             codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/git"
             codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/zed"
@@ -220,12 +363,12 @@ jobs:
           mkdir -p "$DMG_DIR"
           cp -R "$APP_PATH" "$DMG_DIR/"
           ln -s /Applications "$DMG_DIR/Applications"
-          
+
           hdiutil create -volname "Glass" \
             -srcfolder "$DMG_DIR" \
             -ov -format UDZO \
             "$DMG_PATH"
-          
+
           echo "DMG_PATH=$DMG_PATH" >> $GITHUB_ENV
 
       - name: Sign and notarize DMG
@@ -234,11 +377,11 @@ jobs:
         run: |
           # Sign the DMG
           /usr/bin/codesign --deep --force --timestamp --options runtime --sign "$SIGNING_IDENTITY" "$DMG_PATH" -v
-          
+
           # Decode the base64-encoded .p8 key
           echo "$APPLE_NOTARIZATION_KEY" | base64 --decode > /tmp/notarization_key.p8
           chmod 600 /tmp/notarization_key.p8
-          
+
           # Notarize
           xcrun notarytool submit --wait \
             --key /tmp/notarization_key.p8 \
@@ -246,7 +389,7 @@ jobs:
             --issuer "$APPLE_NOTARIZATION_ISSUER_ID" \
             "$DMG_PATH"
           rm /tmp/notarization_key.p8
-          
+
           # Staple the notarization ticket
           xcrun stapler staple "$DMG_PATH"
 
@@ -294,7 +437,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -317,11 +460,11 @@ jobs:
             # artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
           body: |
             ## Glass ${{ github.ref_name }}
-            
+
             ### Installation
-            
+
             1. Download the DMG: `Glass-aarch64.dmg` (Apple Silicon Macs - M1/M2/M3/M4)
             2. Open the DMG and drag Glass to Applications
             3. Launch Glass from Applications
-            
+
             > **Note:** Only Apple Silicon builds are available at this time. Intel Mac support coming later.
