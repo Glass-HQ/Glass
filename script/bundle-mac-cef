@@ -80,7 +80,18 @@ for helper_suffix in "${HELPERS[@]}"; do
     HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
     HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
 
-    echo "  Creating: ${HELPER_APP_NAME}.app"
+    # Generate unique bundle identifier for each helper type
+    # Helper -> .helper, Helper (GPU) -> .helper.GPU, etc.
+    if [[ "$helper_suffix" == "Helper" ]]; then
+        BUNDLE_ID="dev.glass.Glass.helper"
+    else
+        # Extract type from "Helper (GPU)" -> "GPU"
+        HELPER_TYPE="${helper_suffix#Helper (}"
+        HELPER_TYPE="${HELPER_TYPE%)}"
+        BUNDLE_ID="dev.glass.Glass.helper.${HELPER_TYPE}"
+    fi
+
+    echo "  Creating: ${HELPER_APP_NAME}.app (${BUNDLE_ID})"
     mkdir -p "$HELPER_APP_PATH/Contents/MacOS"
 
     # Copy helper executable
@@ -97,7 +108,7 @@ for helper_suffix in "${HELPERS[@]}"; do
     <key>CFBundleDisplayName</key>
     <string>${HELPER_APP_NAME}</string>
     <key>CFBundleIdentifier</key>
-    <string>dev.glass.Glass.helper</string>
+    <string>${BUNDLE_ID}</string>
     <key>CFBundleVersion</key>
     <string>0.1.0</string>
     <key>CFBundleShortVersionString</key>

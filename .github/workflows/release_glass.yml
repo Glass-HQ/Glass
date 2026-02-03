@@ -277,7 +277,16 @@ jobs:
             # Copy helper executable
             cp "$HELPER_PATH" "$HELPER_APP_PATH/Contents/MacOS/${HELPER_APP_NAME}"
 
-            # Create helper Info.plist
+            # Generate unique bundle identifier suffix for each helper type
+            # Helper -> .helper, Helper (GPU) -> .helper.GPU, etc.
+            if [ "$helper_suffix" = "Helper" ]; then
+              BUNDLE_ID_SUFFIX=""
+            else
+              # Extract the type from "Helper (GPU)" -> "GPU"
+              BUNDLE_ID_SUFFIX=".$(echo "$helper_suffix" | sed 's/Helper (\(.*\))/\1/')"
+            fi
+
+            # Create helper Info.plist with unique bundle identifier
             cat > "$HELPER_APP_PATH/Contents/Info.plist" << HELPER_PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -288,7 +297,7 @@ jobs:
               <key>CFBundleDisplayName</key>
               <string>${HELPER_APP_NAME}</string>
               <key>CFBundleIdentifier</key>
-              <string>dev.glass.Glass.helper</string>
+              <string>dev.glass.Glass.helper${BUNDLE_ID_SUFFIX}</string>
               <key>CFBundleVersion</key>
               <string>0.1.0</string>
               <key>CFBundleShortVersionString</key>
@@ -313,6 +322,8 @@ jobs:
           </dict>
           </plist>
           HELPER_PLIST
+
+            echo "    Bundle ID: dev.glass.Glass.helper${BUNDLE_ID_SUFFIX}"
 
             # Create PkgInfo for helper
             echo "APPL????" > "$HELPER_APP_PATH/Contents/PkgInfo"
