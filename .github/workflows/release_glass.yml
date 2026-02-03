@@ -1,14 +1,11 @@
 name: Release Glass
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g., v0.0.1)"
-        required: false
+        description: "Version to release (e.g., v0.0.16)"
+        required: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -50,17 +47,13 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Cache Rust compilation artifacts
+      # Cache Rust compilation artifacts — runs on main so caches persist across releases
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@v2
         with:
-          # Use a unique key prefix to avoid conflicts
           prefix-key: "v1-rust"
-          # Cache the target directory and cargo registry
           shared-key: ${{ matrix.target }}
-          # Save cache even if the build fails
           save-if: "true"
-          # Cache cargo home directories
           cache-directories: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
@@ -644,6 +637,15 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create and push tag
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          git tag "$VERSION"
+          git push origin "$VERSION"
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -655,7 +657,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: Glass ${{ github.ref_name }}
+          tag_name: ${{ github.event.inputs.version }}
+          name: Glass ${{ github.event.inputs.version }}
           draft: false
           prerelease: false
           files: |
@@ -664,7 +667,7 @@ jobs:
             # Intel build disabled - uncomment when re-enabled:
             # artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
           body: |
-            ## Glass ${{ github.ref_name }}
+            ## Glass ${{ github.event.inputs.version }}
 
             ### Installation
 
