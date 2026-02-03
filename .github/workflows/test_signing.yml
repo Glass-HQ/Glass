@@ -1,0 +1,175 @@
+name: Test CEF Signing
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-signing:
+    name: Test CEF Signing
+    runs-on: macos-15
+
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download and extract CEF
+        run: |
+          CEF_PATH="$HOME/.local/share/cef"
+          mkdir -p "$CEF_PATH"
+
+          CEF_VERSION="144.0.12"
+          CEF_CDN="https://cef-builds.spotifycdn.com"
+
+          echo "Fetching CEF index..."
+          INDEX_JSON=$(curl -sL "$CEF_CDN/index.json")
+
+          CEF_FILE=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .name' | head -1)
+          CEF_SHA1=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .sha1' | head -1)
+
+          echo "Downloading: $CEF_FILE"
+          curl -L -o "/tmp/cef.tar.bz2" "$CEF_CDN/$CEF_FILE"
+
+          # Verify SHA1
+          DOWNLOADED_SHA1=$(shasum -a 1 /tmp/cef.tar.bz2 | cut -d' ' -f1)
+          if [ "$DOWNLOADED_SHA1" != "$CEF_SHA1" ]; then
+            echo "Error: SHA1 mismatch"
+            exit 1
+          fi
+          echo "SHA1 verified"
+
+          # Extract
+          cd /tmp
+          tar -xjf cef.tar.bz2
+          EXTRACTED_DIR=$(ls -d cef_binary_* | head -1)
+          cp -R "/tmp/$EXTRACTED_DIR/Release/"* "$CEF_PATH/"
+
+          echo "CEF_PATH=$CEF_PATH" >> $GITHUB_ENV
+
+      - name: Create test bundle structure
+        run: |
+          APP_PATH="/tmp/TestApp.app"
+          mkdir -p "$APP_PATH/Contents/MacOS"
+          mkdir -p "$APP_PATH/Contents/Frameworks"
+
+          # Create a minimal executable (just a script for testing)
+          echo '#!/bin/bash' > "$APP_PATH/Contents/MacOS/TestApp"
+          echo 'echo "Hello"' >> "$APP_PATH/Contents/MacOS/TestApp"
+          chmod +x "$APP_PATH/Contents/MacOS/TestApp"
+
+          # Create Info.plist
+          cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>TestApp</string>
+              <key>CFBundleIdentifier</key>
+              <string>dev.glass.TestApp</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundleExecutable</key>
+              <string>TestApp</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+          </dict>
+          </plist>
+          PLIST
+
+          # Copy CEF framework
+          cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+
+          # Create a helper app
+          HELPER_PATH="$APP_PATH/Contents/Frameworks/TestApp Helper.app"
+          mkdir -p "$HELPER_PATH/Contents/MacOS"
+          echo '#!/bin/bash' > "$HELPER_PATH/Contents/MacOS/TestApp Helper"
+          echo 'echo "Helper"' >> "$HELPER_PATH/Contents/MacOS/TestApp Helper"
+          chmod +x "$HELPER_PATH/Contents/MacOS/TestApp Helper"
+
+          cat > "$HELPER_PATH/Contents/Info.plist" << 'PLIST'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>TestApp Helper</string>
+              <key>CFBundleIdentifier</key>
+              <string>dev.glass.TestApp.helper</string>
+              <key>CFBundleVersion</key>
+              <string>1.0</string>
+              <key>CFBundleExecutable</key>
+              <string>TestApp Helper</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+          </dict>
+          </plist>
+          PLIST
+
+          echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
+          echo "Test bundle created"
+          ls -la "$APP_PATH/Contents/Frameworks/"
+
+      - name: Setup code signing
+        run: |
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 32)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings build.keychain
+
+          echo "$MACOS_CERTIFICATE" | base64 --decode > /tmp/certificate.p12
+          security import /tmp/certificate.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm /tmp/certificate.p12
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" | head -1 | awk -F'"' '{print $2}')
+          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
+          echo "Found identity: $IDENTITY"
+
+      - name: Sign bundle (matching release workflow logic)
+        run: |
+          ENTITLEMENTS="crates/zed/resources/zed.entitlements"
+          CEF_FRAMEWORK="$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework"
+
+          echo "=== Signing CEF Libraries ==="
+          for lib in "$CEF_FRAMEWORK/Libraries/"*.dylib; do
+            echo "Signing: $lib"
+            codesign -f -s "$SIGNING_IDENTITY" --options runtime "$lib"
+          done
+
+          echo "=== Signing CEF main binary ==="
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime "$CEF_FRAMEWORK/Chromium Embedded Framework"
+
+          echo "=== Signing CEF framework bundle ==="
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime "$CEF_FRAMEWORK"
+
+          echo "=== Signing helper app ==="
+          HELPER_PATH="$APP_PATH/Contents/Frameworks/TestApp Helper.app"
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" "$HELPER_PATH/Contents/MacOS/TestApp Helper"
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" "$HELPER_PATH"
+
+          echo "=== Signing main app ==="
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" "$APP_PATH/Contents/MacOS/TestApp"
+          codesign -f -s "$SIGNING_IDENTITY" --options runtime --entitlements "$ENTITLEMENTS" "$APP_PATH"
+
+      - name: Verify signatures
+        run: |
+          echo "=== Verifying CEF framework ==="
+          codesign --verify --deep --strict "$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework" -v
+
+          echo "=== Verifying full app ==="
+          codesign --verify --deep --strict "$APP_PATH" -v
+
+          echo ""
+          echo "✅ All signatures valid!"
+
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security default-keychain -s login.keychain || true
+          security delete-keychain build.keychain || true

@@ -352,78 +352,184 @@ jobs:
           HELPERS=("Helper" "Helper (GPU)" "Helper (Renderer)" "Helper (Plugin)" "Helper (Alerts)")
           CEF_FRAMEWORK="$APP_PATH/Contents/Frameworks/Chromium Embedded Framework.framework"
 
+          # Sign a single file (based on cef-sample codesign.py)
+          # Uses --options runtime only for executable files
+          sign_file() {
+            local file="$1"
+            local identity="$2"
+            local entitlements="$3"
+
+            local cmd=("/usr/bin/codesign" "-f" "-s" "$identity")
+
+            # Add hardened runtime only for executables
+            if [ -x "$file" ]; then
+              cmd+=("--options" "runtime")
+            fi
+
+            # Add entitlements if provided
+            if [ -n "$entitlements" ]; then
+              cmd+=("--entitlements" "$entitlements")
+            fi
+
+            cmd+=("$file")
+
+            echo "  Signing: $file"
+            "${cmd[@]}"
+          }
+
+          # Sign files in a directory (inside-out order)
+          # Based on cef-sample codesign.py VALID_SIGNING_PATHS
+          sign_contents() {
+            local contents_path="$1"
+            local identity="$2"
+            local entitlements="$3"
+
+            # Order matters: innermost first (Frameworks, Libraries before MacOS)
+            local signing_paths=("Frameworks" "Libraries" "PlugIns" "Helpers" "MacOS")
+
+            for subdir in "${signing_paths[@]}"; do
+              local dir_path="$contents_path/$subdir"
+              if [ -d "$dir_path" ]; then
+                # Find and sign bundles first
+                find "$dir_path" -maxdepth 1 -type d -name "*.app" -o -name "*.framework" 2>/dev/null | while read -r bundle; do
+                  sign_bundle "$bundle" "$identity" "$entitlements"
+                done
+
+                # Then sign dylibs and executables
+                find "$dir_path" -maxdepth 1 -type f \( -name "*.dylib" -o -perm +111 \) 2>/dev/null | while read -r file; do
+                  sign_file "$file" "$identity" "$entitlements"
+                done
+              fi
+            done
+          }
+
+          # Sign a framework bundle (handles Versions directory)
+          sign_framework() {
+            local framework_path="$1"
+            local identity="$2"
+            local entitlements="$3"
+
+            echo "Signing framework: $framework_path"
+
+            local versions_path="$framework_path/Versions"
+            if [ -d "$versions_path" ]; then
+              # Sign each version
+              for version_dir in "$versions_path"/*/; do
+                if [ -d "$version_dir" ] && [ ! -L "$version_dir" ]; then
+                  # Sign Libraries inside the version
+                  if [ -d "$version_dir/Libraries" ]; then
+                    find "$version_dir/Libraries" -type f \( -name "*.dylib" -o -perm +111 \) 2>/dev/null | while read -r lib; do
+                      sign_file "$lib" "$identity" ""
+                    done
+                  fi
+
+                  # Sign the main framework binary
+                  local framework_name=$(basename "$framework_path" .framework)
+                  local framework_binary="$version_dir/$framework_name"
+                  if [ -f "$framework_binary" ]; then
+                    sign_file "$framework_binary" "$identity" ""
+                  fi
+                fi
+              done
+            else
+              # Flat framework structure
+              local framework_name=$(basename "$framework_path" .framework)
+              local framework_binary="$framework_path/$framework_name"
+
+              # Sign Libraries
+              if [ -d "$framework_path/Libraries" ]; then
+                find "$framework_path/Libraries" -type f \( -name "*.dylib" -o -perm +111 \) 2>/dev/null | while read -r lib; do
+                  sign_file "$lib" "$identity" ""
+                done
+              fi
+
+              # Sign main binary
+              if [ -f "$framework_binary" ]; then
+                sign_file "$framework_binary" "$identity" ""
+              fi
+            fi
+
+            # Sign the framework bundle itself
+            sign_file "$framework_path" "$identity" ""
+          }
+
+          # Sign an app bundle
+          sign_bundle() {
+            local bundle_path="$1"
+            local identity="$2"
+            local entitlements="$3"
+
+            echo "Signing bundle: $bundle_path"
+
+            # Check if it's a framework
+            if [[ "$bundle_path" == *.framework ]]; then
+              sign_framework "$bundle_path" "$identity" "$entitlements"
+              return
+            fi
+
+            local contents_path="$bundle_path/Contents"
+            if [ -d "$contents_path" ]; then
+              sign_contents "$contents_path" "$identity" "$entitlements"
+            fi
+
+            # Sign the bundle itself
+            local cmd=("/usr/bin/codesign" "-f" "-s" "$identity" "--options" "runtime")
+            if [ -n "$entitlements" ]; then
+              cmd+=("--entitlements" "$entitlements")
+            fi
+            cmd+=("$bundle_path")
+            "${cmd[@]}"
+          }
+
           if [ "$CAN_SIGN" = "true" ]; then
             echo "Signing with Developer ID: $SIGNING_IDENTITY"
             echo "Using entitlements: $ENTITLEMENTS"
 
-            # Sign CEF framework libraries first (inside out)
-            echo "Signing CEF framework libraries..."
-            if [ -d "$CEF_FRAMEWORK/Libraries" ]; then
-              find "$CEF_FRAMEWORK/Libraries" -type f -perm +111 -exec \
-                /usr/bin/codesign --force --timestamp --options runtime \
-                --sign "$SIGNING_IDENTITY" {} \; 2>/dev/null || true
-            fi
+            # 1. Sign CEF framework first (innermost)
+            sign_framework "$CEF_FRAMEWORK" "$SIGNING_IDENTITY" ""
 
-            # Sign the main CEF framework binary
-            echo "Signing CEF framework main binary..."
-            /usr/bin/codesign --force --deep --timestamp --options runtime \
-              --sign "$SIGNING_IDENTITY" "$CEF_FRAMEWORK/Chromium Embedded Framework" -v
-
-            # Sign the CEF framework bundle
-            echo "Signing CEF framework bundle..."
-            /usr/bin/codesign --force --deep --timestamp --options runtime \
-              --sign "$SIGNING_IDENTITY" "$CEF_FRAMEWORK" -v
-
-            # Sign CEF helper apps (inside out signing order)
+            # 2. Sign CEF helper apps
             for helper_suffix in "${HELPERS[@]}"; do
               HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
               HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
-              echo "Signing helper: $HELPER_APP_NAME"
-              /usr/bin/codesign --force --deep --timestamp --options runtime \
-                --entitlements "$ENTITLEMENTS" \
-                --sign "$SIGNING_IDENTITY" "$HELPER_APP_PATH" -v
+              sign_bundle "$HELPER_APP_PATH" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
             done
 
-            # Sign helper binaries with entitlements
-            /usr/bin/codesign --force --timestamp --options runtime \
-              --entitlements "$ENTITLEMENTS" \
-              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/cli" -v
+            # 3. Sign main app binaries
+            echo "Signing main app binaries..."
+            sign_file "$APP_PATH/Contents/MacOS/cli" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
+            sign_file "$APP_PATH/Contents/MacOS/git" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
+            sign_file "$APP_PATH/Contents/MacOS/zed" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
 
-            /usr/bin/codesign --force --timestamp --options runtime \
-              --entitlements "$ENTITLEMENTS" \
-              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/git" -v
-
-            # Sign main executable with entitlements (this is the one that needs JIT)
-            /usr/bin/codesign --force --timestamp --options runtime \
-              --entitlements "$ENTITLEMENTS" \
-              --sign "$SIGNING_IDENTITY" "$APP_PATH/Contents/MacOS/zed" -v
-
-            # Sign the app bundle itself with entitlements
-            /usr/bin/codesign --force --deep --timestamp --options runtime \
-              --entitlements "$ENTITLEMENTS" \
-              --sign "$SIGNING_IDENTITY" "$APP_PATH" -v
+            # 4. Sign the main app bundle
+            echo "Signing main app bundle..."
+            /usr/bin/codesign -f -s "$SIGNING_IDENTITY" --options runtime \
+              --entitlements "$ENTITLEMENTS" "$APP_PATH"
 
             # Verify signatures
-            echo "Verifying CEF framework signature..."
-            /usr/bin/codesign --verify --deep --strict "$CEF_FRAMEWORK" -v
+            echo "Verifying signatures..."
+            /usr/bin/codesign --verify --deep --strict "$APP_PATH" -v
+
           else
             echo "No signing certificate available, using ad-hoc signing"
 
-            # Sign CEF framework with deep
-            codesign --force --deep --sign - "$CEF_FRAMEWORK"
+            # Ad-hoc sign CEF framework
+            find "$CEF_FRAMEWORK" -type f \( -name "*.dylib" -o -perm +111 \) -exec codesign -f -s - {} \;
+            codesign -f -s - "$CEF_FRAMEWORK"
 
             # Sign CEF helpers
             for helper_suffix in "${HELPERS[@]}"; do
               HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
               HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
-              codesign --force --deep --sign - "$HELPER_APP_PATH"
+              codesign -f -s - "$HELPER_APP_PATH/Contents/MacOS/${HELPER_APP_NAME}"
+              codesign -f -s - "$HELPER_APP_PATH"
             done
 
-            # Sign other binaries
-            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/cli"
-            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/git"
-            codesign --force --deep --sign - "$APP_PATH/Contents/MacOS/zed"
-            codesign --force --deep --sign - "$APP_PATH"
+            # Sign main binaries and app
+            codesign -f -s - "$APP_PATH/Contents/MacOS/cli"
+            codesign -f -s - "$APP_PATH/Contents/MacOS/git"
+            codesign -f -s - "$APP_PATH/Contents/MacOS/zed"
+            codesign -f -s - "$APP_PATH"
           fi
 
       - name: Create DMG
