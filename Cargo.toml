@@ -79,8 +79,6 @@ members = [
     "crates/git_ui",
     "crates/go_to_line",
     "crates/google_ai",
-    "crates/gpui",
-    "crates/gpui_tokio",
     "crates/html_to_markdown",
     "crates/icons",
     "crates/image_viewer",
@@ -295,9 +293,9 @@ git_hosting_providers = { path = "crates/git_hosting_providers" }
 git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
-gpui = { path = "crates/gpui", default-features = false }
+gpui = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false }
 gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
-gpui_tokio = { path = "crates/gpui_tokio" }
+gpui_tokio = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 html_to_markdown = { path = "crates/html_to_markdown" }
 http_client = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 http_client_tls = { git = "https://github.com/Obsydian-HQ/gpui.git" }
@@ -767,7 +765,9 @@ calloop = { git = "https://github.com/zed-industries/calloop" }
 # Uncomment for local gpui development:
 # [patch.'https://github.com/Obsydian-HQ/gpui.git']
 # collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
+# gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
 # gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
+# gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
 # http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
 # http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
 # media = { path = "../../Obsydian-HQ/gpui/crates/media" }
