@@ -82,7 +82,6 @@ members = [
     "crates/gpui",
     "crates/gpui_tokio",
     "crates/html_to_markdown",
-    "crates/http_client_tls",
     "crates/icons",
     "crates/image_viewer",
     "crates/inspector_ui",
@@ -102,7 +101,6 @@ members = [
     "crates/lsp",
     "crates/markdown",
     "crates/markdown_preview",
-    "crates/media",
     "crates/menu",
     "crates/migrator",
     "crates/mistral",
@@ -153,7 +151,6 @@ members = [
     "crates/sqlez",
     "crates/sqlez_macros",
     "crates/streaming_diff",
-    "crates/sum_tree",
     "crates/supermaven",
     "crates/supermaven_api",
     "crates/codestral",
@@ -303,7 +300,7 @@ gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 gpui_tokio = { path = "crates/gpui_tokio" }
 html_to_markdown = { path = "crates/html_to_markdown" }
 http_client = { git = "https://github.com/Obsydian-HQ/gpui.git" }
-http_client_tls = { path = "crates/http_client_tls" }
+http_client_tls = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 edit_prediction_types = { path = "crates/edit_prediction_types" }
@@ -327,7 +324,7 @@ lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
-media = { path = "crates/media" }
+media = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 menu = { path = "crates/menu" }
 migrator = { path = "crates/migrator" }
 mistral = { path = "crates/mistral" }
@@ -379,7 +376,7 @@ snippets_ui = { path = "crates/snippets_ui" }
 sqlez = { path = "crates/sqlez" }
 sqlez_macros = { path = "crates/sqlez_macros" }
 streaming_diff = { path = "crates/streaming_diff" }
-sum_tree = { path = "crates/sum_tree" }
+sum_tree = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 supermaven = { path = "crates/supermaven" }
 supermaven_api = { path = "crates/supermaven_api" }
 codestral = { path = "crates/codestral" }
@@ -772,6 +769,9 @@ calloop = { git = "https://github.com/zed-industries/calloop" }
 # collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
 # gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
 # http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
+# http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
+# media = { path = "../../Obsydian-HQ/gpui/crates/media" }
+# sum_tree = { path = "../../Obsydian-HQ/gpui/crates/sum_tree" }
 # util = { path = "../../Obsydian-HQ/gpui/crates/util" }
 # scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
 # refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
