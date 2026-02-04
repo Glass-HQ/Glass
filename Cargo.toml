@@ -32,7 +32,6 @@ members = [
     "crates/cloud_api_client",
     "crates/cloud_api_types",
     "crates/cloud_llm_client",
-    "crates/collections",
     "crates/command_palette",
     "crates/command_palette_hooks",
     "crates/component",
@@ -132,10 +131,7 @@ members = [
     "crates/prompt_store",
     "crates/proto",
     "crates/recent_projects",
-    "crates/refineable",
-    "crates/refineable/derive_refineable",
     "crates/release_channel",
-    "crates/scheduler",
     "crates/remote",
     "crates/remote_server",
     "crates/repl",
@@ -184,7 +180,6 @@ members = [
     "crates/ui_input",
     "crates/ui_macros",
     "crates/ui_prompt",
-    "crates/util",
     "crates/util_macros",
     "crates/vercel",
     "crates/which_key",
@@ -265,7 +260,7 @@ clock = { path = "crates/clock" }
 cloud_api_client = { path = "crates/cloud_api_client" }
 cloud_api_types = { path = "crates/cloud_api_types" }
 cloud_llm_client = { path = "crates/cloud_llm_client" }
-collections = { path = "crates/collections", version = "0.1.0" }
+collections = { git = "https://github.com/Obsydian-HQ/gpui.git", version = "0.1.0" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
 component = { path = "crates/component" }
@@ -284,7 +279,7 @@ debug_adapter_extension = { path = "crates/debug_adapter_extension" }
 debugger_tools = { path = "crates/debugger_tools" }
 debugger_ui = { path = "crates/debugger_ui" }
 deepseek = { path = "crates/deepseek" }
-derive_refineable = { path = "crates/refineable/derive_refineable" }
+derive_refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -362,7 +357,7 @@ project_symbols = { path = "crates/project_symbols" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
-refineable = { path = "crates/refineable" }
+refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 release_channel = { path = "crates/release_channel" }
 remote = { path = "crates/remote" }
 remote_server = { path = "crates/remote_server" }
@@ -372,7 +367,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev ="e2074c6c2acf07b57cf7
 rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
-scheduler = { path = "crates/scheduler" }
+scheduler = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 search = { path = "crates/search" }
 session = { path = "crates/session" }
 settings = { path = "crates/settings" }
@@ -409,7 +404,7 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { path = "crates/util" }
+util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
 which_key = { path = "crates/which_key" }
@@ -773,6 +768,14 @@ notify = { git = "https://github.com/zed-industries/notify.git", rev = "b4588b2e
 notify-types = { git = "https://github.com/zed-industries/notify.git", rev = "b4588b2e5aee68f4c0e100f140e808cbce7b1419" }
 windows-capture = { git = "https://github.com/zed-industries/windows-capture.git", rev = "f0d6c1b6691db75461b732f6d5ff56eed002eeb9" }
 calloop = { git = "https://github.com/zed-industries/calloop" }
+
+# Uncomment for local gpui development:
+# [patch.'https://github.com/Obsydian-HQ/gpui.git']
+# collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
+# util = { path = "../../Obsydian-HQ/gpui/crates/util" }
+# scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
+# refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
+# derive_refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable/derive_refineable" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
