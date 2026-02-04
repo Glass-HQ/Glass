@@ -242,10 +242,19 @@ jobs:
           APP_PATH=$(find target/${{ matrix.target }}/release -name "*.app" -type d | head -1)
           echo "APP_PATH=$APP_PATH" >> $GITHUB_ENV
 
-          # Copy binaries
-          cp target/${{ matrix.target }}/release/zed "$APP_PATH/Contents/MacOS/zed"
+          # Remove the 'zed' binary that cargo-bundle placed, then copy the fresh
+          # build as 'Glass' so the executable name matches the app bundle name.
+          # CEF derives helper process paths from the bundle structure and executable
+          # name; a mismatch causes runtime crashes.
+          rm -f "$APP_PATH/Contents/MacOS/zed"
+          cp target/${{ matrix.target }}/release/zed "$APP_PATH/Contents/MacOS/Glass"
           cp target/${{ matrix.target }}/release/cli "$APP_PATH/Contents/MacOS/cli"
           cp /tmp/git-download/bin/git "$APP_PATH/Contents/MacOS/git"
+
+          # Update CFBundleExecutable in Info.plist to match the renamed binary.
+          # cargo-bundle sets this to 'zed' (the Cargo package name) but we need 'Glass'.
+          /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable Glass" "$APP_PATH/Contents/Info.plist"
+          echo "Updated CFBundleExecutable to Glass"
 
           # Create Frameworks directory
           mkdir -p "$APP_PATH/Contents/Frameworks"
@@ -503,7 +512,7 @@ jobs:
             echo "Signing main app binaries..."
             sign_file "$APP_PATH/Contents/MacOS/cli" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
             sign_file "$APP_PATH/Contents/MacOS/git" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
-            sign_file "$APP_PATH/Contents/MacOS/zed" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
+            sign_file "$APP_PATH/Contents/MacOS/Glass" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
 
             # 4. Sign the main app bundle
             echo "Signing main app bundle..."
@@ -532,7 +541,7 @@ jobs:
             # Sign main binaries and app
             codesign -f -s - "$APP_PATH/Contents/MacOS/cli"
             codesign -f -s - "$APP_PATH/Contents/MacOS/git"
-            codesign -f -s - "$APP_PATH/Contents/MacOS/zed"
+            codesign -f -s - "$APP_PATH/Contents/MacOS/Glass"
             codesign -f -s - "$APP_PATH"
           fi
 

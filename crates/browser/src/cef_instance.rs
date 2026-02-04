@@ -54,11 +54,11 @@ wrap_app! {
             command_line.append_switch(Some(&"no-startup-window".into()));
             command_line.append_switch(Some(&"noerrdialogs".into()));
             command_line.append_switch(Some(&"hide-crash-restore-bubble".into()));
+            command_line.append_switch(Some(&"use-mock-keychain".into()));
+            command_line.append_switch(Some(&"disable-gpu-sandbox".into()));
 
             #[cfg(debug_assertions)]
             {
-                // Use mock keychain in debug builds to avoid keychain prompts during development
-                command_line.append_switch(Some(&"use-mock-keychain".into()));
                 command_line.append_switch(Some(&"enable-logging=stderr".into()));
                 command_line.append_switch_with_value(
                     Some(&"remote-debugging-port".into()),
@@ -257,6 +257,29 @@ impl CefInstance {
         settings.external_message_pump = 1;
         settings.no_sandbox = 1;
         settings.log_severity = cef::sys::cef_log_severity_t::LOGSEVERITY_WARNING.into();
+
+        // Explicitly set the helper subprocess path so CEF doesn't have to
+        // derive it from the bundle structure. On macOS, the helper is at
+        // Contents/Frameworks/<AppName> Helper.app/Contents/MacOS/<AppName> Helper
+        // relative to the main app bundle.
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(exe_path) = std::env::current_exe() {
+                // exe is at .app/Contents/MacOS/<binary>
+                // helper is at .app/Contents/Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper
+                if let Some(macos_dir) = exe_path.parent() {
+                    let helper_path = macos_dir
+                        .join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
+                    if let Ok(canonical) = helper_path.canonicalize() {
+                        if let Some(path_str) = canonical.to_str() {
+                            settings.browser_subprocess_path =
+                                cef::CefString::from(path_str);
+                            log::info!("CEF helper subprocess path: {}", path_str);
+                        }
+                    }
+                }
+            }
+        }
 
         // Configure persistent storage for cookies, local storage, and cache
         let cache_dir = paths::data_dir().join("browser_cache");
