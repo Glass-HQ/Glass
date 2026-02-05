@@ -1,11 +1,12 @@
 use futures::channel::mpsc;
 use futures::StreamExt;
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, Render, SharedString, Task,
+    App, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, Render, SharedString, Task,
     UniformListScrollHandle, Window, uniform_list,
 };
 use native_platforms::apple::build::BuildOutput;
 use ui::prelude::*;
+use ui::Tooltip;
 use workspace::item::{Item, ItemEvent, TabContentParams};
 
 pub struct BuildLogsView {
@@ -34,52 +35,112 @@ impl BuildLogsView {
         let focus_handle = cx.focus_handle();
 
         let receiver_task = cx.spawn_in(window, async move |this, cx| {
-            while let Some(output) = receiver.next().await {
-                let _ = this.update(cx, |this, cx| {
-                    match output {
-                        BuildOutput::Line(line) => {
-                            this.lines.push(LogLine::Normal(line));
-                        }
-                        BuildOutput::Error(error) => {
-                            let msg = if let Some(file) = &error.file {
-                                if let Some(line) = error.line {
-                                    format!("{}:{}: error: {}", file, line, error.message)
+            let mut pending_lines: Vec<LogLine> = Vec::new();
+            let mut last_notify = std::time::Instant::now();
+            let mut is_complete = false;
+            let mut build_success = None;
+
+            loop {
+                use futures::future::{select, Either};
+                use std::time::Duration;
+
+                let timeout = cx.background_executor().timer(Duration::from_millis(50));
+                let next_output = receiver.next();
+
+                futures::pin_mut!(timeout);
+                futures::pin_mut!(next_output);
+
+                match select(next_output, timeout).await {
+                    Either::Left((Some(output), _)) => {
+                        match output {
+                            BuildOutput::Line(line) => {
+                                pending_lines.push(LogLine::Normal(line));
+                            }
+                            BuildOutput::Error(error) => {
+                                let msg = if let Some(file) = &error.file {
+                                    if let Some(line) = error.line {
+                                        format!("{}:{}: error: {}", file, line, error.message)
+                                    } else {
+                                        format!("{}: error: {}", file, error.message)
+                                    }
                                 } else {
-                                    format!("{}: error: {}", file, error.message)
-                                }
-                            } else {
-                                format!("error: {}", error.message)
-                            };
-                            this.lines.push(LogLine::Error(msg));
-                        }
-                        BuildOutput::Warning(warning) => {
-                            let msg = if let Some(file) = &warning.file {
-                                if let Some(line) = warning.line {
-                                    format!("{}:{}: warning: {}", file, line, warning.message)
+                                    format!("error: {}", error.message)
+                                };
+                                pending_lines.push(LogLine::Error(msg));
+                            }
+                            BuildOutput::Warning(warning) => {
+                                let msg = if let Some(file) = &warning.file {
+                                    if let Some(line) = warning.line {
+                                        format!("{}:{}: warning: {}", file, line, warning.message)
+                                    } else {
+                                        format!("{}: warning: {}", file, warning.message)
+                                    }
                                 } else {
-                                    format!("{}: warning: {}", file, warning.message)
+                                    format!("warning: {}", warning.message)
+                                };
+                                pending_lines.push(LogLine::Warning(msg));
+                            }
+                            BuildOutput::Progress { phase, .. } => {
+                                pending_lines.push(LogLine::Progress(phase));
+                            }
+                            BuildOutput::Completed(result) => {
+                                is_complete = true;
+                                build_success = Some(result.success);
+                                if result.success {
+                                    pending_lines.push(LogLine::Progress("Build succeeded".to_string()));
+                                } else {
+                                    pending_lines.push(LogLine::Error("Build failed".to_string()));
                                 }
-                            } else {
-                                format!("warning: {}", warning.message)
-                            };
-                            this.lines.push(LogLine::Warning(msg));
-                        }
-                        BuildOutput::Progress { phase, .. } => {
-                            this.lines.push(LogLine::Progress(phase));
-                        }
-                        BuildOutput::Completed(result) => {
-                            this.is_complete = true;
-                            this.build_success = Some(result.success);
-                            if result.success {
-                                this.lines.push(LogLine::Progress("Build succeeded".to_string()));
-                            } else {
-                                this.lines.push(LogLine::Error("Build failed".to_string()));
                             }
                         }
+
+                        let should_flush = is_complete
+                            || pending_lines.len() >= 100
+                            || last_notify.elapsed() > Duration::from_millis(100);
+
+                        if should_flush && !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let complete = is_complete;
+                            let success = build_success;
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                if complete {
+                                    this.is_complete = true;
+                                    this.build_success = success;
+                                }
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                            last_notify = std::time::Instant::now();
+                        }
+
+                        if is_complete {
+                            break;
+                        }
                     }
-                    cx.emit(ItemEvent::UpdateTab);
-                    cx.notify();
-                });
+                    Either::Left((None, _)) => {
+                        if !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                        }
+                        break;
+                    }
+                    Either::Right((_, _)) => {
+                        if !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                            last_notify = std::time::Instant::now();
+                        }
+                    }
+                }
             }
         });
 
@@ -128,6 +189,19 @@ impl BuildLogsView {
             }
         }
     }
+
+    fn full_text(&self) -> String {
+        self.lines
+            .iter()
+            .map(|line| match line {
+                LogLine::Normal(text) => text.clone(),
+                LogLine::Error(text) => text.clone(),
+                LogLine::Warning(text) => text.clone(),
+                LogLine::Progress(text) => text.clone(),
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
 }
 
 impl Focusable for BuildLogsView {
@@ -142,6 +216,7 @@ impl Render for BuildLogsView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let lines = self.lines.clone();
         let line_count = lines.len();
+        let full_text = self.full_text();
 
         v_flex()
             .key_context("BuildLogsView")
@@ -149,6 +224,34 @@ impl Render for BuildLogsView {
             .size_full()
             .overflow_hidden()
             .bg(cx.theme().colors().editor_background)
+            .child(
+                h_flex()
+                    .w_full()
+                    .px_2()
+                    .py_1()
+                    .justify_between()
+                    .border_b_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        Label::new("Build Output")
+                            .size(LabelSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .when(line_count > 0, |this| {
+                        this.child(
+                            IconButton::new("copy-logs", IconName::Copy)
+                                .icon_size(IconSize::Small)
+                                .icon_color(Color::Muted)
+                                .tooltip(Tooltip::text("Copy All Logs"))
+                                .on_click({
+                                    let full_text = full_text.clone();
+                                    move |_, _window, cx| {
+                                        cx.write_to_clipboard(ClipboardItem::new_string(full_text.clone()));
+                                    }
+                                })
+                        )
+                    })
+            )
             .when(line_count == 0, |this| {
                 this.child(
                     div()

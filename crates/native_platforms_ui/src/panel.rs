@@ -253,6 +253,15 @@ impl NativePlatformsPanel {
             this.update(cx, |this, cx| {
                 this.devices = devices;
                 this.loading_devices = false;
+
+                // Validate selected device still exists in the refreshed list
+                if let Some(selected) = &this.selected_device {
+                    let still_exists = this.devices.iter().any(|d| d.id == selected.id);
+                    if !still_exists {
+                        this.selected_device = None;
+                    }
+                }
+
                 if this.selected_device.is_none() {
                     this.selected_device = this
                         .devices

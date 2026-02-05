@@ -38,11 +38,12 @@ struct DevicectlResult {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DevicectlDevice {
-    identifier: String,
     #[serde(default)]
     connection_properties: Option<ConnectionProperties>,
     #[serde(default)]
     device_properties: Option<DeviceProperties>,
+    #[serde(default)]
+    hardware_properties: Option<HardwareProperties>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,6 +60,13 @@ struct DeviceProperties {
     name: Option<String>,
     #[serde(default)]
     os_version_number: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HardwareProperties {
+    #[serde(default)]
+    udid: Option<String>,
 }
 
 fn list_devices_via_devicectl() -> Vec<Device> {
@@ -87,6 +95,11 @@ fn list_devices_via_devicectl() -> Vec<Device> {
             .devices
             .into_iter()
             .filter_map(|d| {
+                let udid = d
+                    .hardware_properties
+                    .as_ref()
+                    .and_then(|hp| hp.udid.clone())?;
+
                 let name = d
                     .device_properties
                     .as_ref()
@@ -109,10 +122,10 @@ fn list_devices_via_devicectl() -> Vec<Device> {
                             DeviceState::Unknown
                         }
                     })
-                    .unwrap_or(DeviceState::Booted); // If device is listed, it's likely connected
+                    .unwrap_or(DeviceState::Booted);
 
                 Some(Device {
-                    id: d.identifier,
+                    id: udid,
                     name,
                     device_type: DeviceType::PhysicalDevice,
                     state,
@@ -216,7 +229,12 @@ fn parse_device_line(line: &str) -> Option<Device> {
 pub fn get_device_destination(device: &Device) -> String {
     match device.device_type {
         DeviceType::Simulator => {
-            format!("platform=iOS Simulator,id={}", device.id)
+            if let Some(os_version) = &device.os_version {
+                let os = os_version.replace("iOS ", "");
+                format!("platform=iOS Simulator,name={},OS={}", device.name, os)
+            } else {
+                format!("platform=iOS Simulator,name={}", device.name)
+            }
         }
         DeviceType::PhysicalDevice => {
             format!("platform=iOS,id={}", device.id)
