@@ -19,7 +19,7 @@ enum SetupStep {
 enum ViewMode {
     Setup(SetupStep),
     Apps,
-    TestFlight,
+    AppDetail,
 }
 
 pub struct AppStoreConnectTab {
@@ -272,8 +272,11 @@ impl AppStoreConnectTab {
 
     fn load_app_details(&mut self, app: &AscApp, cx: &mut Context<Self>) {
         self.selected_app = Some(app.clone());
-        self.view_mode = ViewMode::TestFlight;
+        self.view_mode = ViewMode::AppDetail;
         self.is_loading = true;
+        self.builds.clear();
+        self.beta_groups.clear();
+        self.beta_testers.clear();
         cx.notify();
 
         let app_id = app.id.clone();
@@ -477,7 +480,7 @@ impl AppStoreConnectTab {
                 h_flex()
                     .w_full()
                     .px_4()
-                    .py_2()
+                    .py_3()
                     .border_b_1()
                     .border_color(cx.theme().colors().border)
                     .justify_between()
@@ -500,35 +503,37 @@ impl AppStoreConnectTab {
                             ),
                     ),
             )
-            .when(self.is_loading, |this| {
-                this.child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(Label::new("Loading...").color(Color::Muted)),
-                )
-            })
-            .when(!self.is_loading && self.apps.is_empty(), |this| {
-                this.child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(Label::new("No apps found").color(Color::Muted)),
-                )
-            })
-            .when(!self.is_loading && !self.apps.is_empty(), |this| {
-                this.child(
+            .child(self.render_apps_content(cx))
+    }
+
+    fn render_apps_content(&self, cx: &Context<Self>) -> impl IntoElement {
+        if self.is_loading {
+            div()
+                .id("apps-loading")
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Label::new("Loading apps...").color(Color::Muted))
+        } else if self.apps.is_empty() {
+            div()
+                .id("apps-empty")
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Label::new("No apps found").color(Color::Muted))
+        } else {
+            let apps = self.apps.clone();
+            div()
+                .id("apps-list")
+                .flex_1()
+                .overflow_y_scroll()
+                .child(
                     v_flex()
-                        .id("apps-list")
-                        .flex_1()
                         .p_4()
                         .gap_2()
-                        .overflow_y_scroll()
-                        .children(self.apps.iter().enumerate().map(|(ix, app)| {
+                        .children(apps.into_iter().enumerate().map(|(ix, app)| {
                             let app_clone = app.clone();
                             div()
                                 .id(("app-item", ix))
@@ -555,7 +560,8 @@ impl AppStoreConnectTab {
                                                 .items_center()
                                                 .justify_center()
                                                 .child(
-                                                    Icon::new(IconName::Globe).size(IconSize::Medium),
+                                                    Icon::new(IconName::Globe)
+                                                        .size(IconSize::Medium),
                                                 ),
                                         )
                                         .child(
@@ -573,10 +579,10 @@ impl AppStoreConnectTab {
                                 )
                         })),
                 )
-            })
+        }
     }
 
-    fn render_testflight(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn render_app_detail(&self, cx: &Context<Self>) -> impl IntoElement {
         let app_name = self
             .selected_app
             .as_ref()
@@ -589,210 +595,288 @@ impl AppStoreConnectTab {
                 h_flex()
                     .w_full()
                     .px_4()
-                    .py_2()
+                    .py_3()
                     .border_b_1()
                     .border_color(cx.theme().colors().border)
-                    .gap_2()
+                    .gap_3()
                     .child(
-                        Button::new("back", "←")
+                        Button::new("back", "← Back")
                             .style(ButtonStyle::Subtle)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.view_mode = ViewMode::Apps;
                                 this.selected_app = None;
+                                this.builds.clear();
+                                this.beta_groups.clear();
+                                this.beta_testers.clear();
                                 cx.notify();
                             })),
                     )
-                    .child(
-                        Label::new(format!("{} - TestFlight", app_name)).size(LabelSize::Large),
-                    ),
+                    .child(Label::new(app_name).size(LabelSize::Large)),
             )
-            .when(self.is_loading, |this| {
-                this.child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(Label::new("Loading...").color(Color::Muted)),
-                )
-            })
-            .when(!self.is_loading, |this| {
-                this.child(
-                    h_flex()
-                        .flex_1()
-                        .overflow_hidden()
+            .child(self.render_app_detail_content(cx))
+    }
+
+    fn render_app_detail_content(&self, cx: &Context<Self>) -> impl IntoElement {
+        if self.is_loading {
+            div()
+                .id("detail-loading")
+                .flex_1()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(Label::new("Loading...").color(Color::Muted))
+        } else {
+            div()
+                .id("detail-content")
+                .flex_1()
+                .overflow_y_scroll()
+                .p_4()
+                .child(
+                    v_flex()
+                        .gap_6()
                         .child(self.render_builds_section(cx))
                         .child(self.render_groups_section(cx))
                         .child(self.render_testers_section(cx)),
                 )
-            })
+        }
     }
 
     fn render_builds_section(&self, cx: &Context<Self>) -> impl IntoElement {
         v_flex()
-            .flex_1()
-            .border_r_1()
-            .border_color(cx.theme().colors().border)
+            .gap_3()
             .child(
-                div()
-                    .px_4()
-                    .py_2()
-                    .border_b_1()
-                    .border_color(cx.theme().colors().border)
-                    .child(
-                        Label::new("Builds")
-                            .size(LabelSize::Default)
-                            .color(Color::Muted),
-                    ),
+                h_flex()
+                    .gap_2()
+                    .items_center()
+                    .child(Icon::new(IconName::Box).size(IconSize::Small).color(Color::Muted))
+                    .child(Label::new("Builds").size(LabelSize::Default)),
             )
-            .child(
-                v_flex()
-                    .id("builds-list")
-                    .flex_1()
-                    .p_2()
-                    .gap_1()
-                    .overflow_y_scroll()
-                    .children(self.builds.iter().map(|build| {
-                        h_flex()
-                            .w_full()
-                            .px_2()
-                            .py_1()
-                            .rounded_md()
-                            .gap_2()
-                            .child(
-                                Icon::new(IconName::Box)
-                                    .size(IconSize::Small)
-                                    .color(match build.processing_state.as_str() {
-                                        "VALID" => Color::Success,
-                                        "PROCESSING" => Color::Warning,
-                                        _ => Color::Muted,
-                                    }),
-                            )
-                            .child(
-                                v_flex()
+            .when(self.builds.is_empty(), |this| {
+                this.child(
+                    Label::new("No builds found")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .when(!self.builds.is_empty(), |this| {
+                this.child(
+                    div()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                        .overflow_hidden()
+                        .child(
+                            v_flex().children(self.builds.iter().enumerate().map(|(ix, build)| {
+                                let is_last = ix == self.builds.len() - 1;
+                                h_flex()
+                                    .w_full()
+                                    .px_3()
+                                    .py_2()
+                                    .justify_between()
+                                    .when(!is_last, |this| {
+                                        this.border_b_1()
+                                            .border_color(cx.theme().colors().border)
+                                    })
                                     .child(
-                                        Label::new(format!("v{}", build.version))
-                                            .size(LabelSize::Small),
+                                        h_flex()
+                                            .gap_3()
+                                            .items_center()
+                                            .child(
+                                                Label::new(format!("Build {}", build.version))
+                                                    .size(LabelSize::Small),
+                                            )
+                                            .child(self.render_status_badge(
+                                                &build.processing_state,
+                                                cx,
+                                            )),
                                     )
                                     .child(
-                                        Label::new(build.processing_state.clone())
-                                            .size(LabelSize::XSmall)
-                                            .color(Color::Muted),
-                                    ),
-                            )
-                    })),
-            )
+                                        h_flex().gap_2().when(build.expired, |this| {
+                                            this.child(
+                                                Label::new("Expired")
+                                                    .size(LabelSize::XSmall)
+                                                    .color(Color::Muted),
+                                            )
+                                        }),
+                                    )
+                            })),
+                        ),
+                )
+            })
     }
 
     fn render_groups_section(&self, cx: &Context<Self>) -> impl IntoElement {
         v_flex()
-            .flex_1()
-            .border_r_1()
-            .border_color(cx.theme().colors().border)
+            .gap_3()
             .child(
-                div()
-                    .px_4()
-                    .py_2()
-                    .border_b_1()
-                    .border_color(cx.theme().colors().border)
+                h_flex()
+                    .gap_2()
+                    .items_center()
                     .child(
-                        Label::new("Beta Groups")
-                            .size(LabelSize::Default)
+                        Icon::new(IconName::UserGroup)
+                            .size(IconSize::Small)
                             .color(Color::Muted),
-                    ),
+                    )
+                    .child(Label::new("Beta Groups").size(LabelSize::Default)),
             )
-            .child(
-                v_flex()
-                    .id("beta-groups-list")
-                    .flex_1()
-                    .p_2()
-                    .gap_1()
-                    .overflow_y_scroll()
-                    .children(self.beta_groups.iter().map(|group| {
-                        h_flex()
-                            .w_full()
-                            .px_2()
-                            .py_1()
-                            .rounded_md()
-                            .gap_2()
-                            .child(
-                                Icon::new(IconName::UserGroup)
-                                    .size(IconSize::Small)
-                                    .color(if group.is_internal {
-                                        Color::Accent
-                                    } else {
-                                        Color::Muted
-                                    }),
-                            )
-                            .child(
-                                v_flex()
-                                    .child(Label::new(group.name.clone()).size(LabelSize::Small))
-                                    .child(
-                                        Label::new(if group.is_internal {
-                                            "Internal"
-                                        } else {
-                                            "External"
+            .when(self.beta_groups.is_empty(), |this| {
+                this.child(
+                    Label::new("No beta groups found")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .when(!self.beta_groups.is_empty(), |this| {
+                this.child(
+                    div()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                        .overflow_hidden()
+                        .child(
+                            v_flex().children(self.beta_groups.iter().enumerate().map(
+                                |(ix, group)| {
+                                    let is_last = ix == self.beta_groups.len() - 1;
+                                    h_flex()
+                                        .w_full()
+                                        .px_3()
+                                        .py_2()
+                                        .justify_between()
+                                        .when(!is_last, |this| {
+                                            this.border_b_1()
+                                                .border_color(cx.theme().colors().border)
                                         })
-                                        .size(LabelSize::XSmall)
-                                        .color(Color::Muted),
-                                    ),
-                            )
-                    })),
-            )
+                                        .child(
+                                            h_flex()
+                                                .gap_3()
+                                                .items_center()
+                                                .child(
+                                                    Label::new(group.name.clone())
+                                                        .size(LabelSize::Small),
+                                                )
+                                                .child(
+                                                    Label::new(if group.is_internal {
+                                                        "Internal"
+                                                    } else {
+                                                        "External"
+                                                    })
+                                                    .size(LabelSize::XSmall)
+                                                    .color(if group.is_internal {
+                                                        Color::Accent
+                                                    } else {
+                                                        Color::Muted
+                                                    }),
+                                                ),
+                                        )
+                                        .when(group.public_link_enabled, |this| {
+                                            this.child(
+                                                Label::new("Public Link")
+                                                    .size(LabelSize::XSmall)
+                                                    .color(Color::Success),
+                                            )
+                                        })
+                                },
+                            )),
+                        ),
+                )
+            })
     }
 
     fn render_testers_section(&self, cx: &Context<Self>) -> impl IntoElement {
         v_flex()
-            .flex_1()
+            .gap_3()
             .child(
-                div()
-                    .px_4()
-                    .py_2()
-                    .border_b_1()
-                    .border_color(cx.theme().colors().border)
+                h_flex()
+                    .gap_2()
+                    .items_center()
                     .child(
-                        Label::new("Beta Testers")
-                            .size(LabelSize::Default)
+                        Icon::new(IconName::Person)
+                            .size(IconSize::Small)
                             .color(Color::Muted),
-                    ),
+                    )
+                    .child(Label::new(format!("Beta Testers ({})", self.beta_testers.len())).size(LabelSize::Default)),
             )
-            .child(
-                v_flex()
-                    .id("beta-testers-list")
-                    .flex_1()
-                    .p_2()
-                    .gap_1()
-                    .overflow_y_scroll()
-                    .children(self.beta_testers.iter().map(|tester| {
-                        let name = match (&tester.first_name, &tester.last_name) {
-                            (Some(first), Some(last)) => format!("{} {}", first, last),
-                            (Some(first), None) => first.clone(),
-                            (None, Some(last)) => last.clone(),
-                            (None, None) => tester.email.clone(),
-                        };
+            .when(self.beta_testers.is_empty(), |this| {
+                this.child(
+                    Label::new("No beta testers found")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+            })
+            .when(!self.beta_testers.is_empty(), |this| {
+                this.child(
+                    div()
+                        .rounded_md()
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                        .overflow_hidden()
+                        .child(
+                            v_flex().children(
+                                self.beta_testers.iter().enumerate().map(|(ix, tester)| {
+                                    let is_last = ix == self.beta_testers.len() - 1;
+                                    let name = self.format_tester_name(tester);
 
-                        h_flex()
-                            .w_full()
-                            .px_2()
-                            .py_1()
-                            .rounded_md()
-                            .gap_2()
-                            .child(
-                                Icon::new(IconName::Person)
-                                    .size(IconSize::Small)
-                                    .color(Color::Muted),
-                            )
-                            .child(
-                                v_flex()
-                                    .child(Label::new(name).size(LabelSize::Small))
-                                    .child(
-                                        Label::new(tester.email.clone())
-                                            .size(LabelSize::XSmall)
-                                            .color(Color::Muted),
-                                    ),
-                            )
-                    })),
-            )
+                                    h_flex()
+                                        .w_full()
+                                        .px_3()
+                                        .py_2()
+                                        .justify_between()
+                                        .when(!is_last, |this| {
+                                            this.border_b_1()
+                                                .border_color(cx.theme().colors().border)
+                                        })
+                                        .child(
+                                            v_flex()
+                                                .child(Label::new(name).size(LabelSize::Small))
+                                                .when_some(tester.email.as_ref(), |this, email| {
+                                                    this.child(
+                                                        Label::new(email.clone())
+                                                            .size(LabelSize::XSmall)
+                                                            .color(Color::Muted),
+                                                    )
+                                                }),
+                                        )
+                                        .child(
+                                            h_flex()
+                                                .gap_2()
+                                                .child(self.render_status_badge(&tester.state, cx))
+                                                .child(
+                                                    Label::new(tester.invite_type.clone())
+                                                        .size(LabelSize::XSmall)
+                                                        .color(Color::Muted),
+                                                ),
+                                        )
+                                }),
+                            ),
+                        ),
+                )
+            })
+    }
+
+    fn format_tester_name(&self, tester: &BetaTester) -> String {
+        match (&tester.first_name, &tester.last_name) {
+            (Some(first), Some(last)) => format!("{} {}", first, last),
+            (Some(first), None) => first.clone(),
+            (None, Some(last)) => last.clone(),
+            (None, None) => "Anonymous".to_string(),
+        }
+    }
+
+    fn render_status_badge(&self, status: &str, cx: &Context<Self>) -> impl IntoElement {
+        let (color, bg_color) = match status.to_uppercase().as_str() {
+            "VALID" | "INSTALLED" => (Color::Success, cx.theme().status().success_background),
+            "PROCESSING" | "ACCEPTED" => (Color::Warning, cx.theme().status().warning_background),
+            "INVALID" | "EXPIRED" => (Color::Error, cx.theme().status().error_background),
+            "INVITED" => (Color::Accent, cx.theme().colors().element_background),
+            _ => (Color::Muted, cx.theme().colors().element_background),
+        };
+
+        div()
+            .px_2()
+            .py_px()
+            .rounded_sm()
+            .bg(bg_color)
+            .child(Label::new(status.to_string()).size(LabelSize::XSmall).color(color))
     }
 }
 
@@ -817,7 +901,7 @@ impl Render for AppStoreConnectTab {
                 }
                 ViewMode::Setup(SetupStep::Login) => this.child(self.render_login(cx)),
                 ViewMode::Apps => this.child(self.render_apps_list(cx)),
-                ViewMode::TestFlight => this.child(self.render_testflight(cx)),
+                ViewMode::AppDetail => this.child(self.render_app_detail(cx)),
             })
     }
 }

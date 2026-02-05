@@ -85,9 +85,9 @@ pub struct App {
 pub struct Build {
     pub id: String,
     pub version: String,
-    pub build_number: String,
     pub processing_state: String,
     pub uploaded_date: Option<String>,
+    pub expired: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,23 +95,18 @@ pub struct BetaGroup {
     pub id: String,
     pub name: String,
     pub is_internal: bool,
+    pub public_link: Option<String>,
     pub public_link_enabled: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BetaTester {
     pub id: String,
-    pub email: String,
     pub first_name: Option<String>,
     pub last_name: Option<String>,
-    pub invite_type: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AscConfig {
-    pub api_key_id: String,
-    pub issuer_id: String,
-    pub key_path: String,
+    pub email: Option<String>,
+    pub invite_type: String,
+    pub state: String,
 }
 
 pub fn check_asc_installed() -> bool {
@@ -205,8 +200,8 @@ fn parse_builds_output(output: &str) -> Result<Vec<Build>> {
         uploaded_date: Option<String>,
         #[serde(rename = "processingState")]
         processing_state: String,
-        #[serde(rename = "buildAudienceType")]
-        build_audience_type: Option<String>,
+        #[serde(default)]
+        expired: bool,
     }
 
     let response: AscBuildsResponse = serde_json::from_str(output)?;
@@ -215,24 +210,24 @@ fn parse_builds_output(output: &str) -> Result<Vec<Build>> {
         .data
         .into_iter()
         .map(|build| Build {
-            id: build.id.clone(),
+            id: build.id,
             version: build.attributes.version,
-            build_number: build.id,
             processing_state: build.attributes.processing_state,
             uploaded_date: build.attributes.uploaded_date,
+            expired: build.attributes.expired,
         })
         .collect())
 }
 
 pub fn list_beta_groups(app_id: &str) -> Result<Vec<BetaGroup>> {
     let output = Command::new("asc")
-        .args(["beta-groups", "list", "--app", app_id])
+        .args(["testflight", "beta-groups", "list", "--app", app_id])
         .output()
-        .context("Failed to run asc beta-groups list")?;
+        .context("Failed to run asc testflight beta-groups list")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("asc beta-groups list failed: {}", stderr);
+        anyhow::bail!("asc testflight beta-groups list failed: {}", stderr);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -254,10 +249,12 @@ fn parse_beta_groups_output(output: &str) -> Result<Vec<BetaGroup>> {
     #[derive(Deserialize)]
     struct AscBetaGroupAttributes {
         name: String,
-        #[serde(rename = "isInternalGroup")]
+        #[serde(rename = "isInternalGroup", default)]
         is_internal_group: bool,
-        #[serde(rename = "publicLinkEnabled")]
-        public_link_enabled: Option<bool>,
+        #[serde(rename = "publicLinkEnabled", default)]
+        public_link_enabled: bool,
+        #[serde(rename = "publicLink")]
+        public_link: Option<String>,
     }
 
     let response: AscBetaGroupsResponse = serde_json::from_str(output)?;
@@ -269,20 +266,21 @@ fn parse_beta_groups_output(output: &str) -> Result<Vec<BetaGroup>> {
             id: group.id,
             name: group.attributes.name,
             is_internal: group.attributes.is_internal_group,
-            public_link_enabled: group.attributes.public_link_enabled.unwrap_or(false),
+            public_link_enabled: group.attributes.public_link_enabled,
+            public_link: group.attributes.public_link,
         })
         .collect())
 }
 
 pub fn list_beta_testers(app_id: &str) -> Result<Vec<BetaTester>> {
     let output = Command::new("asc")
-        .args(["beta-testers", "list", "--app", app_id])
+        .args(["testflight", "beta-testers", "list", "--app", app_id])
         .output()
-        .context("Failed to run asc beta-testers list")?;
+        .context("Failed to run asc testflight beta-testers list")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        anyhow::bail!("asc beta-testers list failed: {}", stderr);
+        anyhow::bail!("asc testflight beta-testers list failed: {}", stderr);
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -303,13 +301,15 @@ fn parse_beta_testers_output(output: &str) -> Result<Vec<BetaTester>> {
 
     #[derive(Deserialize)]
     struct AscBetaTesterAttributes {
-        email: String,
         #[serde(rename = "firstName")]
         first_name: Option<String>,
         #[serde(rename = "lastName")]
         last_name: Option<String>,
-        #[serde(rename = "inviteType")]
-        invite_type: Option<String>,
+        email: Option<String>,
+        #[serde(rename = "inviteType", default)]
+        invite_type: String,
+        #[serde(default)]
+        state: String,
     }
 
     let response: AscBetaTestersResponse = serde_json::from_str(output)?;
@@ -319,10 +319,11 @@ fn parse_beta_testers_output(output: &str) -> Result<Vec<BetaTester>> {
         .into_iter()
         .map(|tester| BetaTester {
             id: tester.id,
-            email: tester.attributes.email,
             first_name: tester.attributes.first_name,
             last_name: tester.attributes.last_name,
+            email: tester.attributes.email,
             invite_type: tester.attributes.invite_type,
+            state: tester.attributes.state,
         })
         .collect())
 }
