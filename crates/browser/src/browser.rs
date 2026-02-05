@@ -25,7 +25,6 @@ pub use tab::BrowserTab;
 /// Handle CEF subprocess execution. This MUST be called very early in main(),
 /// before any GUI initialization. See CefInstance::handle_subprocess() for details.
 pub fn handle_cef_subprocess() -> anyhow::Result<()> {
-    log::info!("[browser] handle_cef_subprocess()");
     CefInstance::handle_subprocess()
 }
 
@@ -33,11 +32,8 @@ use gpui::{App, AppContext, Focusable};
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 
 pub fn init(cx: &mut App) {
-    log::info!("[browser] init() START");
     match CefInstance::initialize(cx) {
-        Ok(_) => {
-            log::info!("[browser] init() CEF browser mode initialized successfully");
-        }
+        Ok(_) => {}
         Err(e) => {
             log::error!("[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.", e);
         }
@@ -51,7 +47,7 @@ pub fn init(cx: &mut App) {
         RegisteredModeView {
             view: browser_view.into(),
             focus_handle,
+            titlebar_center_view: None,
         },
     );
-    log::info!("[browser] init() DONE");
 }

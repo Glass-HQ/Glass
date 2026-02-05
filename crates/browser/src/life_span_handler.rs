@@ -17,7 +17,6 @@ pub struct OsrLifeSpanHandler {
 
 impl OsrLifeSpanHandler {
     pub fn new(sender: EventSender) -> Self {
-        log::info!("[browser::life_span_handler] OsrLifeSpanHandler::new()");
         Self { sender }
     }
 }
@@ -47,35 +46,28 @@ wrap_life_span_handler! {
             // Cancel popup, navigate in current tab instead
             if let Some(url) = target_url {
                 let url_str = url.to_string();
-                log::info!("[browser::life_span_handler] on_before_popup(url={})", url_str);
                 if !url_str.is_empty() {
                     let _ = self.handler.sender.send(BrowserEvent::PopupRequested(url_str));
                 }
-            } else {
-                log::info!("[browser::life_span_handler] on_before_popup(url=None)");
             }
             1 // Return 1 to cancel the popup
         }
 
         fn on_after_created(&self, _browser: Option<&mut Browser>) {
-            log::info!("[browser::life_span_handler] on_after_created()");
             let _ = self.handler.sender.send(BrowserEvent::BrowserCreated);
         }
 
         fn do_close(&self, _browser: Option<&mut Browser>) -> ::std::os::raw::c_int {
-            log::info!("[browser::life_span_handler] do_close()");
             0 // Allow close
         }
 
         fn on_before_close(&self, _browser: Option<&mut Browser>) {
-            log::info!("[browser::life_span_handler] on_before_close()");
         }
     }
 }
 
 impl LifeSpanHandlerBuilder {
     pub fn build(handler: OsrLifeSpanHandler) -> cef::LifeSpanHandler {
-        log::info!("[browser::life_span_handler] LifeSpanHandlerBuilder::build()");
         Self::new(handler)
     }
 }

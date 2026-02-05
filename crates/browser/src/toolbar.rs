@@ -2,7 +2,6 @@
 //!
 //! Navigation toolbar with back/forward buttons, URL bar, reload, and devtools.
 
-use crate::browser_view::TOOLBAR_HEIGHT;
 use crate::tab::{BrowserTab, TabEvent};
 use editor::Editor;
 use gpui::{
@@ -19,7 +18,6 @@ pub struct BrowserToolbar {
 
 impl BrowserToolbar {
     pub fn new(tab: Entity<BrowserTab>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        log::info!("[browser::toolbar] BrowserToolbar::new()");
         let url_editor = cx.new(|cx| {
             let mut editor = Editor::single_line(window, cx);
             editor.set_placeholder_text("Enter URL or search...", window, cx);
@@ -31,14 +29,12 @@ impl BrowserToolbar {
             move |_this, _tab, event, window, cx| {
                 match event {
                     TabEvent::AddressChanged(url) => {
-                        log::info!("[browser::toolbar] TabEvent::AddressChanged({})", url);
                         let url = url.clone();
                         url_editor.update(cx, |editor, cx| {
                             editor.set_text(url, window, cx);
                         });
                     }
                     TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
-                        log::info!("[browser::toolbar] TabEvent state/title changed -> notify");
                         cx.notify();
                     }
                     _ => {}
@@ -54,35 +50,30 @@ impl BrowserToolbar {
     }
 
     fn go_back(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("[browser::toolbar] go_back()");
         self.tab.update(cx, |tab, _| {
             tab.go_back();
         });
     }
 
     fn go_forward(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("[browser::toolbar] go_forward()");
         self.tab.update(cx, |tab, _| {
             tab.go_forward();
         });
     }
 
     fn reload(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("[browser::toolbar] reload()");
         self.tab.update(cx, |tab, _| {
             tab.reload();
         });
     }
 
     fn stop(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("[browser::toolbar] stop()");
         self.tab.update(cx, |tab, _| {
             tab.stop();
         });
     }
 
     fn open_devtools(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
-        log::info!("[browser::toolbar] open_devtools()");
         self.tab.update(cx, |tab, _| {
             tab.open_devtools();
         });
@@ -90,7 +81,6 @@ impl BrowserToolbar {
 
     fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
         let url = self.url_editor.read(cx).text(cx);
-        log::info!("[browser::toolbar] confirm(url={})", url);
         if url.is_empty() {
             return;
         }
@@ -120,7 +110,6 @@ impl Focusable for BrowserToolbar {
 
 impl Render for BrowserToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        log::info!("[browser::toolbar] render()");
         let theme = cx.theme();
         let can_go_back = self.tab.read(cx).can_go_back();
         let can_go_forward = self.tab.read(cx).can_go_forward();
@@ -128,12 +117,10 @@ impl Render for BrowserToolbar {
 
         h_flex()
             .w_full()
-            .h(px(TOOLBAR_HEIGHT))
+            .h_full()
+            .items_center()
             .px_2()
             .gap_1()
-            .bg(theme.colors().title_bar_background)
-            .border_b_1()
-            .border_color(theme.colors().border)
             .key_context("BrowserToolbar")
             .on_action(cx.listener(Self::confirm))
             .child(
@@ -162,7 +149,7 @@ impl Render for BrowserToolbar {
             .child(
                 div()
                     .flex_1()
-                    .h(px(28.))
+                    .h(px(24.))
                     .mx_2()
                     .px_2()
                     .rounded_md()

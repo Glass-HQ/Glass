@@ -1838,7 +1838,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -1858,7 +1858,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -2929,7 +2929,7 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "indexmap",
  "rustc-hash 2.1.1",
@@ -4229,7 +4229,7 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6648,7 +6648,7 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "anyhow",
  "as-raw-xcb-connection",
@@ -6750,7 +6750,7 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -6761,7 +6761,7 @@ dependencies = [
 [[package]]
 name = "gpui_tokio"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "anyhow",
  "gpui",
@@ -7143,7 +7143,7 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -7168,7 +7168,7 @@ dependencies = [
 [[package]]
 name = "http_client_tls"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "rustls 0.23.33",
  "rustls-platform-verifier",
@@ -7313,7 +7313,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.58.0",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -8962,7 +8962,7 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "anyhow",
  "bindgen 0.71.1",
@@ -11686,7 +11686,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.11.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -12251,7 +12251,7 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "derive_refineable",
 ]
@@ -13072,7 +13072,7 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "async-task",
  "backtrace",
@@ -14155,7 +14155,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "arrayvec",
  "log",
@@ -16282,7 +16282,7 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#a93035bcd3f745c7bbb51d3ec522bd00496478b9"
+source = "git+https://github.com/Obsydian-HQ/gpui.git#5565d9f7922f96a8c9d4cbd240629fcb66277b37"
 dependencies = [
  "anyhow",
  "async-fs",

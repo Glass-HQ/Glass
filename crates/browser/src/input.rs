@@ -25,9 +25,6 @@ pub fn handle_mouse_down(browser: &BrowserTab, event: &MouseDownEvent, offset: P
     let click_count = event.click_count as i32;
     let modifiers = convert_modifiers(&event.modifiers);
 
-    log::info!("[browser::input] handle_mouse_down(x={}, y={}, button={:?}, clicks={}, mods={})",
-        x, y, button, click_count, modifiers);
-
     browser.send_mouse_click(x, y, button, true, click_count, modifiers);
 }
 
@@ -38,9 +35,6 @@ pub fn handle_mouse_up(browser: &BrowserTab, event: &MouseUpEvent, offset: Point
     let button = convert_mouse_button(event.button);
     let modifiers = convert_modifiers(&event.modifiers);
 
-    log::info!("[browser::input] handle_mouse_up(x={}, y={}, button={:?}, mods={})",
-        x, y, button, modifiers);
-
     browser.send_mouse_click(x, y, button, false, 1, modifiers);
 }
 
@@ -49,8 +43,6 @@ pub fn handle_mouse_move(browser: &BrowserTab, event: &MouseMoveEvent, offset: P
     let x = f32::from(position.x) as i32;
     let y = f32::from(position.y) as i32;
     let modifiers = convert_modifiers(&event.modifiers);
-
-    log::info!("[browser::input] handle_mouse_move(x={}, y={}, mods={})", x, y, modifiers);
 
     browser.send_mouse_move(x, y, false, modifiers);
 }
@@ -71,9 +63,6 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
     };
 
     let modifiers = convert_modifiers(&event.modifiers);
-
-    log::info!("[browser::input] handle_scroll_wheel(x={}, y={}, dx={}, dy={}, mods={})",
-        x, y, delta_x, delta_y, modifiers);
 
     browser.send_mouse_wheel(x, y, delta_x, delta_y, modifiers);
 }

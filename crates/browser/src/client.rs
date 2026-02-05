@@ -1,11 +1,12 @@
 //! CEF Client Implementation
 //!
 //! Provides the Client that CEF uses to communicate with the browser.
-//! Ties together the render, load, display, and life span handlers.
+//! Ties together the render, load, display, life span, and keyboard handlers.
 
 use cef::{
-    rc::Rc as _, wrap_client, Client, DisplayHandler, ImplClient, LifeSpanHandler, LoadHandler,
-    RenderHandler, WrapClient,
+    rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, DisplayHandler, ImplClient,
+    ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler, LoadHandler, RenderHandler,
+    WrapClient, WrapKeyboardHandler,
 };
 
 use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};
@@ -14,7 +15,58 @@ use crate::life_span_handler::{LifeSpanHandlerBuilder, OsrLifeSpanHandler};
 use crate::load_handler::{LoadHandlerBuilder, OsrLoadHandler};
 use crate::render_handler::{OsrRenderHandler, RenderHandlerBuilder, RenderState};
 use parking_lot::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+
+// ── Keyboard Handler ─────────────────────────────────────────────────
+// Suppresses native macOS key events that CEF picks up through the
+// application's sendEvent: override. We send all key input explicitly
+// via BrowserHost::send_key_event, so native events are duplicates.
+//
+// We use a flag to distinguish our manual events from native ones:
+// tab.rs sets MANUAL_KEY_EVENT=true before calling send_key_event,
+// and on_pre_key_event checks it. Since on_pre_key_event is called
+// synchronously from within send_key_event, this is safe.
+
+pub(crate) static MANUAL_KEY_EVENT: AtomicBool = AtomicBool::new(false);
+
+#[derive(Clone)]
+struct OsrKeyboardHandler;
+
+wrap_keyboard_handler! {
+    struct KeyboardHandlerBuilder {
+        handler: OsrKeyboardHandler,
+    }
+
+    impl KeyboardHandler {
+        fn on_pre_key_event(
+            &self,
+            _browser: Option<&mut Browser>,
+            _event: Option<&KeyEvent>,
+            _os_event: *mut u8,
+            _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
+        ) -> ::std::os::raw::c_int {
+            let is_manual = MANUAL_KEY_EVENT.load(Ordering::Relaxed);
+            let event_type = _event.map(|e| format!("{:?}", e.type_)).unwrap_or_default();
+            let wkc = _event.map(|e| e.windows_key_code).unwrap_or(0);
+            log::info!("[browser::keyboard] on_pre_key_event(manual={}, type={}, wkc={}, suppress={})",
+                is_manual, event_type, wkc, !is_manual);
+            if is_manual {
+                0
+            } else {
+                1
+            }
+        }
+    }
+}
+
+impl KeyboardHandlerBuilder {
+    fn build() -> cef::KeyboardHandler {
+        Self::new(OsrKeyboardHandler)
+    }
+}
+
+// ── Client ───────────────────────────────────────────────────────────
 
 wrap_client! {
     pub struct ClientBuilder {
@@ -22,27 +74,28 @@ wrap_client! {
         load_handler: LoadHandler,
         display_handler: DisplayHandler,
         life_span_handler: LifeSpanHandler,
+        keyboard_handler: KeyboardHandler,
     }
 
     impl Client {
         fn render_handler(&self) -> Option<cef::RenderHandler> {
-            log::info!("[browser::client] render_handler() requested");
             Some(self.render_handler.clone())
         }
 
         fn load_handler(&self) -> Option<cef::LoadHandler> {
-            log::info!("[browser::client] load_handler() requested");
             Some(self.load_handler.clone())
         }
 
         fn display_handler(&self) -> Option<cef::DisplayHandler> {
-            log::info!("[browser::client] display_handler() requested");
             Some(self.display_handler.clone())
         }
 
         fn life_span_handler(&self) -> Option<cef::LifeSpanHandler> {
-            log::info!("[browser::client] life_span_handler() requested");
             Some(self.life_span_handler.clone())
+        }
+
+        fn keyboard_handler(&self) -> Option<cef::KeyboardHandler> {
+            Some(self.keyboard_handler.clone())
         }
     }
 }
@@ -52,7 +105,6 @@ impl ClientBuilder {
         render_state: Arc<Mutex<RenderState>>,
         event_sender: EventSender,
     ) -> cef::Client {
-        log::info!("[browser::client] ClientBuilder::build()");
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
@@ -62,6 +114,7 @@ impl ClientBuilder {
             LoadHandlerBuilder::build(load_handler),
             DisplayHandlerBuilder::build(display_handler),
             LifeSpanHandlerBuilder::build(life_span_handler),
+            KeyboardHandlerBuilder::build(),
         )
     }
 }

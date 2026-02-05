@@ -132,6 +132,5 @@ pub fn add_cef_protocols_to_nsapp() {
             }
         }
 
-        log::info!("Added CEF protocol conformance to GPUIApplication");
     }
 }

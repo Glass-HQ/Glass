@@ -15,7 +15,6 @@ pub struct OsrLoadHandler {
 
 impl OsrLoadHandler {
     pub fn new(sender: EventSender) -> Self {
-        log::info!("[browser::load_handler] OsrLoadHandler::new()");
         Self { sender }
     }
 }
@@ -33,8 +32,6 @@ wrap_load_handler! {
             can_go_back: ::std::os::raw::c_int,
             can_go_forward: ::std::os::raw::c_int,
         ) {
-            log::info!("[browser::load_handler] on_loading_state_change(loading={}, back={}, fwd={})",
-                is_loading != 0, can_go_back != 0, can_go_forward != 0);
             let _ = self.handler.sender.send(BrowserEvent::LoadingStateChanged {
                 is_loading: is_loading != 0,
                 can_go_back: can_go_back != 0,
@@ -72,7 +69,6 @@ wrap_load_handler! {
 
 impl LoadHandlerBuilder {
     pub fn build(handler: OsrLoadHandler) -> cef::LoadHandler {
-        log::info!("[browser::load_handler] LoadHandlerBuilder::build()");
         Self::new(handler)
     }
 }

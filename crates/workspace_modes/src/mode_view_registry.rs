@@ -17,6 +17,8 @@ pub struct RegisteredModeView {
     pub view: AnyView,
     /// The focus handle for this view
     pub focus_handle: FocusHandle,
+    /// Optional view to render in the title bar center when this mode is active
+    pub titlebar_center_view: Option<AnyView>,
 }
 
 /// Global registry for mode views.
@@ -34,6 +36,7 @@ pub struct RegisteredModeView {
 ///     RegisteredModeView {
 ///         view: browser_view.clone().into(),
 ///         focus_handle: browser_view.focus_handle(cx),
+///         titlebar_center_view: None,
 ///     },
 /// );
 ///
@@ -83,5 +86,19 @@ impl ModeViewRegistry {
     /// Check if a mode has a registered view
     pub fn has_view(&self, mode_id: ModeId) -> bool {
         self.views.contains_key(&mode_id)
+    }
+
+    /// Set the title bar center view for a mode
+    pub fn set_titlebar_center_view(&mut self, mode_id: ModeId, view: AnyView) {
+        if let Some(registered) = self.views.get_mut(&mode_id) {
+            registered.titlebar_center_view = Some(view);
+        }
+    }
+
+    /// Get the title bar center view for a mode
+    pub fn titlebar_center_view(&self, mode_id: ModeId) -> Option<&AnyView> {
+        self.views
+            .get(&mode_id)
+            .and_then(|v| v.titlebar_center_view.as_ref())
     }
 }

@@ -8,12 +8,13 @@ use crate::input;
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    actions, canvas, div, point, prelude::*, px, surface, App, Bounds, Context, Entity,
-    EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton,
-    ObjectFit, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
+    actions, canvas, div, point, prelude::*, surface, App, Bounds, Context, Entity, EventEmitter,
+    FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ObjectFit,
+    ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
 };
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use ui::{prelude::*, Icon, IconName, IconSize};
+use workspace_modes::{ModeId, ModeViewRegistry};
 
 actions!(
     browser,
@@ -28,7 +29,6 @@ actions!(
 );
 
 const DEFAULT_URL: &str = "https://www.google.com";
-pub const TOOLBAR_HEIGHT: f32 = 40.;
 
 pub struct BrowserView {
     focus_handle: FocusHandle,
@@ -45,7 +45,6 @@ pub struct BrowserView {
 impl BrowserView {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let cef_available = CefInstance::global().is_some();
-        log::info!("[browser::browser_view] BrowserView::new() cef_available={}", cef_available);
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
@@ -86,7 +85,6 @@ impl BrowserView {
                 cx.notify();
             }
             TabEvent::NavigateToUrl(url) => {
-                log::info!("[browser] navigating to popup url: {}", url);
                 if let Some(tab) = &self.tab {
                     let url = url.clone();
                     tab.update(cx, |tab, _| {
@@ -112,11 +110,8 @@ impl BrowserView {
                 }
 
                 if CefInstance::should_pump() {
-                    let pump_start = Instant::now();
                     CefInstance::pump_messages();
-                    let pump_time = pump_start.elapsed();
 
-                    let drain_start = Instant::now();
                     let _ = cx.update(|cx| {
                         if let Some(this) = this.upgrade() {
                             this.update(cx, |view, cx| {
@@ -128,11 +123,6 @@ impl BrowserView {
                             });
                         }
                     });
-                    let drain_time = drain_start.elapsed();
-
-                    if pump_time.as_micros() > 100 || drain_time.as_micros() > 100 {
-                        log::info!("[browser::browser_view] message_pump_tick: pump={:?} drain={:?}", pump_time, drain_time);
-                    }
                 }
 
                 let wait_us = CefInstance::time_until_next_pump_us();
@@ -147,7 +137,11 @@ impl BrowserView {
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(tab) = self.tab.clone() {
             let toolbar = cx.new(|cx| BrowserToolbar::new(tab, window, cx));
-            self.toolbar = Some(toolbar);
+            self.toolbar = Some(toolbar.clone());
+
+            ModeViewRegistry::global_mut(cx)
+                .set_titlebar_center_view(ModeId::BROWSER, toolbar.into());
+            cx.notify();
         }
     }
 
@@ -238,6 +232,8 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        log::info!("[browser::view] handle_key_down called (key={}, is_held={})",
+            event.keystroke.key, event.is_held);
         if let Some(tab) = &self.tab {
             tab.update(cx, |tab, _| {
                 tab.set_focus(true);
@@ -261,6 +257,7 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        log::info!("[browser::view] handle_key_up called (key={})", event.keystroke.key);
         if let Some(tab) = &self.tab {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
@@ -354,15 +351,12 @@ impl BrowserView {
     }
 
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
-        let start = Instant::now();
         let theme = cx.theme();
 
-        let t0 = Instant::now();
         let current_frame = self
             .tab
             .as_ref()
             .and_then(|t| t.read(cx).current_frame());
-        let frame_fetch_time = t0.elapsed();
 
         let has_frame = current_frame.is_some();
 
@@ -411,9 +405,6 @@ impl BrowserView {
                 )
             });
 
-        log::info!("[browser::browser_view] render_browser_content() has_frame={} frame_fetch={:?} total={:?}",
-            has_frame, frame_fetch_time, start.elapsed());
-
         element
     }
 }
@@ -443,12 +434,23 @@ impl Render for BrowserView {
             });
         }
 
-        let viewport_size = window.viewport_size();
         let scale_factor = window.scale_factor();
-        let toolbar_height = px(TOOLBAR_HEIGHT);
 
-        let content_width = f32::from(viewport_size.width) as u32;
-        let content_height = (f32::from(viewport_size.height) - f32::from(toolbar_height)) as u32;
+        // Use actual content_bounds from the layout engine when available,
+        // falling back to calculated values only for initial browser creation.
+        let actual_width = f32::from(self.content_bounds.size.width);
+        let actual_height = f32::from(self.content_bounds.size.height);
+        let has_actual_bounds = actual_width > 0.0 && actual_height > 0.0;
+
+        let (content_width, content_height) = if has_actual_bounds {
+            (actual_width as u32, actual_height as u32)
+        } else {
+            let viewport_size = window.viewport_size();
+            (
+                f32::from(viewport_size.width) as u32,
+                f32::from(viewport_size.height) as u32,
+            )
+        };
 
         if content_width > 0 && content_height > 0 {
             if !self.browser_created {
@@ -486,9 +488,6 @@ impl Render for BrowserView {
             .size_full()
             .flex()
             .flex_col()
-            .when_some(self.toolbar.clone(), |this, toolbar| {
-                this.child(toolbar)
-            })
             .child(self.render_browser_content(cx))
             .into_any_element();
 

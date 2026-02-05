@@ -16,7 +16,6 @@ use core_video::pixel_buffer::CVPixelBuffer;
 use io_surface::IOSurface;
 use parking_lot::Mutex;
 use std::sync::Arc;
-use std::time::Instant;
 
 pub struct RenderState {
     pub width: u32,
@@ -44,7 +43,6 @@ pub struct OsrRenderHandler {
 
 impl OsrRenderHandler {
     pub fn new(state: Arc<Mutex<RenderState>>, sender: EventSender) -> Self {
-        log::info!("[browser::render_handler] OsrRenderHandler::new()");
         Self { state, sender }
     }
 }
@@ -56,14 +54,12 @@ wrap_render_handler! {
 
     impl RenderHandler {
         fn view_rect(&self, _browser: Option<&mut Browser>, rect: Option<&mut Rect>) {
-            let start = Instant::now();
             if let Some(rect) = rect {
                 let state = self.handler.state.lock();
                 rect.x = 0;
                 rect.y = 0;
                 rect.width = state.width as i32;
                 rect.height = state.height as i32;
-                log::info!("[browser::render_handler] view_rect() -> {}x{} ({:?})", state.width, state.height, start.elapsed());
             }
         }
 
@@ -72,7 +68,6 @@ wrap_render_handler! {
             _browser: Option<&mut Browser>,
             screen_info: Option<&mut ScreenInfo>,
         ) -> ::std::os::raw::c_int {
-            let start = Instant::now();
             if let Some(info) = screen_info {
                 let state = self.handler.state.lock();
                 info.device_scale_factor = state.scale_factor;
@@ -84,7 +79,6 @@ wrap_render_handler! {
                 info.depth = 32;
                 info.depth_per_component = 8;
                 info.is_monochrome = 0;
-                log::info!("[browser::render_handler] screen_info() -> scale={}, {}x{} ({:?})", state.scale_factor, state.width, state.height, start.elapsed());
                 return 1;
             }
             0
@@ -98,7 +92,6 @@ wrap_render_handler! {
             screen_x: Option<&mut ::std::os::raw::c_int>,
             screen_y: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            log::info!("[browser::render_handler] screen_point({}, {})", view_x, view_y);
             if let Some(screen_x) = screen_x {
                 *screen_x = view_x;
             }
@@ -115,8 +108,6 @@ wrap_render_handler! {
             _dirty_rects: Option<&[Rect]>,
             info: Option<&AcceleratedPaintInfo>,
         ) {
-            let total_start = Instant::now();
-
             if type_ != PaintElementType::default() {
                 return;
             }
@@ -150,11 +141,6 @@ wrap_render_handler! {
 
             self.handler.state.lock().current_frame = Some(pixel_buffer);
             let _ = self.handler.sender.send(BrowserEvent::FrameReady);
-
-            log::info!(
-                "[browser::render_handler] on_accelerated_paint() DONE ({:?})",
-                total_start.elapsed()
-            );
         }
 
         fn on_paint(
@@ -174,7 +160,6 @@ wrap_render_handler! {
 
 impl RenderHandlerBuilder {
     pub fn build(handler: OsrRenderHandler) -> cef::RenderHandler {
-        log::info!("[browser::render_handler] RenderHandlerBuilder::build()");
         Self::new(handler)
     }
 }

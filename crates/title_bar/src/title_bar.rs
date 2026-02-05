@@ -46,7 +46,8 @@ use workspace::{
     notifications::NotifyResultExt,
 };
 use workspace_modes::{
-    ModeId, ModeSwitcher, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
+    ModeId, ModeSwitcher, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
+    SwitchToTerminalMode,
 };
 use zed_actions::OpenRemote;
 
@@ -158,14 +159,22 @@ impl Render for TitleBar {
 
         let show_menus = show_menus(cx);
 
+        let active_mode = self
+            .workspace
+            .upgrade()
+            .map(|ws| ws.read(cx).active_mode_id());
+
+        let is_browser_mode = active_mode == Some(ModeId::BROWSER);
+
         let mut children = Vec::new();
 
         children.push(
             h_flex()
                 .gap_1()
                 .map(|title_bar| {
-                    let mut render_project_items = title_bar_settings.show_branch_name
-                        || title_bar_settings.show_project_items;
+                    let mut render_project_items = !is_browser_mode
+                        && (title_bar_settings.show_branch_name
+                            || title_bar_settings.show_project_items);
                     title_bar
                         .when_some(
                             self.application_menu.clone().filter(|_| !show_menus),
@@ -193,7 +202,23 @@ impl Render for TitleBar {
                 .into_any_element(),
         );
 
-        if title_bar_settings.show_onboarding_banner {
+        let titlebar_center = active_mode
+            .and_then(|mode_id| {
+                ModeViewRegistry::try_global(cx)
+                    .and_then(|reg| reg.titlebar_center_view(mode_id).cloned())
+            });
+
+        if let Some(center_view) = titlebar_center {
+            children.push(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                    .child(center_view)
+                    .into_any_element(),
+            );
+        } else if title_bar_settings.show_onboarding_banner {
             children.push(self.banner.clone().into_any_element())
         }
 
@@ -215,7 +240,9 @@ impl Render for TitleBar {
                 .gap_1()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .children(self.render_connection_status(status, cx))
-                .child(self.render_right_items())
+                .when(!is_browser_mode, |this| {
+                    this.child(self.render_right_items())
+                })
                 .when(
                     user.is_none() && TitleBarSettings::get_global(cx).show_sign_in,
                     |this| this.child(self.render_sign_in_button(cx)),

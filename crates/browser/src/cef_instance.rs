@@ -56,12 +56,10 @@ wrap_browser_process_handler! {
 
     impl BrowserProcessHandler {
         fn on_context_initialized(&self) {
-            log::info!("[browser::cef_instance] on_context_initialized() - browser creation is now safe");
             CEF_CONTEXT_READY.store(true, Ordering::SeqCst);
         }
 
         fn on_before_child_process_launch(&self, command_line: Option<&mut cef::CommandLine>) {
-            log::info!("[browser::cef_instance] on_before_child_process_launch()");
             let Some(command_line) = command_line else {
                 return;
             };
@@ -109,7 +107,6 @@ wrap_app! {
             _process_type: Option<&cef::CefStringUtf16>,
             command_line: Option<&mut cef::CommandLine>,
         ) {
-            log::info!("[browser::cef_instance] on_before_command_line_processing()");
             let Some(command_line) = command_line else {
                 return;
             };
@@ -165,9 +162,6 @@ impl CefInstance {
     /// If this is the main browser process, it returns Ok(()) and normal
     /// initialization should continue.
     pub fn handle_subprocess() -> Result<()> {
-        log::info!("[browser::cef_instance] handle_subprocess() START");
-        let start = Instant::now();
-
         if CEF_SUBPROCESS_HANDLED.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -188,11 +182,9 @@ impl CefInstance {
                         log::warn!("[browser::cef_instance] LibraryLoader::load() failed");
                         return Ok(());
                     }
-                    log::info!("[browser::cef_instance] CEF library loaded");
                     *CEF_LIBRARY_LOADER.lock() = Some(loader);
                 }
                 _ => {
-                    log::info!("[browser::cef_instance] CEF framework not found at expected path");
                     return Ok(());
                 }
             }
@@ -204,7 +196,6 @@ impl CefInstance {
         let mut app = GlassAppBuilder::build(GlassApp::new());
 
         let ret = cef::execute_process(Some(args.as_main_args()), Some(&mut app), std::ptr::null_mut());
-        log::info!("[browser::cef_instance] execute_process() returned {}", ret);
 
         if ret >= 0 {
             std::process::exit(ret);
@@ -212,16 +203,12 @@ impl CefInstance {
 
         *CEF_APP.lock() = Some(app);
         CEF_SUBPROCESS_HANDLED.store(true, Ordering::SeqCst);
-        log::info!("[browser::cef_instance] handle_subprocess() DONE ({:?})", start.elapsed());
         Ok(())
     }
 
     /// Initialize CEF for the browser process. Call this after handle_subprocess()
     /// has returned successfully and after GPUI is set up.
     pub fn initialize(_cx: &mut gpui::App) -> Result<Arc<CefInstance>> {
-        log::info!("[browser::cef_instance] initialize() START");
-        let start = Instant::now();
-
         if CEF_INITIALIZED.load(Ordering::SeqCst) {
             if let Some(instance) = Self::global() {
                 return Ok(instance);
@@ -240,13 +227,10 @@ impl CefInstance {
         let instance = Arc::new(CefInstance {});
         *CEF_INSTANCE.lock() = Some(instance.clone());
 
-        log::info!("[browser::cef_instance] initialize() DONE ({:?})", start.elapsed());
         Ok(instance)
     }
 
     fn initialize_cef() -> Result<()> {
-        log::info!("[browser::cef_instance] initialize_cef() START");
-
         #[cfg(target_os = "macos")]
         {
             crate::macos_protocol::add_cef_protocols_to_nsapp();
@@ -276,7 +260,6 @@ impl CefInstance {
                         if let Some(path_str) = canonical.to_str() {
                             settings.browser_subprocess_path =
                                 cef::CefString::from(path_str);
-                            log::info!("[browser::cef_instance] CEF helper subprocess path: {}", path_str);
                         }
                     }
                 }
@@ -309,7 +292,6 @@ impl CefInstance {
             return Err(anyhow!("Failed to initialize CEF (error code: {})", result));
         }
 
-        log::info!("[browser::cef_instance] initialize_cef() DONE");
         Ok(())
     }
 
@@ -353,8 +335,6 @@ impl CefInstance {
             return;
         }
 
-        log::info!("[browser::cef_instance] shutdown() START");
-
         CEF_INITIALIZED.store(false, Ordering::SeqCst);
         CEF_CONTEXT_READY.store(false, Ordering::SeqCst);
         *CEF_INSTANCE.lock() = None;
@@ -362,14 +342,11 @@ impl CefInstance {
         cef::shutdown();
 
         *CEF_APP.lock() = None;
-
-        log::info!("[browser::cef_instance] shutdown() DONE");
     }
 }
 
 impl Drop for CefInstance {
     fn drop(&mut self) {
-        log::info!("[browser::cef_instance] CefInstance::drop()");
         Self::shutdown();
     }
 }
