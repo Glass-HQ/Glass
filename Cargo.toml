@@ -104,6 +104,8 @@ members = [
     "crates/mistral",
     "crates/miniprofiler_ui",
     "crates/multi_buffer",
+    "crates/native_platforms",
+    "crates/native_platforms_ui",
     "crates/nc",
     "crates/net",
     "crates/node_runtime",
@@ -328,6 +330,8 @@ migrator = { path = "crates/migrator" }
 mistral = { path = "crates/mistral" }
 multi_buffer = { path = "crates/multi_buffer" }
 miniprofiler_ui = { path = "crates/miniprofiler_ui" }
+native_platforms = { path = "crates/native_platforms" }
+native_platforms_ui = { path = "crates/native_platforms_ui" }
 nc = { path = "crates/nc" }
 net = { path = "crates/net" }
 node_runtime = { path = "crates/node_runtime" }

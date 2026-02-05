@@ -1,0 +1,32 @@
+[package]
+name = "native_platforms_ui"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-or-later"
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/native_platforms_ui.rs"
+doctest = false
+
+[dependencies]
+anyhow.workspace = true
+db.workspace = true
+futures.workspace = true
+gpui.workspace = true
+log.workspace = true
+native_platforms.workspace = true
+picker.workspace = true
+project.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+settings.workspace = true
+smol.workspace = true
+theme.workspace = true
+ui.workspace = true
+util.workspace = true
+workspace.workspace = true
+zed_actions.workspace = true
