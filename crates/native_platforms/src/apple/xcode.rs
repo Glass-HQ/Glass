@@ -19,21 +19,11 @@ pub enum XcodeProjectType {
 #[derive(Debug, Deserialize)]
 struct XcodebuildListOutput {
     project: Option<ProjectInfo>,
-    workspace: Option<WorkspaceInfo>,
 }
 
 #[derive(Debug, Deserialize)]
 struct ProjectInfo {
-    configurations: Vec<String>,
-    name: String,
-    schemes: Vec<String>,
     targets: Vec<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WorkspaceInfo {
-    name: String,
-    schemes: Vec<String>,
 }
 
 pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {

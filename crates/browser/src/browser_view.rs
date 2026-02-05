@@ -3,14 +3,14 @@
 //! The main view for Browser Mode. Renders CEF browser content and handles
 //! user input for navigation and interaction.
 
-use crate::cef_browser::CefBrowser;
 use crate::cef_instance::CefInstance;
-use crate::input_handler;
+use crate::input;
+use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
     actions, canvas, div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter,
     FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
-    Render, Styled, Task, Window,
+    Render, Styled, Subscription, Task, Window,
 };
 use std::time::Duration;
 use ui::{prelude::*, Icon, IconName, IconSize};
@@ -29,16 +29,18 @@ actions!(
 
 const DEFAULT_URL: &str = "https://www.google.com";
 const CEF_MESSAGE_PUMP_INTERVAL_MS: u64 = 16;
+pub const TOOLBAR_HEIGHT: f32 = 40.;
 
 pub struct BrowserView {
     focus_handle: FocusHandle,
-    browser: Option<Entity<CefBrowser>>,
+    tab: Option<Entity<BrowserTab>>,
     toolbar: Option<Entity<BrowserToolbar>>,
     content_bounds: Bounds<Pixels>,
     cef_available: bool,
     browser_created: bool,
-    message_pump_started: bool,
+    last_viewport: Option<(u32, u32, u32)>,
     _message_pump_task: Option<Task<()>>,
+    _subscriptions: Vec<Subscription>,
 }
 
 impl BrowserView {
@@ -47,20 +49,60 @@ impl BrowserView {
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
-            browser: None,
+            tab: None,
             toolbar: None,
             content_bounds: Bounds::default(),
             cef_available,
             browser_created: false,
-            message_pump_started: false,
+            last_viewport: None,
             _message_pump_task: None,
+            _subscriptions: Vec::new(),
         };
 
         if cef_available {
-            this.initialize_browser_entity(cx);
+            this.initialize_tab(cx);
         }
 
         this
+    }
+
+    fn initialize_tab(&mut self, cx: &mut Context<Self>) {
+        let tab = cx.new(|cx| BrowserTab::new(cx));
+
+        let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+        self._subscriptions.push(subscription);
+
+        self.tab = Some(tab);
+    }
+
+    fn handle_tab_event(
+        &mut self,
+        _tab: Entity<BrowserTab>,
+        event: &TabEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            TabEvent::FrameReady => {
+                cx.notify();
+            }
+            TabEvent::NavigateToUrl(url) => {
+                if let Some(tab) = &self.tab {
+                    let url = url.clone();
+                    tab.update(cx, |tab, _| {
+                        tab.navigate(&url);
+                    });
+                }
+            }
+            TabEvent::AddressChanged(_)
+            | TabEvent::TitleChanged(_)
+            | TabEvent::LoadingStateChanged => {
+                cx.notify();
+            }
+            TabEvent::LoadError { url, error_text, .. } => {
+                log::warn!("Load error for {}: {}", url, error_text);
+                cx.notify();
+            }
+        }
     }
 
     fn start_message_pump(cx: &mut Context<Self>) -> Task<()> {
@@ -70,38 +112,31 @@ impl BrowserView {
                     .timer(Duration::from_millis(CEF_MESSAGE_PUMP_INTERVAL_MS))
                     .await;
 
-                // Check if the entity still exists
                 let entity_exists = this.upgrade().is_some();
                 if !entity_exists {
                     break;
                 }
 
-                // Pump CEF messages OUTSIDE of cx.update() to avoid re-entrant
-                // borrow panics when CEF events trigger macOS menu validation
                 CefInstance::pump_messages();
 
-                // Request re-render in a separate update
                 let _ = cx.update(|cx| {
                     if let Some(this) = this.upgrade() {
-                        cx.notify(this.entity_id());
+                        this.update(cx, |view, cx| {
+                            if let Some(tab) = &view.tab {
+                                tab.update(cx, |tab, cx| {
+                                    tab.drain_events(cx);
+                                });
+                            }
+                        });
                     }
                 });
             }
         })
     }
 
-    fn initialize_browser_entity(&mut self, cx: &mut Context<Self>) {
-        let browser = cx.new(|cx| CefBrowser::new(cx));
-        self.browser = Some(browser);
-    }
-
-    fn ensure_toolbar_exists(&mut self) -> bool {
-        self.toolbar.is_some()
-    }
-
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = self.browser.clone() {
-            let toolbar = cx.new(|cx| BrowserToolbar::new(browser, window, cx));
+        if let Some(tab) = self.tab.clone() {
+            let toolbar = cx.new(|cx| BrowserToolbar::new(tab, window, cx));
             self.toolbar = Some(toolbar);
         }
     }
@@ -117,37 +152,25 @@ impl BrowserView {
             return;
         }
 
-        // Wait for CEF context to be initialized before creating browser
         if !CefInstance::is_context_ready() {
-            log::debug!("Waiting for CEF context to be ready...");
             return;
         }
 
-        if let Some(browser) = &self.browser {
-            browser.update(cx, |browser, _| {
-                browser.set_scale_factor(scale_factor);
-                browser.set_size(width, height);
-                if let Err(e) = browser.create_browser(DEFAULT_URL) {
+        if let Some(tab) = &self.tab {
+            tab.update(cx, |tab, _| {
+                tab.set_scale_factor(scale_factor);
+                tab.set_size(width, height);
+                if let Err(e) = tab.create_browser(DEFAULT_URL) {
                     log::error!("Failed to create browser: {}", e);
                     return;
                 }
-                // Set focus and force initial paint
-                browser.set_focus(true);
-                browser.invalidate();
+                tab.set_focus(true);
+                tab.invalidate();
             });
             self.browser_created = true;
-            log::info!(
-                "Browser created successfully with size {}x{} at scale {}",
-                width,
-                height,
-                scale_factor
-            );
+            self.last_viewport = Some((width, height, (scale_factor * 1000.0) as u32));
 
-            // Start the message pump now that the browser is created
-            if !self.message_pump_started {
-                self._message_pump_task = Some(Self::start_message_pump(cx));
-                self.message_pump_started = true;
-            }
+            self._message_pump_task = Some(Self::start_message_pump(cx));
         }
     }
 
@@ -157,12 +180,12 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
+        if let Some(tab) = &self.tab {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
-            input_handler::handle_mouse_down(&browser.read(cx), event, offset);
+            input::handle_mouse_down(&tab.read(cx), event, offset);
 
-            browser.update(cx, |browser, _| {
-                browser.set_focus(true);
+            tab.update(cx, |tab, _| {
+                tab.set_focus(true);
             });
         }
         window.focus(&self.focus_handle, cx);
@@ -174,9 +197,9 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
+        if let Some(tab) = &self.tab {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
-            input_handler::handle_mouse_up(&browser.read(cx), event, offset);
+            input::handle_mouse_up(&tab.read(cx), event, offset);
         }
     }
 
@@ -186,9 +209,9 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
+        if let Some(tab) = &self.tab {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
-            input_handler::handle_mouse_move(&browser.read(cx), event, offset);
+            input::handle_mouse_move(&tab.read(cx), event, offset);
         }
     }
 
@@ -198,9 +221,9 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
+        if let Some(tab) = &self.tab {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
-            input_handler::handle_scroll_wheel(&browser.read(cx), event, offset);
+            input::handle_scroll_wheel(&tab.read(cx), event, offset);
         }
     }
 
@@ -210,21 +233,18 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
-            browser.update(cx, |browser, _| {
-                browser.set_focus(true);
+        if let Some(tab) = &self.tab {
+            tab.update(cx, |tab, _| {
+                tab.set_focus(true);
             });
 
-            // Clone the event data we need - defer the actual CEF key event sending
-            // to avoid re-entrant borrow panics when CEF's message pump triggers
-            // macOS menu key equivalent checking
             let keystroke = event.keystroke.clone();
             let is_held = event.is_held;
-            let browser = browser.clone();
+            let tab = tab.clone();
 
             cx.defer(move |cx| {
-                browser.update(cx, |browser, _| {
-                    input_handler::handle_key_down_deferred(browser, &keystroke, is_held);
+                tab.update(cx, |tab, _| {
+                    input::handle_key_down_deferred(tab, &keystroke, is_held);
                 });
             });
         }
@@ -236,52 +256,51 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(browser) = &self.browser {
-            // Clone the event data we need - defer the actual CEF key event sending
+        if let Some(tab) = &self.tab {
             let keystroke = event.keystroke.clone();
-            let browser = browser.clone();
+            let tab = tab.clone();
 
             cx.defer(move |cx| {
-                browser.update(cx, |browser, _| {
-                    input_handler::handle_key_up_deferred(browser, &keystroke);
+                tab.update(cx, |tab, _| {
+                    input::handle_key_up_deferred(tab, &keystroke);
                 });
             });
         }
     }
 
     fn handle_copy(&mut self, _: &Copy, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).copy();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).copy();
         }
     }
 
     fn handle_cut(&mut self, _: &Cut, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).cut();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).cut();
         }
     }
 
     fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).paste();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).paste();
         }
     }
 
     fn handle_undo(&mut self, _: &Undo, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).undo();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).undo();
         }
     }
 
     fn handle_redo(&mut self, _: &Redo, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).redo();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).redo();
         }
     }
 
     fn handle_select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(browser) = &self.browser {
-            browser.read(cx).select_all();
+        if let Some(tab) = &self.tab {
+            tab.read(cx).select_all();
         }
     }
 
@@ -327,16 +346,13 @@ impl BrowserView {
         let theme = cx.theme();
 
         let current_frame = self
-            .browser
+            .tab
             .as_ref()
-            .and_then(|b| b.read(cx).current_frame());
+            .and_then(|t| t.read(cx).current_frame());
 
         let has_frame = current_frame.is_some();
 
-        // Use a canvas to capture actual bounds during prepaint
-        // This is necessary because the browser content element is offset by the workspace
-        // titlebar and other layout elements - we can't just assume it starts at (0, 0)
-        let this = cx.entity().clone();
+        let this = cx.entity();
         let bounds_tracker = canvas(
             move |bounds, _window, cx| {
                 this.update(cx, |view, _| {
@@ -402,8 +418,7 @@ impl Render for BrowserView {
                 .into_any_element();
         }
 
-        // Schedule toolbar creation for next frame if not exists
-        if !self.ensure_toolbar_exists() && self.browser.is_some() {
+        if self.toolbar.is_none() && self.tab.is_some() {
             cx.defer_in(window, |this, window, cx| {
                 this.create_toolbar(window, cx);
             });
@@ -411,7 +426,7 @@ impl Render for BrowserView {
 
         let viewport_size = window.viewport_size();
         let scale_factor = window.scale_factor();
-        let toolbar_height = px(36.);
+        let toolbar_height = px(TOOLBAR_HEIGHT);
 
         let content_width = f32::from(viewport_size.width) as u32;
         let content_height = (f32::from(viewport_size.height) - f32::from(toolbar_height)) as u32;
@@ -419,17 +434,22 @@ impl Render for BrowserView {
         if content_width > 0 && content_height > 0 {
             if !self.browser_created {
                 self.ensure_browser_created(content_width, content_height, scale_factor, cx);
-                // If browser not created yet (CEF not ready), schedule re-render to retry
                 if !self.browser_created {
                     cx.notify();
                 }
-            } else if let Some(browser) = &self.browser {
-                browser.update(cx, |browser, _| {
-                    browser.set_scale_factor(scale_factor);
-                    browser.set_size(content_width, content_height);
-                });
+            } else {
+                let scale_key = (scale_factor * 1000.0) as u32;
+                let new_viewport = (content_width, content_height, scale_key);
+                if self.last_viewport != Some(new_viewport) {
+                    self.last_viewport = Some(new_viewport);
+                    if let Some(tab) = &self.tab {
+                        tab.update(cx, |tab, _| {
+                            tab.set_scale_factor(scale_factor);
+                            tab.set_size(content_width, content_height);
+                        });
+                    }
+                }
             }
-            // Note: content_bounds is now captured dynamically by the canvas in render_browser_content
         }
 
         div()

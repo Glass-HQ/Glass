@@ -4,18 +4,23 @@
 //! Chromium Embedded Framework (CEF) for a full browser experience within Glass.
 
 mod browser_view;
-mod cef_browser;
-mod cef_client;
 mod cef_instance;
-mod cef_keyboard_handler;
-mod cef_load_handler;
-mod cef_render_handler;
-mod input_handler;
+mod client;
+mod display_handler;
+mod events;
+mod input;
+mod keycodes;
+mod life_span_handler;
+mod load_handler;
+#[cfg(target_os = "macos")]
+mod macos_protocol;
+mod render_handler;
+mod tab;
 mod toolbar;
 
 pub use browser_view::BrowserView;
-pub use cef_browser::CefBrowser;
 pub use cef_instance::CefInstance;
+pub use tab::BrowserTab;
 
 /// Handle CEF subprocess execution. This MUST be called very early in main(),
 /// before any GUI initialization. See CefInstance::handle_subprocess() for details.

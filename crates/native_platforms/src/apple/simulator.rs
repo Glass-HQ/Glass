@@ -11,17 +11,9 @@ struct SimctlListOutput {
 
 #[derive(Debug, Deserialize)]
 struct SimctlDevice {
-    #[serde(rename = "dataPath")]
-    data_path: Option<String>,
-    #[serde(rename = "dataPathSize")]
-    data_path_size: Option<u64>,
-    #[serde(rename = "logPath")]
-    log_path: Option<String>,
     udid: String,
     #[serde(rename = "isAvailable")]
     is_available: bool,
-    #[serde(rename = "deviceTypeIdentifier")]
-    device_type_identifier: Option<String>,
     state: String,
     name: String,
 }

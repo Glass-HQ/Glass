@@ -118,9 +118,7 @@ impl GlassBrowserProcessHandlerBuilder {
     }
 }
 
-pub struct CefInstance {
-    _message_loop_task: Option<gpui::Task<()>>,
-}
+pub struct CefInstance {}
 
 impl CefInstance {
     pub fn global() -> Option<Arc<CefInstance>> {
@@ -155,7 +153,7 @@ impl CefInstance {
             // LibraryLoader::new() will panic if the path doesn't exist
             let framework_path = exe_path
                 .parent()
-                .and_then(|p| Some(p.join("../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework")));
+                .map(|p| p.join("../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"));
 
             match framework_path {
                 Some(path) if path.exists() => {
@@ -202,7 +200,7 @@ impl CefInstance {
 
     /// Initialize CEF for the browser process. Call this after handle_subprocess()
     /// has returned successfully and after GPUI is set up.
-    pub fn initialize(cx: &mut gpui::App) -> Result<Arc<CefInstance>> {
+    pub fn initialize(_cx: &mut gpui::App) -> Result<Arc<CefInstance>> {
         if CEF_INITIALIZED.load(Ordering::SeqCst) {
             if let Some(instance) = Self::global() {
                 return Ok(instance);
@@ -222,11 +220,7 @@ impl CefInstance {
 
         CEF_INITIALIZED.store(true, Ordering::SeqCst);
 
-        let message_loop_task = Self::start_message_loop(cx);
-
-        let instance = Arc::new(CefInstance {
-            _message_loop_task: Some(message_loop_task),
-        });
+        let instance = Arc::new(CefInstance {});
 
         *CEF_INSTANCE.lock() = Some(instance.clone());
 
@@ -240,7 +234,7 @@ impl CefInstance {
         // CEF. CEF on macOS requires [NSApp conformsToProtocol:@protocol(CrAppControlProtocol)]
         // to return YES, otherwise it hits an internal CHECK and crashes with SIGTRAP.
         #[cfg(target_os = "macos")]
-        macos_app_protocol::add_cef_protocols_to_nsapp();
+        crate::macos_protocol::add_cef_protocols_to_nsapp();
 
         let args = cef::args::Args::new();
 
@@ -312,12 +306,6 @@ impl CefInstance {
         Ok(())
     }
 
-    fn start_message_loop(_cx: &mut gpui::App) -> gpui::Task<()> {
-        // Message loop pumping is done manually via pump_messages()
-        // Called from BrowserView rendering to avoid conflicts with GPUI's event loop.
-        gpui::Task::ready(())
-    }
-
     /// Pump CEF message loop. Call this periodically from the main thread.
     /// Only pumps messages after CEF context is fully initialized.
     pub fn pump_messages() {
@@ -353,144 +341,3 @@ impl Drop for CefInstance {
     }
 }
 
-/// CEF on macOS requires the NSApplication instance to conform to CrAppProtocol,
-/// CrAppControlProtocol, and CefAppProtocol. These protocols provide
-/// `isHandlingSendEvent` / `setHandlingSendEvent:` methods that CEF uses internally
-/// to detect re-entrant event handling. GPUI's GPUIApplication class does not
-/// implement these protocols, so we patch them in at runtime using the Objective-C
-/// runtime after the CEF library has been loaded (which registers the protocol
-/// definitions).
-#[cfg(target_os = "macos")]
-mod macos_app_protocol {
-    use std::ffi::c_char;
-    use std::sync::atomic::{AtomicBool, Ordering};
-
-    type ObjcClass = *mut std::ffi::c_void;
-    type ObjcProtocol = *mut std::ffi::c_void;
-    type ObjcSel = *mut std::ffi::c_void;
-    type ObjcImp = *const std::ffi::c_void;
-    type ObjcId = *mut std::ffi::c_void;
-
-    #[repr(C)]
-    struct ObjcSuper {
-        receiver: ObjcId,
-        super_class: ObjcClass,
-    }
-
-    unsafe extern "C" {
-        fn objc_getClass(name: *const c_char) -> ObjcClass;
-        fn class_getSuperclass(cls: ObjcClass) -> ObjcClass;
-        fn objc_getProtocol(name: *const c_char) -> ObjcProtocol;
-        fn class_addProtocol(cls: ObjcClass, protocol: ObjcProtocol) -> bool;
-        fn class_addMethod(
-            cls: ObjcClass,
-            name: ObjcSel,
-            imp: ObjcImp,
-            types: *const c_char,
-        ) -> bool;
-        fn sel_registerName(name: *const c_char) -> ObjcSel;
-        // Declared with concrete signature to avoid ARM64 variadic ABI issues.
-        // On ARM64, variadic function args go on the stack but ObjC messages
-        // expect args in registers.
-        fn objc_msgSendSuper(sup: *mut ObjcSuper, sel: ObjcSel, event: ObjcId);
-    }
-
-    static HANDLING_SEND_EVENT: AtomicBool = AtomicBool::new(false);
-    static mut GPUI_APPLICATION_CLASS: ObjcClass = std::ptr::null_mut();
-
-    extern "C" fn is_handling_send_event(_this: ObjcId, _sel: ObjcSel) -> i8 {
-        if HANDLING_SEND_EVENT.load(Ordering::Relaxed) {
-            1
-        } else {
-            0
-        }
-    }
-
-    extern "C" fn set_handling_send_event(_this: ObjcId, _sel: ObjcSel, value: i8) {
-        HANDLING_SEND_EVENT.store(value != 0, Ordering::Relaxed);
-    }
-
-    extern "C" fn send_event_override(this: ObjcId, _sel: ObjcSel, event: ObjcId) {
-        let was_handling = HANDLING_SEND_EVENT.load(Ordering::Relaxed);
-        if !was_handling {
-            HANDLING_SEND_EVENT.store(true, Ordering::Relaxed);
-        }
-
-        unsafe {
-            let super_class = class_getSuperclass(GPUI_APPLICATION_CLASS);
-            let mut sup = ObjcSuper {
-                receiver: this,
-                super_class,
-            };
-            let sel = sel_registerName(b"sendEvent:\0".as_ptr() as *const c_char);
-            objc_msgSendSuper(&mut sup, sel, event);
-        }
-
-        if !was_handling {
-            HANDLING_SEND_EVENT.store(false, Ordering::Relaxed);
-        }
-    }
-
-    /// Patch GPUIApplication with CEF protocol conformance. Must be called after
-    /// the CEF library is loaded so the protocol definitions are available.
-    pub fn add_cef_protocols_to_nsapp() {
-        unsafe {
-            let cls = objc_getClass(b"GPUIApplication\0".as_ptr() as *const c_char);
-            if cls.is_null() {
-                log::warn!("GPUIApplication class not found, cannot add CEF protocol conformance");
-                return;
-            }
-
-            GPUI_APPLICATION_CLASS = cls;
-
-            // Add isHandlingSendEvent -> BOOL
-            let sel_is =
-                sel_registerName(b"isHandlingSendEvent\0".as_ptr() as *const c_char);
-            class_addMethod(
-                cls,
-                sel_is,
-                is_handling_send_event as ObjcImp,
-                b"c@:\0".as_ptr() as *const c_char,
-            );
-
-            // Add setHandlingSendEvent:(BOOL) -> void
-            let sel_set =
-                sel_registerName(b"setHandlingSendEvent:\0".as_ptr() as *const c_char);
-            class_addMethod(
-                cls,
-                sel_set,
-                set_handling_send_event as ObjcImp,
-                b"v@:c\0".as_ptr() as *const c_char,
-            );
-
-            // Add sendEvent: override to track re-entrancy. Uses class_addMethod
-            // (not method_setImplementation) so only GPUIApplication is affected,
-            // not NSApplication globally. Calls through to super via objc_msgSendSuper.
-            let sel_send = sel_registerName(b"sendEvent:\0".as_ptr() as *const c_char);
-            class_addMethod(
-                cls,
-                sel_send,
-                send_event_override as ObjcImp,
-                b"v@:@\0".as_ptr() as *const c_char,
-            );
-
-            // Add protocol conformance so [NSApp conformsToProtocol:] returns YES
-            for proto_name in [
-                b"CrAppProtocol\0".as_slice(),
-                b"CrAppControlProtocol\0".as_slice(),
-                b"CefAppProtocol\0".as_slice(),
-            ] {
-                let proto = objc_getProtocol(proto_name.as_ptr() as *const c_char);
-                if !proto.is_null() {
-                    class_addProtocol(cls, proto);
-                } else {
-                    let name = std::str::from_utf8(&proto_name[..proto_name.len() - 1])
-                        .unwrap_or("?");
-                    log::warn!("CEF protocol {} not found in loaded libraries", name);
-                }
-            }
-
-            log::info!("Added CEF protocol conformance to GPUIApplication");
-        }
-    }
-}
