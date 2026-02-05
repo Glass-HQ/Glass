@@ -26,18 +26,22 @@ wrap_client! {
 
     impl Client {
         fn render_handler(&self) -> Option<cef::RenderHandler> {
+            log::info!("[browser::client] render_handler() requested");
             Some(self.render_handler.clone())
         }
 
         fn load_handler(&self) -> Option<cef::LoadHandler> {
+            log::info!("[browser::client] load_handler() requested");
             Some(self.load_handler.clone())
         }
 
         fn display_handler(&self) -> Option<cef::DisplayHandler> {
+            log::info!("[browser::client] display_handler() requested");
             Some(self.display_handler.clone())
         }
 
         fn life_span_handler(&self) -> Option<cef::LifeSpanHandler> {
+            log::info!("[browser::client] life_span_handler() requested");
             Some(self.life_span_handler.clone())
         }
     }
@@ -48,6 +52,7 @@ impl ClientBuilder {
         render_state: Arc<Mutex<RenderState>>,
         event_sender: EventSender,
     ) -> cef::Client {
+        log::info!("[browser::client] ClientBuilder::build()");
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());

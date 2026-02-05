@@ -8,11 +8,11 @@ use crate::input;
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    actions, canvas, div, img, point, prelude::*, px, App, Bounds, Context, Entity, EventEmitter,
-    FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels,
-    Render, Styled, Subscription, Task, Window,
+    actions, canvas, div, point, prelude::*, px, surface, App, Bounds, Context, Entity,
+    EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton,
+    ObjectFit, ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
 };
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use ui::{prelude::*, Icon, IconName, IconSize};
 
 actions!(
@@ -28,7 +28,6 @@ actions!(
 );
 
 const DEFAULT_URL: &str = "https://www.google.com";
-const CEF_MESSAGE_PUMP_INTERVAL_MS: u64 = 16;
 pub const TOOLBAR_HEIGHT: f32 = 40.;
 
 pub struct BrowserView {
@@ -46,6 +45,7 @@ pub struct BrowserView {
 impl BrowserView {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let cef_available = CefInstance::global().is_some();
+        log::info!("[browser::browser_view] BrowserView::new() cef_available={}", cef_available);
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
@@ -86,6 +86,7 @@ impl BrowserView {
                 cx.notify();
             }
             TabEvent::NavigateToUrl(url) => {
+                log::info!("[browser] navigating to popup url: {}", url);
                 if let Some(tab) = &self.tab {
                     let url = url.clone();
                     tab.update(cx, |tab, _| {
@@ -93,13 +94,11 @@ impl BrowserView {
                     });
                 }
             }
-            TabEvent::AddressChanged(_)
-            | TabEvent::TitleChanged(_)
-            | TabEvent::LoadingStateChanged => {
+            TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) | TabEvent::LoadingStateChanged => {
                 cx.notify();
             }
             TabEvent::LoadError { url, error_text, .. } => {
-                log::warn!("Load error for {}: {}", url, error_text);
+                log::warn!("[browser] load error: url={} err={}", url, error_text);
                 cx.notify();
             }
         }
@@ -108,28 +107,39 @@ impl BrowserView {
     fn start_message_pump(cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |this, cx| {
             loop {
-                cx.background_executor()
-                    .timer(Duration::from_millis(CEF_MESSAGE_PUMP_INTERVAL_MS))
-                    .await;
-
-                let entity_exists = this.upgrade().is_some();
-                if !entity_exists {
+                if this.upgrade().is_none() {
                     break;
                 }
 
-                CefInstance::pump_messages();
+                if CefInstance::should_pump() {
+                    let pump_start = Instant::now();
+                    CefInstance::pump_messages();
+                    let pump_time = pump_start.elapsed();
 
-                let _ = cx.update(|cx| {
-                    if let Some(this) = this.upgrade() {
-                        this.update(cx, |view, cx| {
-                            if let Some(tab) = &view.tab {
-                                tab.update(cx, |tab, cx| {
-                                    tab.drain_events(cx);
-                                });
-                            }
-                        });
+                    let drain_start = Instant::now();
+                    let _ = cx.update(|cx| {
+                        if let Some(this) = this.upgrade() {
+                            this.update(cx, |view, cx| {
+                                if let Some(tab) = &view.tab {
+                                    tab.update(cx, |tab, cx| {
+                                        tab.drain_events(cx);
+                                    });
+                                }
+                            });
+                        }
+                    });
+                    let drain_time = drain_start.elapsed();
+
+                    if pump_time.as_micros() > 100 || drain_time.as_micros() > 100 {
+                        log::info!("[browser::browser_view] message_pump_tick: pump={:?} drain={:?}", pump_time, drain_time);
                     }
-                });
+                }
+
+                let wait_us = CefInstance::time_until_next_pump_us();
+                let sleep_us = wait_us.clamp(500, 4_000);
+                cx.background_executor()
+                    .timer(Duration::from_micros(sleep_us))
+                    .await;
             }
         })
     }
@@ -148,11 +158,7 @@ impl BrowserView {
         scale_factor: f32,
         cx: &mut Context<Self>,
     ) {
-        if self.browser_created {
-            return;
-        }
-
-        if !CefInstance::is_context_ready() {
+        if self.browser_created || !CefInstance::is_context_ready() {
             return;
         }
 
@@ -161,7 +167,7 @@ impl BrowserView {
                 tab.set_scale_factor(scale_factor);
                 tab.set_size(width, height);
                 if let Err(e) = tab.create_browser(DEFAULT_URL) {
-                    log::error!("Failed to create browser: {}", e);
+                    log::error!("[browser] Failed to create browser: {}", e);
                     return;
                 }
                 tab.set_focus(true);
@@ -169,7 +175,6 @@ impl BrowserView {
             });
             self.browser_created = true;
             self.last_viewport = Some((width, height, (scale_factor * 1000.0) as u32));
-
             self._message_pump_task = Some(Self::start_message_pump(cx));
         }
     }
@@ -269,36 +274,42 @@ impl BrowserView {
     }
 
     fn handle_copy(&mut self, _: &Copy, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).copy();
         }
     }
 
     fn handle_cut(&mut self, _: &Cut, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).cut();
         }
     }
 
     fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).paste();
         }
     }
 
     fn handle_undo(&mut self, _: &Undo, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).undo();
         }
     }
 
     fn handle_redo(&mut self, _: &Redo, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).redo();
         }
     }
 
     fn handle_select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
+
         if let Some(tab) = &self.tab {
             tab.read(cx).select_all();
         }
@@ -343,12 +354,15 @@ impl BrowserView {
     }
 
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let start = Instant::now();
         let theme = cx.theme();
 
+        let t0 = Instant::now();
         let current_frame = self
             .tab
             .as_ref()
             .and_then(|t| t.read(cx).current_frame());
+        let frame_fetch_time = t0.elapsed();
 
         let has_frame = current_frame.is_some();
 
@@ -364,7 +378,7 @@ impl BrowserView {
         .absolute()
         .size_full();
 
-        div()
+        let element = div()
             .id("browser-content")
             .relative()
             .flex_1()
@@ -380,7 +394,7 @@ impl BrowserView {
             .on_mouse_move(cx.listener(Self::handle_mouse_move))
             .on_scroll_wheel(cx.listener(Self::handle_scroll))
             .when_some(current_frame, |this, frame| {
-                this.child(img(frame).size_full().object_fit(gpui::ObjectFit::Fill))
+                this.child(surface(frame).size_full().object_fit(ObjectFit::Fill))
             })
             .when(!has_frame, |this| {
                 this.child(
@@ -395,7 +409,12 @@ impl BrowserView {
                                 .child("Loading..."),
                         ),
                 )
-            })
+            });
+
+        log::info!("[browser::browser_view] render_browser_content() has_frame={} frame_fetch={:?} total={:?}",
+            has_frame, frame_fetch_time, start.elapsed());
+
+        element
     }
 }
 
@@ -452,7 +471,7 @@ impl Render for BrowserView {
             }
         }
 
-        div()
+        let element = div()
             .id("browser-view")
             .track_focus(&self.focus_handle)
             .key_context("BrowserView")
@@ -471,6 +490,8 @@ impl Render for BrowserView {
                 this.child(toolbar)
             })
             .child(self.render_browser_content(cx))
-            .into_any_element()
+            .into_any_element();
+
+        element
     }
 }

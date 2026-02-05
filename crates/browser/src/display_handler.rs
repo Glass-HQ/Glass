@@ -17,6 +17,7 @@ pub struct OsrDisplayHandler {
 
 impl OsrDisplayHandler {
     pub fn new(sender: EventSender) -> Self {
+        log::info!("[browser::display_handler] OsrDisplayHandler::new()");
         Self { sender }
     }
 }
@@ -35,6 +36,7 @@ wrap_display_handler! {
         ) {
             if let Some(url) = url {
                 let url_str = url.to_string();
+                log::info!("[browser::display_handler] on_address_change({})", url_str);
                 if !url_str.is_empty() {
                     let _ = self.handler.sender.send(BrowserEvent::AddressChanged(url_str));
                 }
@@ -48,6 +50,7 @@ wrap_display_handler! {
         ) {
             if let Some(title) = title {
                 let title_str = title.to_string();
+                log::info!("[browser::display_handler] on_title_change({})", title_str);
                 let _ = self.handler.sender.send(BrowserEvent::TitleChanged(title_str));
             }
         }
@@ -57,6 +60,7 @@ wrap_display_handler! {
             _browser: Option<&mut Browser>,
             progress: f64,
         ) {
+            log::info!("[browser::display_handler] on_loading_progress_change({:.2})", progress);
             let _ = self.handler.sender.send(BrowserEvent::LoadingProgress(progress));
         }
     }
@@ -64,6 +68,7 @@ wrap_display_handler! {
 
 impl DisplayHandlerBuilder {
     pub fn build(handler: OsrDisplayHandler) -> cef::DisplayHandler {
+        log::info!("[browser::display_handler] DisplayHandlerBuilder::build()");
         Self::new(handler)
     }
 }

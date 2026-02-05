@@ -10,12 +10,14 @@
 
 use anyhow::{anyhow, Result};
 use cef::{
-    api_hash, rc::Rc as _, sys, wrap_app, wrap_browser_process_handler, App, BrowserProcessHandler,
-    ImplApp, ImplBrowserProcessHandler, ImplCommandLine, WrapApp, WrapBrowserProcessHandler,
+    api_hash, rc::Rc as _, sys, wrap_app, wrap_browser_process_handler, App,
+    BrowserProcessHandler, ImplApp, ImplBrowserProcessHandler, ImplCommandLine, WrapApp,
+    WrapBrowserProcessHandler,
 };
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::Instant;
 
 static CEF_SUBPROCESS_HANDLED: AtomicBool = AtomicBool::new(false);
 static CEF_INITIALIZED: AtomicBool = AtomicBool::new(false);
@@ -26,13 +28,73 @@ static CEF_APP: Mutex<Option<cef::App>> = Mutex::new(None);
 #[cfg(target_os = "macos")]
 static CEF_LIBRARY_LOADER: Mutex<Option<cef::library_loader::LibraryLoader>> = Mutex::new(None);
 
-// CEF App implementation
+// Pump scheduling: absolute time (microseconds since PUMP_EPOCH) when
+// the next do_message_loop_work() call should happen. u64::MAX = idle.
+static PUMP_EPOCH: OnceLock<Instant> = OnceLock::new();
+static NEXT_PUMP_AT_US: AtomicU64 = AtomicU64::new(u64::MAX);
+
+fn elapsed_us() -> u64 {
+    PUMP_EPOCH.get_or_init(Instant::now).elapsed().as_micros() as u64
+}
+
+// ── Browser Process Handler ──────────────────────────────────────────
+// Defined before GlassApp so a cached instance can be stored in it.
+
 #[derive(Clone)]
-struct GlassApp {}
+struct GlassBrowserProcessHandler {}
+
+impl GlassBrowserProcessHandler {
+    fn new() -> Self {
+        Self {}
+    }
+}
+
+wrap_browser_process_handler! {
+    struct GlassBrowserProcessHandlerBuilder {
+        handler: GlassBrowserProcessHandler,
+    }
+
+    impl BrowserProcessHandler {
+        fn on_context_initialized(&self) {
+            log::info!("[browser::cef_instance] on_context_initialized() - browser creation is now safe");
+            CEF_CONTEXT_READY.store(true, Ordering::SeqCst);
+        }
+
+        fn on_before_child_process_launch(&self, command_line: Option<&mut cef::CommandLine>) {
+            log::info!("[browser::cef_instance] on_before_child_process_launch()");
+            let Some(command_line) = command_line else {
+                return;
+            };
+            command_line.append_switch(Some(&"disable-session-crashed-bubble".into()));
+        }
+
+        fn on_schedule_message_pump_work(&self, delay_ms: i64) {
+            let target_us = elapsed_us() + (delay_ms.max(0) as u64) * 1000;
+            NEXT_PUMP_AT_US.fetch_min(target_us, Ordering::Release);
+        }
+    }
+}
+
+impl GlassBrowserProcessHandlerBuilder {
+    fn build(handler: GlassBrowserProcessHandler) -> BrowserProcessHandler {
+        Self::new(handler)
+    }
+}
+
+// ── CEF App ──────────────────────────────────────────────────────────
+
+#[derive(Clone)]
+struct GlassApp {
+    browser_process_handler: cef::BrowserProcessHandler,
+}
 
 impl GlassApp {
     fn new() -> Self {
-        Self {}
+        let handler =
+            GlassBrowserProcessHandlerBuilder::build(GlassBrowserProcessHandler::new());
+        Self {
+            browser_process_handler: handler,
+        }
     }
 }
 
@@ -47,6 +109,7 @@ wrap_app! {
             _process_type: Option<&cef::CefStringUtf16>,
             command_line: Option<&mut cef::CommandLine>,
         ) {
+            log::info!("[browser::cef_instance] on_before_command_line_processing()");
             let Some(command_line) = command_line else {
                 return;
             };
@@ -68,9 +131,7 @@ wrap_app! {
         }
 
         fn browser_process_handler(&self) -> Option<cef::BrowserProcessHandler> {
-            Some(GlassBrowserProcessHandlerBuilder::build(
-                GlassBrowserProcessHandler::new(),
-            ))
+            Some(self.app.browser_process_handler.clone())
         }
     }
 }
@@ -81,42 +142,7 @@ impl GlassAppBuilder {
     }
 }
 
-// Browser Process Handler implementation
-#[derive(Clone)]
-struct GlassBrowserProcessHandler {}
-
-impl GlassBrowserProcessHandler {
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-wrap_browser_process_handler! {
-    struct GlassBrowserProcessHandlerBuilder {
-        handler: GlassBrowserProcessHandler,
-    }
-
-    impl BrowserProcessHandler {
-        fn on_context_initialized(&self) {
-            log::info!("CEF context initialized - browser creation is now safe");
-            CEF_CONTEXT_READY.store(true, Ordering::SeqCst);
-        }
-
-        fn on_before_child_process_launch(&self, command_line: Option<&mut cef::CommandLine>) {
-            let Some(command_line) = command_line else {
-                return;
-            };
-
-            command_line.append_switch(Some(&"disable-session-crashed-bubble".into()));
-        }
-    }
-}
-
-impl GlassBrowserProcessHandlerBuilder {
-    fn build(handler: GlassBrowserProcessHandler) -> BrowserProcessHandler {
-        Self::new(handler)
-    }
-}
+// ── CefInstance ──────────────────────────────────────────────────────
 
 pub struct CefInstance {}
 
@@ -139,18 +165,18 @@ impl CefInstance {
     /// If this is the main browser process, it returns Ok(()) and normal
     /// initialization should continue.
     pub fn handle_subprocess() -> Result<()> {
+        log::info!("[browser::cef_instance] handle_subprocess() START");
+        let start = Instant::now();
+
         if CEF_SUBPROCESS_HANDLED.load(Ordering::SeqCst) {
             return Ok(());
         }
 
         #[cfg(target_os = "macos")]
         {
-            // Load CEF library first on macOS
             let exe_path = std::env::current_exe()
                 .map_err(|e| anyhow!("Failed to get current executable path: {}", e))?;
 
-            // Check if framework exists before trying to load it
-            // LibraryLoader::new() will panic if the path doesn't exist
             let framework_path = exe_path
                 .parent()
                 .map(|p| p.join("../Frameworks/Chromium Embedded Framework.framework/Chromium Embedded Framework"));
@@ -158,88 +184,76 @@ impl CefInstance {
             match framework_path {
                 Some(path) if path.exists() => {
                     let loader = cef::library_loader::LibraryLoader::new(&exe_path, false);
-
                     if !loader.load() {
-                        // Library loading failed
+                        log::warn!("[browser::cef_instance] LibraryLoader::load() failed");
                         return Ok(());
                     }
-
+                    log::info!("[browser::cef_instance] CEF library loaded");
                     *CEF_LIBRARY_LOADER.lock() = Some(loader);
                 }
                 _ => {
-                    // Framework not found - this is not an error for the main app,
-                    // it just means CEF is not available (not running from bundle)
+                    log::info!("[browser::cef_instance] CEF framework not found at expected path");
                     return Ok(());
                 }
             }
         }
 
-        // Initialize CEF API version check
         let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
 
         let args = cef::args::Args::new();
         let mut app = GlassAppBuilder::build(GlassApp::new());
 
-        // execute_process returns:
-        // - >= 0 for subprocesses (the exit code to use)
-        // - -1 for the browser process (continue with initialization)
         let ret = cef::execute_process(Some(args.as_main_args()), Some(&mut app), std::ptr::null_mut());
+        log::info!("[browser::cef_instance] execute_process() returned {}", ret);
 
         if ret >= 0 {
-            // This is a subprocess - exit immediately
             std::process::exit(ret);
         }
 
-        // Store the app for reuse in initialize_cef()
-        // CEF requires the same App instance for both execute_process and initialize
         *CEF_APP.lock() = Some(app);
-
         CEF_SUBPROCESS_HANDLED.store(true, Ordering::SeqCst);
+        log::info!("[browser::cef_instance] handle_subprocess() DONE ({:?})", start.elapsed());
         Ok(())
     }
 
     /// Initialize CEF for the browser process. Call this after handle_subprocess()
     /// has returned successfully and after GPUI is set up.
     pub fn initialize(_cx: &mut gpui::App) -> Result<Arc<CefInstance>> {
+        log::info!("[browser::cef_instance] initialize() START");
+        let start = Instant::now();
+
         if CEF_INITIALIZED.load(Ordering::SeqCst) {
             if let Some(instance) = Self::global() {
                 return Ok(instance);
             }
         }
 
-        // Ensure subprocess handling was done
         if !CEF_SUBPROCESS_HANDLED.load(Ordering::SeqCst) {
             return Err(anyhow!(
                 "CEF subprocess handling was not done. Call CefInstance::handle_subprocess() early in main()."
             ));
         }
 
-        log::info!("Initializing CEF...");
-
         Self::initialize_cef()?;
 
         CEF_INITIALIZED.store(true, Ordering::SeqCst);
-
         let instance = Arc::new(CefInstance {});
-
         *CEF_INSTANCE.lock() = Some(instance.clone());
 
-        log::info!("CEF initialized successfully");
-
+        log::info!("[browser::cef_instance] initialize() DONE ({:?})", start.elapsed());
         Ok(instance)
     }
 
     fn initialize_cef() -> Result<()> {
-        // Patch GPUIApplication with CEF protocol conformance before initializing
-        // CEF. CEF on macOS requires [NSApp conformsToProtocol:@protocol(CrAppControlProtocol)]
-        // to return YES, otherwise it hits an internal CHECK and crashes with SIGTRAP.
+        log::info!("[browser::cef_instance] initialize_cef() START");
+
         #[cfg(target_os = "macos")]
-        crate::macos_protocol::add_cef_protocols_to_nsapp();
+        {
+            crate::macos_protocol::add_cef_protocols_to_nsapp();
+        }
 
         let args = cef::args::Args::new();
 
-        // Reuse the same App instance from handle_subprocess()
-        // CEF requires the same App for both execute_process and initialize
         let mut app_guard = CEF_APP.lock();
         let app = app_guard.as_mut().ok_or_else(|| {
             anyhow!("CEF App not found. handle_subprocess() must be called first.")
@@ -252,15 +266,9 @@ impl CefInstance {
         settings.no_sandbox = 1;
         settings.log_severity = cef::sys::cef_log_severity_t::LOGSEVERITY_WARNING.into();
 
-        // Explicitly set the helper subprocess path so CEF doesn't have to
-        // derive it from the bundle structure. On macOS, the helper is at
-        // Contents/Frameworks/<AppName> Helper.app/Contents/MacOS/<AppName> Helper
-        // relative to the main app bundle.
         #[cfg(target_os = "macos")]
         {
             if let Ok(exe_path) = std::env::current_exe() {
-                // exe is at .app/Contents/MacOS/<binary>
-                // helper is at .app/Contents/Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper
                 if let Some(macos_dir) = exe_path.parent() {
                     let helper_path = macos_dir
                         .join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
@@ -268,17 +276,16 @@ impl CefInstance {
                         if let Some(path_str) = canonical.to_str() {
                             settings.browser_subprocess_path =
                                 cef::CefString::from(path_str);
-                            log::info!("CEF helper subprocess path: {}", path_str);
+                            log::info!("[browser::cef_instance] CEF helper subprocess path: {}", path_str);
                         }
                     }
                 }
             }
         }
 
-        // Configure persistent storage for cookies, local storage, and cache
         let cache_dir = paths::data_dir().join("browser_cache");
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
-            log::warn!("Failed to create browser cache directory: {}", e);
+            log::warn!("[browser::cef_instance] Failed to create browser cache directory: {}", e);
         }
         if let Some(cache_path_str) = cache_dir.to_str() {
             settings.cache_path = cef::CefString::from(cache_path_str);
@@ -291,7 +298,6 @@ impl CefInstance {
             settings.remote_debugging_port = 9222;
         }
 
-        // Initialize CEF with the same app used in execute_process
         let result = cef::initialize(
             Some(args.as_main_args()),
             Some(&settings),
@@ -303,16 +309,43 @@ impl CefInstance {
             return Err(anyhow!("Failed to initialize CEF (error code: {})", result));
         }
 
+        log::info!("[browser::cef_instance] initialize_cef() DONE");
         Ok(())
     }
 
-    /// Pump CEF message loop. Call this periodically from the main thread.
-    /// Only pumps messages after CEF context is fully initialized.
-    pub fn pump_messages() {
-        // Only pump messages after on_context_initialized has fired
-        if CEF_CONTEXT_READY.load(Ordering::SeqCst) {
-            cef::do_message_loop_work();
+    /// Returns true when CEF has requested a pump and the delay has elapsed.
+    pub fn should_pump() -> bool {
+        if !CEF_CONTEXT_READY.load(Ordering::SeqCst) {
+            return false;
         }
+        elapsed_us() >= NEXT_PUMP_AT_US.load(Ordering::Acquire)
+    }
+
+    /// Microseconds until the next scheduled pump, or 0 if overdue.
+    pub fn time_until_next_pump_us() -> u64 {
+        NEXT_PUMP_AT_US
+            .load(Ordering::Acquire)
+            .saturating_sub(elapsed_us())
+    }
+
+    /// Pump CEF message loop. Only call when `should_pump()` returns true.
+    pub fn pump_messages() {
+        if !CEF_CONTEXT_READY.load(Ordering::SeqCst) {
+            return;
+        }
+        // Clear schedule before pumping. CEF will call
+        // on_schedule_message_pump_work during do_message_loop_work
+        // if more work is needed.
+        NEXT_PUMP_AT_US.store(u64::MAX, Ordering::Release);
+        cef::do_message_loop_work();
+        // If CEF didn't schedule new work during the pump, set a
+        // fallback so we check back periodically (~30 Hz idle).
+        let _ = NEXT_PUMP_AT_US.compare_exchange(
+            u64::MAX,
+            elapsed_us() + 33_000,
+            Ordering::AcqRel,
+            Ordering::Relaxed,
+        );
     }
 
     pub fn shutdown() {
@@ -320,7 +353,7 @@ impl CefInstance {
             return;
         }
 
-        log::info!("Shutting down CEF...");
+        log::info!("[browser::cef_instance] shutdown() START");
 
         CEF_INITIALIZED.store(false, Ordering::SeqCst);
         CEF_CONTEXT_READY.store(false, Ordering::SeqCst);
@@ -328,16 +361,15 @@ impl CefInstance {
 
         cef::shutdown();
 
-        // Clear the app after shutdown
         *CEF_APP.lock() = None;
 
-        log::info!("CEF shutdown complete");
+        log::info!("[browser::cef_instance] shutdown() DONE");
     }
 }
 
 impl Drop for CefInstance {
     fn drop(&mut self) {
+        log::info!("[browser::cef_instance] CefInstance::drop()");
         Self::shutdown();
     }
 }
-

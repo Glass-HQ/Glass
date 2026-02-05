@@ -38,5 +38,10 @@ log.workspace = true
 smallvec.workspace = true
 url.workspace = true
 
+# GPU-accelerated rendering (IOSurface → CVPixelBuffer → GPUI Surface)
+core-video.workspace = true
+io-surface.workspace = true
+core-foundation.workspace = true
+
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }

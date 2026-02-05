@@ -478,6 +478,7 @@ convert_case = "0.8.0"
 core-foundation = "=0.10.0"
 core-foundation-sys = "0.8.6"
 core-video = { version = "0.4.3", features = ["metal"] }
+io-surface = "0.16"
 cpal = "0.16"
 crash-handler = "0.6"
 criterion = { version = "0.5", features = ["html_reports"] }

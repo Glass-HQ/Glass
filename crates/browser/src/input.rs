@@ -25,6 +25,9 @@ pub fn handle_mouse_down(browser: &BrowserTab, event: &MouseDownEvent, offset: P
     let click_count = event.click_count as i32;
     let modifiers = convert_modifiers(&event.modifiers);
 
+    log::info!("[browser::input] handle_mouse_down(x={}, y={}, button={:?}, clicks={}, mods={})",
+        x, y, button, click_count, modifiers);
+
     browser.send_mouse_click(x, y, button, true, click_count, modifiers);
 }
 
@@ -35,6 +38,9 @@ pub fn handle_mouse_up(browser: &BrowserTab, event: &MouseUpEvent, offset: Point
     let button = convert_mouse_button(event.button);
     let modifiers = convert_modifiers(&event.modifiers);
 
+    log::info!("[browser::input] handle_mouse_up(x={}, y={}, button={:?}, mods={})",
+        x, y, button, modifiers);
+
     browser.send_mouse_click(x, y, button, false, 1, modifiers);
 }
 
@@ -43,6 +49,8 @@ pub fn handle_mouse_move(browser: &BrowserTab, event: &MouseMoveEvent, offset: P
     let x = f32::from(position.x) as i32;
     let y = f32::from(position.y) as i32;
     let modifiers = convert_modifiers(&event.modifiers);
+
+    log::info!("[browser::input] handle_mouse_move(x={}, y={}, mods={})", x, y, modifiers);
 
     browser.send_mouse_move(x, y, false, modifiers);
 }
@@ -63,12 +71,20 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
     };
 
     let modifiers = convert_modifiers(&event.modifiers);
+
+    log::info!("[browser::input] handle_scroll_wheel(x={}, y={}, dx={}, dy={}, mods={})",
+        x, y, delta_x, delta_y, modifiers);
+
     browser.send_mouse_wheel(x, y, delta_x, delta_y, modifiers);
 }
 
 /// Deferred key down handler - called outside the GPUI event handler context
 /// to avoid re-entrant borrow panics when CEF triggers macOS menu checking.
 pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is_held: bool) {
+    log::info!("[browser::input] handle_key_down_deferred(key={}, shift={}, ctrl={}, alt={}, cmd={})",
+        keystroke.key, keystroke.modifiers.shift, keystroke.modifiers.control,
+        keystroke.modifiers.alt, keystroke.modifiers.platform);
+
     let cef_event = convert_key_event(keystroke, true);
     browser.send_key_event(&cef_event);
 
@@ -111,6 +127,7 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     };
 
     if let Some(char_code) = char_to_send {
+        log::info!("[browser::input] handle_key_down_deferred: sending CHAR event char_code={}", char_code);
         let char_event = create_char_event(char_code, &keystroke.modifiers);
         browser.send_key_event(&char_event);
     }
@@ -118,6 +135,7 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
 
 /// Deferred key up handler - called outside the GPUI event handler context.
 pub fn handle_key_up_deferred(browser: &BrowserTab, keystroke: &Keystroke) {
+    log::info!("[browser::input] handle_key_up_deferred(key={})", keystroke.key);
     let cef_event = convert_key_event(keystroke, false);
     browser.send_key_event(&cef_event);
 }
