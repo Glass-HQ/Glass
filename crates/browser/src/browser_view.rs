@@ -5,6 +5,7 @@
 
 use crate::cef_instance::CefInstance;
 use crate::context_menu_handler::ContextMenuContext;
+use crate::history::BrowserHistory;
 use crate::input;
 use crate::session::{self, SerializedBrowserTabs, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
@@ -53,6 +54,7 @@ pub struct BrowserView {
     tabs: Vec<Entity<BrowserTab>>,
     active_tab_index: usize,
     toolbar: Option<Entity<BrowserToolbar>>,
+    history: Entity<BrowserHistory>,
     content_bounds: Bounds<Pixels>,
     cef_available: bool,
     message_pump_started: bool,
@@ -70,12 +72,14 @@ impl BrowserView {
         let cef_available = CefInstance::global().is_some();
 
         let quit_subscription = cx.on_app_quit(Self::save_tabs_on_quit);
+        let history = cx.new(|cx| BrowserHistory::new(cx));
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
             tabs: Vec::new(),
             active_tab_index: 0,
             toolbar: None,
+            history,
             content_bounds: Bounds::default(),
             cef_available,
             message_pump_started: false,
@@ -152,13 +156,21 @@ impl BrowserView {
                 .timer(Duration::from_millis(500))
                 .await;
 
-            let json = this
-                .read_with(cx, |this, cx| this.serialize_tabs(cx))
+            let (tabs_json, history_json) = this
+                .read_with(cx, |this, cx| {
+                    (
+                        this.serialize_tabs(cx),
+                        this.history.read(cx).serialize(),
+                    )
+                })
                 .ok()
-                .flatten();
+                .unwrap_or((None, None));
 
-            if let Some(json) = json {
+            if let Some(json) = tabs_json {
                 session::save(json).await.log_err();
+            }
+            if let Some(json) = history_json {
+                session::save_history(json).await.log_err();
             }
 
             this.update(cx, |this, _| {
@@ -169,10 +181,14 @@ impl BrowserView {
     }
 
     fn save_tabs_on_quit(&mut self, cx: &mut Context<Self>) -> Task<()> {
-        let json = self.serialize_tabs(cx);
+        let tabs_json = self.serialize_tabs(cx);
+        let history_json = self.history.read(cx).serialize();
         cx.background_spawn(async move {
-            if let Some(json) = json {
+            if let Some(json) = tabs_json {
                 session::save(json).await.log_err();
+            }
+            if let Some(json) = history_json {
+                session::save_history(json).await.log_err();
             }
         })
     }
@@ -284,7 +300,7 @@ impl BrowserView {
 
     fn handle_tab_event(
         &mut self,
-        _tab: Entity<BrowserTab>,
+        tab_entity: Entity<BrowserTab>,
         event: &TabEvent,
         cx: &mut Context<Self>,
     ) {
@@ -305,6 +321,19 @@ impl BrowserView {
                 cx.notify();
             }
             TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) => {
+                // Defer history recording: the tab entity is still mutably borrowed
+                // by drain_events() when this handler fires, so we can't read it here.
+                let tab_handle = tab_entity;
+                let history = self.history.clone();
+                cx.defer(move |cx| {
+                    let (url, title) = {
+                        let tab = tab_handle.read(cx);
+                        (tab.url().to_string(), tab.title().to_string())
+                    };
+                    history.update(cx, |history, _| {
+                        history.record_visit(&url, &title);
+                    });
+                });
                 self.schedule_save(cx);
                 cx.notify();
             }
@@ -500,7 +529,8 @@ impl BrowserView {
 
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(tab) = self.active_tab().cloned() {
-            let toolbar = cx.new(|cx| BrowserToolbar::new(tab, window, cx));
+            let history = self.history.clone();
+            let toolbar = cx.new(|cx| BrowserToolbar::new(tab, history, window, cx));
             self.toolbar = Some(toolbar.clone());
 
             ModeViewRegistry::global_mut(cx)

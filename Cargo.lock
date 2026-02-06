@@ -2074,6 +2074,7 @@ dependencies = [
  "core-video",
  "db",
  "editor",
+ "fuzzy",
  "gpui",
  "image",
  "io-surface",

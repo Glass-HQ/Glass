@@ -1,51 +1,56 @@
-//! Browser Toolbar
-//!
-//! Navigation toolbar with back/forward buttons, URL bar, reload, and devtools.
-
+use crate::history::BrowserHistory;
+use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
-use editor::Editor;
-use gpui::{
-    div, px, App, Context, Entity, FocusHandle, Focusable, IntoElement, ParentElement, Render,
-    Styled, Subscription, Window,
-};
+use gpui::{App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window};
 use ui::{h_flex, prelude::*, IconButton, IconName, Tooltip};
 
 pub struct BrowserToolbar {
     tab: Entity<BrowserTab>,
-    url_editor: Entity<Editor>,
+    omnibox: Entity<Omnibox>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl BrowserToolbar {
-    pub fn new(tab: Entity<BrowserTab>, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let url_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("Enter URL or search...", window, cx);
-            editor
+    pub fn new(
+        tab: Entity<BrowserTab>,
+        history: Entity<BrowserHistory>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let omnibox = cx.new(|cx| Omnibox::new(history, window, cx));
+
+        let tab_subscription = cx.subscribe_in(&tab, window, {
+            let omnibox = omnibox.clone();
+            move |_this, _tab, event, window, cx| match event {
+                TabEvent::AddressChanged(url) => {
+                    let url = url.clone();
+                    omnibox.update(cx, |omnibox, cx| {
+                        omnibox.set_url(&url, window, cx);
+                    });
+                }
+                TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
+                    cx.notify();
+                }
+                _ => {}
+            }
         });
 
-        let subscription = cx.subscribe_in(&tab, window, {
-            let url_editor = url_editor.clone();
-            move |_this, _tab, event, window, cx| {
-                match event {
-                    TabEvent::AddressChanged(url) => {
-                        let url = url.clone();
-                        url_editor.update(cx, |editor, cx| {
-                            editor.set_text(url, window, cx);
-                        });
-                    }
-                    TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
-                        cx.notify();
-                    }
-                    _ => {}
+        let omnibox_subscription = cx.subscribe(&omnibox, {
+            let tab = tab.clone();
+            move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
+                OmniboxEvent::Navigate(url) => {
+                    let url = url.clone();
+                    tab.update(cx, |tab, _| {
+                        tab.navigate(&url);
+                    });
                 }
             }
         });
 
         Self {
             tab,
-            url_editor,
-            _subscriptions: vec![subscription],
+            omnibox,
+            _subscriptions: vec![tab_subscription, omnibox_subscription],
         }
     }
 
@@ -58,13 +63,13 @@ impl BrowserToolbar {
         self.tab = tab;
         self._subscriptions.clear();
 
-        let subscription = cx.subscribe_in(&self.tab, window, {
-            let url_editor = self.url_editor.clone();
+        let tab_subscription = cx.subscribe_in(&self.tab, window, {
+            let omnibox = self.omnibox.clone();
             move |_this, _tab, event, window, cx| match event {
                 TabEvent::AddressChanged(url) => {
                     let url = url.clone();
-                    url_editor.update(cx, |editor, cx| {
-                        editor.set_text(url, window, cx);
+                    omnibox.update(cx, |omnibox, cx| {
+                        omnibox.set_url(&url, window, cx);
                     });
                 }
                 TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
@@ -73,11 +78,25 @@ impl BrowserToolbar {
                 _ => {}
             }
         });
-        self._subscriptions.push(subscription);
+
+        let omnibox_subscription = cx.subscribe(&self.omnibox, {
+            let tab = self.tab.clone();
+            move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
+                OmniboxEvent::Navigate(url) => {
+                    let url = url.clone();
+                    tab.update(cx, |tab, _| {
+                        tab.navigate(&url);
+                    });
+                }
+            }
+        });
+
+        self._subscriptions
+            .extend([tab_subscription, omnibox_subscription]);
 
         let url = self.tab.read(cx).url().to_string();
-        self.url_editor.update(cx, |editor, cx| {
-            editor.set_text(url, window, cx);
+        self.omnibox.update(cx, |omnibox, cx| {
+            omnibox.set_url(&url, window, cx);
         });
         cx.notify();
     }
@@ -106,44 +125,26 @@ impl BrowserToolbar {
         });
     }
 
-    fn open_devtools(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    fn open_devtools(
+        &mut self,
+        _: &gpui::ClickEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.tab.update(cx, |tab, _| {
             tab.open_devtools();
         });
-    }
-
-    fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
-        let url = self.url_editor.read(cx).text(cx);
-        if url.is_empty() {
-            return;
-        }
-
-        let url = if url.starts_with("http://") || url.starts_with("https://") {
-            url
-        } else if url.contains('.') {
-            format!("https://{}", url)
-        } else {
-            let encoded: String = url::form_urlencoded::byte_serialize(url.as_bytes()).collect();
-            format!("https://www.google.com/search?q={}", encoded)
-        };
-
-        self.tab.update(cx, |tab, _| {
-            tab.navigate(&url);
-        });
-
-        window.blur();
     }
 }
 
 impl Focusable for BrowserToolbar {
     fn focus_handle(&self, cx: &App) -> FocusHandle {
-        self.url_editor.focus_handle(cx)
+        self.omnibox.focus_handle(cx)
     }
 }
 
 impl Render for BrowserToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let theme = cx.theme();
         let can_go_back = self.tab.read(cx).can_go_back();
         let can_go_forward = self.tab.read(cx).can_go_forward();
         let is_loading = self.tab.read(cx).is_loading();
@@ -155,7 +156,6 @@ impl Render for BrowserToolbar {
             .px_2()
             .gap_1()
             .key_context("BrowserToolbar")
-            .on_action(cx.listener(Self::confirm))
             .child(
                 IconButton::new("back", IconName::ArrowLeft)
                     .disabled(!can_go_back)
@@ -168,32 +168,16 @@ impl Render for BrowserToolbar {
                     .on_click(cx.listener(Self::go_forward))
                     .tooltip(Tooltip::text("Go Forward")),
             )
-            .child(
-                if is_loading {
-                    IconButton::new("stop", IconName::XCircle)
-                        .on_click(cx.listener(Self::stop))
-                        .tooltip(Tooltip::text("Stop"))
-                } else {
-                    IconButton::new("reload", IconName::RotateCw)
-                        .on_click(cx.listener(Self::reload))
-                        .tooltip(Tooltip::text("Reload"))
-                },
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .h(px(24.))
-                    .mx_2()
-                    .px_2()
-                    .rounded_md()
-                    .bg(theme.colors().editor_background)
-                    .border_1()
-                    .border_color(theme.colors().border)
-                    .flex()
-                    .items_center()
-                    .overflow_hidden()
-                    .child(self.url_editor.clone()),
-            )
+            .child(if is_loading {
+                IconButton::new("stop", IconName::XCircle)
+                    .on_click(cx.listener(Self::stop))
+                    .tooltip(Tooltip::text("Stop"))
+            } else {
+                IconButton::new("reload", IconName::RotateCw)
+                    .on_click(cx.listener(Self::reload))
+                    .tooltip(Tooltip::text("Reload"))
+            })
+            .child(self.omnibox.clone())
             .child(
                 IconButton::new("devtools", IconName::Code)
                     .on_click(cx.listener(Self::open_devtools))

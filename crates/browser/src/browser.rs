@@ -9,12 +9,14 @@ mod client;
 mod context_menu_handler;
 mod display_handler;
 mod events;
+mod history;
 mod input;
 mod keycodes;
 mod life_span_handler;
 mod load_handler;
 #[cfg(target_os = "macos")]
 mod macos_protocol;
+mod omnibox;
 mod render_handler;
 mod request_handler;
 mod session;
