@@ -2,6 +2,8 @@ use crate::DeviceType;
 use anyhow::Result;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 use super::build::{self, BuildOptions, BuildOutput};
 use super::install::{self, InstallConfig, InstallOutput};
@@ -33,12 +35,14 @@ pub enum RunOutput {
     Build(BuildOutput),
     Install(InstallOutput),
     Launch(LaunchOutput),
+    AppLaunched { bundle_id: String, pid: Option<u32> },
     Completed,
     Failed { phase: RunPhase, message: String },
 }
 
 pub struct RunProcess {
     pub output_receiver: mpsc::UnboundedReceiver<RunOutput>,
+    pub active_pid: Arc<AtomicU32>,
 }
 
 pub async fn run(
@@ -46,17 +50,20 @@ pub async fn run(
     options: &BuildOptions,
 ) -> Result<RunProcess> {
     let (tx, rx) = mpsc::unbounded();
+    let active_pid = Arc::new(AtomicU32::new(0));
 
     let project = project.clone();
     let options = options.clone();
 
+    let pid_handle = active_pid.clone();
     smol::spawn(async move {
-        run_pipeline(tx, project, options).await;
+        run_pipeline(tx, project, options, pid_handle).await;
     })
     .detach();
 
     Ok(RunProcess {
         output_receiver: rx,
+        active_pid,
     })
 }
 
@@ -64,6 +71,7 @@ async fn run_pipeline(
     mut tx: mpsc::UnboundedSender<RunOutput>,
     project: XcodeProject,
     options: BuildOptions,
+    active_pid: Arc<AtomicU32>,
 ) {
     // Phase 1: Build
     let _ = tx.send(RunOutput::PhaseChanged(RunPhase::Building)).await;
@@ -81,6 +89,12 @@ async fn run_pipeline(
         }
     };
 
+    // Propagate the build child PID so the panel can kill it
+    let build_pid = build_process.active_pid.load(Ordering::Acquire);
+    if build_pid != 0 {
+        active_pid.store(build_pid, Ordering::Release);
+    }
+
     let mut build_receiver = build_process.output_receiver;
     let mut build_success = false;
 
@@ -90,6 +104,8 @@ async fn run_pipeline(
         }
         let _ = tx.send(RunOutput::Build(output)).await;
     }
+
+    active_pid.store(0, Ordering::Release);
 
     if !build_success {
         let _ = tx
@@ -221,11 +237,13 @@ async fn run_pipeline(
 
         let mut launch_receiver = launch_process.output_receiver;
         let mut launch_success = false;
+        let mut launched_pid = None;
 
         while let Some(output) = launch_receiver.next().await {
             match &output {
-                LaunchOutput::Completed { .. } => {
+                LaunchOutput::Completed { pid } => {
                     launch_success = true;
+                    launched_pid = *pid;
                 }
                 LaunchOutput::Failed(_) => {
                     launch_success = false;
@@ -233,6 +251,15 @@ async fn run_pipeline(
                 _ => {}
             }
             let _ = tx.send(RunOutput::Launch(output)).await;
+        }
+
+        if launch_success {
+            let _ = tx
+                .send(RunOutput::AppLaunched {
+                    bundle_id: bundle_id.clone(),
+                    pid: launched_pid,
+                })
+                .await;
         }
 
         if !launch_success {

@@ -1,17 +1,17 @@
 use crate::app_store_connect::AppStoreConnectTab;
-use crate::build_logs::BuildLogsView;
+use crate::build_controller::{BuildController, PipelineKind};
 use anyhow::Result;
 use db::kvp::KEY_VALUE_STORE;
 use gpui::{
-    Action, App, AppContext, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle,
-    Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, actions, px,
+    Action, App, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle, Focusable, Pixels,
+    Render, Subscription, Task, WeakEntity, Window, actions, px,
 };
-use native_platforms::apple::{build, run, simulator, xcode};
+use native_platforms::apple::{build, simulator, xcode};
 use native_platforms::{BuildConfiguration, Device, DeviceState, DeviceType};
 use project::Project;
 use serde::{Deserialize, Serialize};
 use ui::prelude::*;
-use ui::{ContextMenu, Divider, PopoverMenu, PopoverMenuHandle};
+use ui::{ContextMenu, Divider, PopoverMenu, PopoverMenuHandle, Tooltip};
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::Workspace;
 
@@ -53,15 +53,12 @@ pub struct NativePlatformsPanel {
     xcode_project: Option<xcode::XcodeProject>,
     schemes: Vec<String>,
     selected_scheme: Option<String>,
-    configurations: Vec<String>,
-    selected_configuration: BuildConfiguration,
 
     devices: Vec<Device>,
     selected_device: Option<Device>,
     loading_devices: bool,
 
-    is_building: bool,
-    build_task: Option<Task<()>>,
+    controller: BuildController,
 
     scheme_menu_handle: PopoverMenuHandle<ContextMenu>,
     device_menu_handle: PopoverMenuHandle<ContextMenu>,
@@ -87,13 +84,10 @@ impl NativePlatformsPanel {
             xcode_project: None,
             schemes: Vec::new(),
             selected_scheme: None,
-            configurations: vec!["Debug".to_string(), "Release".to_string()],
-            selected_configuration: BuildConfiguration::Debug,
             devices: Vec::new(),
             selected_device: None,
             loading_devices: false,
-            is_building: false,
-            build_task: None,
+            controller: BuildController::new(),
             scheme_menu_handle: PopoverMenuHandle::default(),
             device_menu_handle: PopoverMenuHandle::default(),
             pending_serialization: Task::ready(None),
@@ -161,9 +155,9 @@ impl NativePlatformsPanel {
             .project
             .read(cx)
             .worktrees(cx)
-            .filter_map(|wt| {
+            .map(|wt| {
                 let wt = wt.read(cx);
-                Some(wt.abs_path().to_path_buf())
+                wt.abs_path().to_path_buf()
             })
             .collect();
 
@@ -185,10 +179,7 @@ impl NativePlatformsPanel {
                             let schemes = xcode::list_schemes(&detected_project).unwrap_or_default();
                             log::info!("detect_xcode_project: found {} schemes", schemes.len());
 
-                            let configurations = xcode::list_configurations(&detected_project)
-                                .unwrap_or_else(|_| vec!["Debug".to_string(), "Release".to_string()]);
-
-                            return Some((detected_project, schemes, configurations));
+                            return Some((detected_project, schemes));
                         }
                     }
                     None
@@ -198,7 +189,7 @@ impl NativePlatformsPanel {
             log::info!("detect_xcode_project: background task completed, result is_some={}", result.is_some());
 
             let update_result = this.update(cx, |this, cx| {
-                if let Some((project, schemes, configurations)) = result {
+                if let Some((project, schemes)) = result {
                     log::info!(
                         "detect_xcode_project: updating UI state with {} schemes",
                         schemes.len()
@@ -212,9 +203,6 @@ impl NativePlatformsPanel {
                         );
                     }
                     this.schemes = schemes;
-                    if !configurations.is_empty() {
-                        this.configurations = configurations;
-                    }
                     log::info!("detect_xcode_project: calling cx.notify()");
                     cx.notify();
                     log::info!("detect_xcode_project: UI state updated successfully");
@@ -239,10 +227,8 @@ impl NativePlatformsPanel {
                 .background_spawn(async {
                     use native_platforms::apple::device;
 
-                    // Get physical devices first (they appear at the top)
                     let mut all_devices = device::list_physical_devices();
 
-                    // Then get simulators
                     let simulators = simulator::list_simulators().unwrap_or_default();
                     all_devices.extend(simulators);
 
@@ -254,7 +240,6 @@ impl NativePlatformsPanel {
                 this.devices = devices;
                 this.loading_devices = false;
 
-                // Validate selected device still exists in the refreshed list
                 if let Some(selected) = &this.selected_device {
                     let still_exists = this.devices.iter().any(|d| d.id == selected.id);
                     if !still_exists {
@@ -277,7 +262,7 @@ impl NativePlatformsPanel {
         .detach();
     }
 
-    fn build(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn start_pipeline(&mut self, kind: PipelineKind, window: &mut Window, cx: &mut Context<Self>) {
         let Some(xcode_project) = &self.xcode_project else {
             return;
         };
@@ -285,104 +270,27 @@ impl NativePlatformsPanel {
             return;
         };
 
-        self.is_building = true;
-        cx.notify();
-
-        let xcode_project = xcode_project.clone();
         let options = build::BuildOptions {
             scheme: scheme.clone(),
-            configuration: self.selected_configuration.clone(),
+            configuration: BuildConfiguration::Debug,
             destination: self.selected_device.clone(),
             clean: false,
             derived_data_path: None,
         };
 
         let workspace = self.workspace.clone();
+        let panel = cx.entity().downgrade();
 
-        self.build_task = Some(cx.spawn_in(window, async move |this, cx| {
-            let build_result = build::build(&xcode_project, &options).await;
-
-            match build_result {
-                Ok(process) => {
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update_in(cx, |workspace, window, cx| {
-                            let build_logs = cx.new(|cx| {
-                                BuildLogsView::new(process.output_receiver, window, cx)
-                            });
-                            workspace.add_item_to_active_pane(
-                                Box::new(build_logs),
-                                None,
-                                true,
-                                window,
-                                cx,
-                            );
-                        }).ok();
-                    }
-                }
-                Err(_e) => {
-                    // Build failed to start
-                }
-            }
-
-            this.update(cx, |this, cx| {
-                this.is_building = false;
-                cx.notify();
-            }).ok();
-        }));
-    }
-
-    fn run(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(xcode_project) = &self.xcode_project else {
-            return;
-        };
-        let Some(scheme) = &self.selected_scheme else {
-            return;
-        };
-
-        self.is_building = true;
+        self.controller.start_pipeline(
+            kind,
+            xcode_project,
+            options,
+            workspace,
+            panel,
+            window,
+            cx,
+        );
         cx.notify();
-
-        let xcode_project = xcode_project.clone();
-        let options = build::BuildOptions {
-            scheme: scheme.clone(),
-            configuration: self.selected_configuration.clone(),
-            destination: self.selected_device.clone(),
-            clean: false,
-            derived_data_path: None,
-        };
-
-        let workspace = self.workspace.clone();
-
-        self.build_task = Some(cx.spawn_in(window, async move |this, cx| {
-            let run_result = run::run(&xcode_project, &options).await;
-
-            match run_result {
-                Ok(process) => {
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update_in(cx, |workspace, window, cx| {
-                            let build_logs = cx.new(|cx| {
-                                BuildLogsView::new_run(process.output_receiver, window, cx)
-                            });
-                            workspace.add_item_to_active_pane(
-                                Box::new(build_logs),
-                                None,
-                                true,
-                                window,
-                                cx,
-                            );
-                        }).ok();
-                    }
-                }
-                Err(_e) => {
-                    // Run failed to start
-                }
-            }
-
-            this.update(cx, |this, cx| {
-                this.is_building = false;
-                cx.notify();
-            }).ok();
-        }));
     }
 
     fn deploy(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -393,6 +301,16 @@ impl NativePlatformsPanel {
                 workspace.add_item_to_active_pane(Box::new(tab), None, true, window, cx);
             });
         }
+    }
+
+    fn stop_build(&mut self, cx: &mut Context<Self>) {
+        self.controller.stop();
+        cx.notify();
+    }
+
+    fn terminate_app(&mut self, cx: &mut Context<Self>) {
+        self.controller.terminate_app(cx);
+        cx.notify();
     }
 
     fn serialize(&mut self, cx: &mut Context<Self>) {
@@ -417,21 +335,6 @@ impl NativePlatformsPanel {
         });
     }
 
-    fn render_header(&self, cx: &Context<Self>) -> impl IntoElement {
-        h_flex()
-            .w_full()
-            .px_2()
-            .py_1()
-            .gap_2()
-            .border_b_1()
-            .border_color(cx.theme().colors().border)
-            .child(
-                Label::new("Native Platforms")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
-    }
-
     fn render_project_section(&self, _cx: &Context<Self>) -> impl IntoElement {
         let has_project = self.xcode_project.is_some();
         log::debug!(
@@ -440,34 +343,42 @@ impl NativePlatformsPanel {
             self.schemes.len()
         );
 
+        let content = if has_project {
+            let project = self.xcode_project.as_ref().unwrap();
+            let name = project.path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Unknown");
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(
+                    Label::new("Xcode Project")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(Icon::new(IconName::Folder).size(IconSize::Small))
+                .child(Label::new(name.to_string()).size(LabelSize::Small))
+        } else {
+            h_flex()
+                .gap_2()
+                .items_center()
+                .child(
+                    Label::new("Xcode Project")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+                .child(
+                    Label::new("No Xcode project found")
+                        .size(LabelSize::Small)
+                        .color(Color::Muted),
+                )
+        };
+
         v_flex()
             .w_full()
             .p_2()
             .gap_2()
-            .child(
-                Label::new("Xcode Project")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
-            )
-            .when(has_project, |this| {
-                let project = self.xcode_project.as_ref().unwrap();
-                let name = project.path.file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("Unknown");
-                this.child(
-                    h_flex()
-                        .gap_2()
-                        .child(Icon::new(IconName::Folder).size(IconSize::Small))
-                        .child(Label::new(name.to_string()).size(LabelSize::Small))
-                )
-            })
-            .when(!has_project, |this| {
-                this.child(
-                    Label::new("No Xcode project found")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
-                )
-            })
+            .child(content)
     }
 
     fn render_scheme_section(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -541,16 +452,11 @@ impl NativePlatformsPanel {
         let selected_label = self.selected_device
             .as_ref()
             .map(|d| {
-                let prefix = if d.device_type == DeviceType::PhysicalDevice {
-                    "📱 "
-                } else {
-                    ""
-                };
                 let os = d.os_version.clone().unwrap_or_default();
                 if os.is_empty() {
-                    format!("{}{}", prefix, d.name)
+                    d.name.clone()
                 } else {
-                    format!("{}{} ({})", prefix, d.name, os)
+                    format!("{} ({})", d.name, os)
                 }
             })
             .unwrap_or_else(|| "Select Device".to_string());
@@ -594,7 +500,6 @@ impl NativePlatformsPanel {
                                     for device in &devices {
                                         let is_physical = device.device_type == DeviceType::PhysicalDevice;
 
-                                        // Add section headers
                                         if last_was_physical != Some(is_physical) {
                                             if is_physical {
                                                 menu = menu.header("Physical Devices");
@@ -649,7 +554,9 @@ impl NativePlatformsPanel {
     fn render_actions(&self, cx: &Context<Self>) -> impl IntoElement {
         let has_project = self.xcode_project.is_some();
         let has_scheme = self.selected_scheme.is_some();
-        let can_build = has_project && has_scheme && !self.is_building;
+        let is_active = self.controller.is_active();
+        let can_build = has_project && has_scheme && !is_active;
+        let has_launched_app = self.controller.last_launched().is_some() && !is_active;
 
         v_flex()
             .w_full()
@@ -664,7 +571,7 @@ impl NativePlatformsPanel {
                             .style(ButtonStyle::Filled)
                             .disabled(!can_build)
                             .on_click(cx.listener(|this, _, window, cx| {
-                                this.build(window, cx);
+                                this.start_pipeline(PipelineKind::Build, window, cx);
                             }))
                     )
                     .child(
@@ -672,9 +579,34 @@ impl NativePlatformsPanel {
                             .style(ButtonStyle::Filled)
                             .disabled(!can_build)
                             .on_click(cx.listener(|this, _, window, cx| {
-                                this.run(window, cx);
+                                this.start_pipeline(PipelineKind::Run, window, cx);
                             }))
                     )
+                    .when(is_active, |this| {
+                        this.child(
+                            Button::new("stop", "Stop")
+                                .style(ButtonStyle::Subtle)
+                                .icon(IconName::Stop)
+                                .icon_size(IconSize::Small)
+                                .icon_color(Color::Error)
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.stop_build(cx);
+                                }))
+                        )
+                    })
+                    .when(has_launched_app, |this| {
+                        this.child(
+                            Button::new("terminate", "Terminate")
+                                .style(ButtonStyle::Subtle)
+                                .icon(IconName::Stop)
+                                .icon_size(IconSize::Small)
+                                .icon_color(Color::Warning)
+                                .tooltip(Tooltip::text("Terminate running app"))
+                                .on_click(cx.listener(|this, _, _, cx| {
+                                    this.terminate_app(cx);
+                                }))
+                        )
+                    })
             )
             .child(
                 Button::new("deploy", "Deploy to App Store")
@@ -697,13 +629,14 @@ impl EventEmitter<PanelEvent> for NativePlatformsPanel {}
 
 impl Render for NativePlatformsPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.controller.poll_completion();
+
         v_flex()
             .key_context("NativePlatformsPanel")
             .track_focus(&self.focus_handle)
             .size_full()
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
-            .child(self.render_header(cx))
             .child(
                 v_flex()
                     .id("native-platforms-content")

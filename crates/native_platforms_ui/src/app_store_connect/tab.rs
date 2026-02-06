@@ -571,7 +571,7 @@ impl AppStoreConnectTab {
                                                         .size(LabelSize::Default),
                                                 )
                                                 .child(
-                                                    Label::new(app.bundle_id.clone())
+                                                    Label::new(app.bundle_id)
                                                         .size(LabelSize::Small)
                                                         .color(Color::Muted),
                                                 ),

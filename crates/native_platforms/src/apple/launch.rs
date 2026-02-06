@@ -4,6 +4,7 @@ use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use smol::io::{AsyncBufReadExt, BufReader};
 use smol::process::Command;
+use std::path::PathBuf;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -125,6 +126,8 @@ async fn launch_once(
     timeout: &Duration,
     tx: mpsc::UnboundedSender<LaunchOutput>,
 ) -> std::result::Result<Option<u32>, LaunchError> {
+    let json_output_path = json_output_path();
+
     let mut cmd = Command::new("xcrun");
     cmd.args([
         "devicectl",
@@ -136,6 +139,8 @@ async fn launch_once(
         bundle_id,
         "--terminate-existing",
         "--activate",
+        "--json-output",
+        json_output_path.to_str().unwrap_or("/tmp/glass_devicectl.json"),
     ]);
     cmd.stdout(smol::process::Stdio::piped());
     cmd.stderr(smol::process::Stdio::piped());
@@ -162,31 +167,25 @@ async fn launch_once(
         collected
     });
 
-    // Stream stdout and extract PID in background
+    // Stream stdout lines to the UI
     let stdout_handle = {
         let mut tx = tx.clone();
         smol::spawn(async move {
-            let mut pid: Option<u32> = None;
             if let Some(stdout) = stdout {
                 let reader = BufReader::new(stdout);
                 let mut lines = reader.lines();
                 while let Some(Ok(line)) = lines.next().await {
-                    let _ = tx.send(LaunchOutput::Line(line.clone())).await;
-
-                    if let Some(extracted) = extract_pid(&line) {
-                        pid = Some(extracted);
-                    }
+                    let _ = tx.send(LaunchOutput::Line(line)).await;
                 }
             }
-            pid
         })
     };
 
     // Wait for stdout/stderr streams to complete, with timeout
     let streams_future = async {
-        let pid = stdout_handle.await;
+        stdout_handle.await;
         let stderr_output = stderr_handle.await;
-        (pid, stderr_output)
+        stderr_output
     };
 
     let timeout_future = smol::Timer::after(*timeout);
@@ -194,20 +193,25 @@ async fn launch_once(
     futures::pin_mut!(timeout_future);
 
     match futures::future::select(streams_future, timeout_future).await {
-        futures::future::Either::Left(((pid, stderr_output), _)) => {
+        futures::future::Either::Left((stderr_output, _)) => {
             let status = child.status().await;
             let success = status.map(|s| s.success()).unwrap_or(false);
             if !success {
                 let kind = classify_launch_error(&stderr_output);
+                let _ = std::fs::remove_file(&json_output_path);
                 return Err(LaunchError {
                     kind,
                     message: stderr_output.trim().to_string(),
                 });
             }
+
+            let pid = extract_pid_from_json(&json_output_path);
+            let _ = std::fs::remove_file(&json_output_path);
             Ok(pid)
         }
         futures::future::Either::Right((_, _)) => {
             let _ = child.kill();
+            let _ = std::fs::remove_file(&json_output_path);
             Err(LaunchError {
                 kind: LaunchErrorKind::Timeout,
                 message: format!("Launch timed out after {:?}", timeout),
@@ -216,19 +220,23 @@ async fn launch_once(
     }
 }
 
-fn extract_pid(line: &str) -> Option<u32> {
-    let lower = line.to_lowercase();
-    // Match patterns like "pid: 1234" or "process id: 1234"
-    for pattern in &["pid:", "process id:"] {
-        if let Some(idx) = lower.find(pattern) {
-            let after = &line[idx + pattern.len()..];
-            let num_str: String = after.trim().chars().take_while(|c| c.is_ascii_digit()).collect();
-            if let Ok(pid) = num_str.parse::<u32>() {
-                return Some(pid);
-            }
-        }
-    }
-    None
+fn json_output_path() -> PathBuf {
+    let mut path = std::env::temp_dir();
+    path.push(format!(
+        "glass_devicectl_{}.json",
+        std::process::id()
+    ));
+    path
+}
+
+fn extract_pid_from_json(path: &PathBuf) -> Option<u32> {
+    let content = std::fs::read_to_string(path).ok()?;
+    let json: serde_json::Value = serde_json::from_str(&content).ok()?;
+    json.get("result")?
+        .get("process")?
+        .get("processIdentifier")?
+        .as_u64()
+        .and_then(|pid| u32::try_from(pid).ok())
 }
 
 fn classify_launch_error(stderr: &str) -> LaunchErrorKind {

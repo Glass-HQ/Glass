@@ -1,4 +1,5 @@
 mod app_store_connect;
+mod build_controller;
 mod build_logs;
 pub mod panel;
 

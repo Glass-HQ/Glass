@@ -165,6 +165,20 @@ pub fn install_app(udid: &str, app_path: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn terminate_app(udid: &str, bundle_id: &str) -> Result<()> {
+    let output = Command::new("xcrun")
+        .args(["simctl", "terminate", udid, bundle_id])
+        .output()
+        .context("Failed to run xcrun simctl terminate")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("simctl terminate failed: {}", stderr);
+    }
+
+    Ok(())
+}
+
 pub fn launch_app(udid: &str, bundle_id: &str) -> Result<()> {
     let output = Command::new("xcrun")
         .args(["simctl", "launch", udid, bundle_id])

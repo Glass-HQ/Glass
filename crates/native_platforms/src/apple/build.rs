@@ -5,6 +5,8 @@ use futures::{SinkExt, StreamExt};
 use smol::io::{AsyncBufReadExt, BufReader};
 use smol::process::Command;
 use std::path::Path;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 use super::device::get_device_destination;
 use super::xcode::{XcodeProject, XcodeProjectType};
@@ -20,11 +22,13 @@ pub struct BuildOptions {
 
 pub struct BuildProcess {
     pub output_receiver: mpsc::UnboundedReceiver<BuildOutput>,
+    pub active_pid: Arc<AtomicU32>,
 }
 
 #[derive(Debug, Clone)]
 pub enum BuildOutput {
     Line(String),
+    Verbose(String),
     Error(BuildError),
     Warning(BuildWarning),
     Progress { phase: String, percent: Option<f32> },
@@ -69,11 +73,14 @@ pub async fn build(
 
     let mut child = cmd.spawn().context("Failed to spawn xcodebuild")?;
 
+    let active_pid = Arc::new(AtomicU32::new(child.id()));
+
     let (mut tx, rx) = mpsc::unbounded();
 
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
 
+    let pid_handle = active_pid.clone();
     smol::spawn(async move {
         let mut all_output = String::new();
         let mut errors = Vec::new();
@@ -87,11 +94,8 @@ pub async fn build(
                     all_output.push_str(&line);
                     all_output.push('\n');
 
-                    if let Some(build_output) = parse_build_line(&line, &mut errors, &mut warnings) {
-                        let _ = tx.send(build_output).await;
-                    } else {
-                        let _ = tx.send(BuildOutput::Line(line)).await;
-                    }
+                    let build_output = parse_build_line(&line, &mut errors, &mut warnings);
+                    let _ = tx.send(build_output).await;
                 }
             }
         }
@@ -111,6 +115,8 @@ pub async fn build(
         let status = child.status().await;
         let success = status.map(|s| s.success()).unwrap_or(false);
 
+        pid_handle.store(0, Ordering::Release);
+
         let _ = tx
             .send(BuildOutput::Completed(BuildResult {
                 success,
@@ -124,6 +130,7 @@ pub async fn build(
 
     Ok(BuildProcess {
         output_receiver: rx,
+        active_pid,
     })
 }
 
@@ -131,27 +138,229 @@ fn parse_build_line(
     line: &str,
     errors: &mut Vec<BuildError>,
     warnings: &mut Vec<BuildWarning>,
-) -> Option<BuildOutput> {
+) -> BuildOutput {
+    // Errors and warnings always shown in full
     if line.contains(": error:") {
         let error = parse_error_line(line);
         errors.push(error.clone());
-        return Some(BuildOutput::Error(error));
+        return BuildOutput::Error(error);
     }
 
     if line.contains(": warning:") {
         let warning = parse_warning_line(line);
         warnings.push(warning.clone());
-        return Some(BuildOutput::Warning(warning));
+        return BuildOutput::Warning(warning);
     }
 
-    if line.starts_with("Compiling") || line.starts_with("Linking") || line.starts_with("Build ") {
-        return Some(BuildOutput::Progress {
+    // xcpretty-style summaries for known xcodebuild action lines
+    if line.starts_with("CompileSwift ") || line.starts_with("CompileSwiftSources ") {
+        return BuildOutput::Progress {
+            phase: format_compile_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("CompileC ") {
+        return BuildOutput::Progress {
+            phase: format_compile_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("Ld ") {
+        return BuildOutput::Progress {
+            phase: format_link_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("CodeSign ") {
+        return BuildOutput::Progress {
+            phase: format_codesign_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("PhaseScriptExecution ") {
+        return BuildOutput::Progress {
+            phase: format_script_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("CpResource ") || line.starts_with("CopyPNGFile ")
+        || line.starts_with("CpHeader ") || line.starts_with("Copy ")
+    {
+        return BuildOutput::Progress {
+            phase: format_copy_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("ProcessInfoPlistFile ") || line.starts_with("ProcessProductPackaging ") {
+        return BuildOutput::Progress {
+            phase: format_process_summary(line),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("MergeSwiftModule ") {
+        let target = extract_target_name(line).unwrap_or("unknown");
+        return BuildOutput::Progress {
+            phase: format!("Merging modules {} \u{203a} Swift", target),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("GenerateDSYMFile ") {
+        let target = extract_target_name(line).unwrap_or("unknown");
+        return BuildOutput::Progress {
+            phase: format!("Generating dSYM {}", target),
+            percent: None,
+        };
+    }
+
+    if line.starts_with("CreateBuildDirectory ")
+        || line.starts_with("RegisterExecutionPolicyException ")
+        || line.starts_with("Validate ")
+        || line.starts_with("Touch ")
+        || line.starts_with("RegisterWithLaunchServices ")
+        || line.starts_with("EmitSwiftModule ")
+        || line.starts_with("SwiftDriver ")
+        || line.starts_with("SwiftCompile ")
+        || line.starts_with("SwiftEmitModule ")
+        || line.starts_with("SwiftMergeGeneratedHeaders ")
+        || line.starts_with("WriteAuxiliaryFile ")
+        || line.starts_with("CreateUniversalBinary ")
+        || line.starts_with("Ditto ")
+        || line.starts_with("LinkStoryboards ")
+        || line.starts_with("CompileStoryboard ")
+        || line.starts_with("CompileXIB ")
+        || line.starts_with("CompileAssetCatalog ")
+    {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // Build succeeded/failed lines are important
+    if line.starts_with("Build ") || line.starts_with("** BUILD ") {
+        return BuildOutput::Progress {
             phase: line.to_string(),
             percent: None,
-        });
+        };
     }
 
-    None
+    // Verbose noise detection
+    let trimmed = line.trim();
+
+    // Empty or whitespace-only lines
+    if trimmed.is_empty() {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // Indented lines (compiler/linker flags)
+    if line.starts_with("    ") || line.starts_with('\t') {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // Full-path tool invocations
+    if trimmed.starts_with('/') {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // Shell commands in build output
+    if trimmed.starts_with("cd ") || trimmed.starts_with("export ") || trimmed.starts_with("setenv ") {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // write-file and note: lines
+    if trimmed.starts_with("write-file ") || trimmed.starts_with("note: ") {
+        return BuildOutput::Verbose(line.to_string());
+    }
+
+    // Anything else shows as a normal line
+    BuildOutput::Line(line.to_string())
+}
+
+fn extract_target_name(line: &str) -> Option<&str> {
+    // Pattern: "(in target 'NAME' from project 'PROJ')"
+    let marker = "in target '";
+    let start = line.find(marker)? + marker.len();
+    let end = start + line[start..].find('\'')?;
+    Some(&line[start..end])
+}
+
+fn extract_filename(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+fn format_compile_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    // Find the source file path — usually the last path-like token before "(in target"
+    let file = line
+        .split_whitespace()
+        .filter(|s| s.contains('/') || s.ends_with(".swift") || s.ends_with(".c") || s.ends_with(".m") || s.ends_with(".mm") || s.ends_with(".cpp"))
+        .last()
+        .map(extract_filename)
+        .unwrap_or("sources");
+    format!("Compiling {} \u{203a} {}", target, file)
+}
+
+fn format_link_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    // Second token is typically the output path
+    let binary = line
+        .split_whitespace()
+        .nth(1)
+        .map(extract_filename)
+        .unwrap_or("binary");
+    format!("Linking {} \u{203a} {}", target, binary)
+}
+
+fn format_codesign_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    // "CodeSign /path/to/App.app ..."
+    let artifact = line
+        .split_whitespace()
+        .nth(1)
+        .map(extract_filename)
+        .unwrap_or("artifact");
+    format!("Signing {} \u{203a} {}", target, artifact)
+}
+
+fn format_script_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    // "PhaseScriptExecution Script\ Name /path..."
+    // Script name is between PhaseScriptExecution and the path (may have escaped spaces)
+    let rest = line.strip_prefix("PhaseScriptExecution ").unwrap_or(line);
+    let script_name = rest
+        .split('/')
+        .next()
+        .unwrap_or("script")
+        .replace("\\ ", " ")
+        .trim()
+        .to_string();
+    let script_name = if script_name.is_empty() { "script".to_string() } else { script_name };
+    format!("Running script {} \u{203a} {}", target, script_name)
+}
+
+fn format_copy_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    let file = line
+        .split_whitespace()
+        .nth(1)
+        .map(extract_filename)
+        .unwrap_or("resource");
+    format!("Copying {} \u{203a} {}", target, file)
+}
+
+fn format_process_summary(line: &str) -> String {
+    let target = extract_target_name(line).unwrap_or("unknown");
+    let file = line
+        .split_whitespace()
+        .nth(1)
+        .map(extract_filename)
+        .unwrap_or("file");
+    format!("Processing {} \u{203a} {}", target, file)
 }
 
 fn parse_error_line(line: &str) -> BuildError {
