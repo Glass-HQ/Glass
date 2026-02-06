@@ -6,6 +6,7 @@
 use crate::cef_instance::CefInstance;
 use crate::context_menu_handler::ContextMenuContext;
 use crate::input;
+use crate::session::{self, SerializedBrowserTabs, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
@@ -16,6 +17,7 @@ use gpui::{
 };
 use std::time::Duration;
 use ui::{prelude::*, Icon, IconButton, IconName, IconSize, Tooltip};
+use util::ResultExt as _;
 use workspace_modes::{ModeId, ModeViewRegistry};
 
 actions!(
@@ -59,12 +61,15 @@ pub struct BrowserView {
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     _message_pump_task: Option<Task<()>>,
+    _schedule_save: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
 
 impl BrowserView {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let cef_available = CefInstance::global().is_some();
+
+        let quit_subscription = cx.on_app_quit(Self::save_tabs_on_quit);
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
@@ -79,11 +84,15 @@ impl BrowserView {
             context_menu: None,
             pending_context_menu: None,
             _message_pump_task: None,
-            _subscriptions: Vec::new(),
+            _schedule_save: None,
+            _subscriptions: vec![quit_subscription],
         };
 
         if cef_available {
-            this.add_tab(cx);
+            let restored = this.restore_tabs(cx);
+            if !restored {
+                this.add_tab(cx);
+            }
         }
 
         this
@@ -91,6 +100,81 @@ impl BrowserView {
 
     fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
         self.tabs.get(self.active_tab_index)
+    }
+
+    fn restore_tabs(&mut self, cx: &mut Context<Self>) -> bool {
+        let saved = match session::restore() {
+            Some(saved) if !saved.tabs.is_empty() => saved,
+            _ => return false,
+        };
+
+        for serialized_tab in &saved.tabs {
+            let url = serialized_tab.url.clone();
+            let title = serialized_tab.title.clone();
+            let tab = cx.new(|cx| BrowserTab::new_with_state(url, title, cx));
+            let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+            self._subscriptions.push(subscription);
+            self.tabs.push(tab);
+        }
+
+        self.active_tab_index = saved.active_index.min(self.tabs.len().saturating_sub(1));
+        true
+    }
+
+    fn serialize_tabs(&self, cx: &App) -> Option<String> {
+        if self.tabs.is_empty() {
+            return None;
+        }
+
+        let tabs: Vec<SerializedTab> = self
+            .tabs
+            .iter()
+            .map(|tab| {
+                let tab = tab.read(cx);
+                SerializedTab {
+                    url: tab.url().to_string(),
+                    title: tab.title().to_string(),
+                }
+            })
+            .collect();
+
+        let data = SerializedBrowserTabs {
+            tabs,
+            active_index: self.active_tab_index,
+        };
+
+        serde_json::to_string(&data).log_err()
+    }
+
+    fn schedule_save(&mut self, cx: &mut Context<Self>) {
+        self._schedule_save = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor()
+                .timer(Duration::from_millis(500))
+                .await;
+
+            let json = this
+                .read_with(cx, |this, cx| this.serialize_tabs(cx))
+                .ok()
+                .flatten();
+
+            if let Some(json) = json {
+                session::save(json).await.log_err();
+            }
+
+            this.update(cx, |this, _| {
+                this._schedule_save.take();
+            })
+            .ok();
+        }));
+    }
+
+    fn save_tabs_on_quit(&mut self, cx: &mut Context<Self>) -> Task<()> {
+        let json = self.serialize_tabs(cx);
+        cx.background_spawn(async move {
+            if let Some(json) = json {
+                session::save(json).await.log_err();
+            }
+        })
     }
 
     fn add_tab(&mut self, cx: &mut Context<Self>) {
@@ -101,6 +185,7 @@ impl BrowserView {
 
         self.tabs.push(tab);
         self.active_tab_index = self.tabs.len() - 1;
+        self.schedule_save(cx);
     }
 
     fn add_tab_with_url(
@@ -128,6 +213,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
         cx.notify();
     }
 
@@ -169,7 +255,12 @@ impl BrowserView {
                 if tab.current_frame().is_none() && width > 0 && height > 0 {
                     tab.set_scale_factor(scale_factor);
                     tab.set_size(width, height);
-                    if let Err(e) = tab.create_browser(DEFAULT_URL) {
+                    let url = if tab.url() != "about:blank" {
+                        tab.url().to_string()
+                    } else {
+                        DEFAULT_URL.to_string()
+                    };
+                    if let Err(e) = tab.create_browser(&url) {
                         log::error!("[browser] Failed to create browser on tab switch: {}", e);
                         return;
                     }
@@ -179,6 +270,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
         cx.notify();
     }
 
@@ -212,7 +304,11 @@ impl BrowserView {
                 self.pending_new_tab_urls.push(url.clone());
                 cx.notify();
             }
-            TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) | TabEvent::LoadingStateChanged => {
+            TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) => {
+                self.schedule_save(cx);
+                cx.notify();
+            }
+            TabEvent::LoadingStateChanged => {
                 cx.notify();
             }
             TabEvent::LoadError { url, error_text, .. } => {
@@ -346,7 +442,6 @@ impl BrowserView {
 
             // Always show Inspect
             {
-                let tab = tab.clone();
                 menu = menu.entry("Inspect", None, move |_window, cx| {
                     tab.update(cx, |tab, _| tab.open_devtools());
                 });
@@ -429,7 +524,12 @@ impl BrowserView {
             tab.update(cx, |tab, _| {
                 tab.set_scale_factor(scale_factor);
                 tab.set_size(width, height);
-                if let Err(e) = tab.create_browser(DEFAULT_URL) {
+                let url = if tab.url() != "about:blank" {
+                    tab.url().to_string()
+                } else {
+                    DEFAULT_URL.to_string()
+                };
+                if let Err(e) = tab.create_browser(&url) {
                     log::error!("[browser] Failed to create browser: {}", e);
                     return;
                 }
@@ -617,6 +717,7 @@ impl BrowserView {
             }
 
             self.update_toolbar_active_tab(window, cx);
+            self.schedule_save(cx);
             cx.notify();
             return;
         }
@@ -638,6 +739,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
         cx.notify();
     }
 
@@ -687,6 +789,7 @@ impl BrowserView {
             }
 
             self.update_toolbar_active_tab(window, cx);
+            self.schedule_save(cx);
             cx.notify();
             return;
         }
@@ -710,6 +813,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
         cx.notify();
     }
 

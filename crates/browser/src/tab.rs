@@ -68,6 +68,25 @@ impl BrowserTab {
         }
     }
 
+    pub fn new_with_state(url: String, title: String, _cx: &mut Context<Self>) -> Self {
+        let render_state = Arc::new(Mutex::new(RenderState::default()));
+        let (sender, receiver) = events::event_channel();
+        let client = ClientBuilder::build(render_state.clone(), sender);
+
+        Self {
+            browser: None,
+            client,
+            render_state,
+            event_receiver: receiver,
+            url,
+            title,
+            is_loading: false,
+            can_go_back: false,
+            can_go_forward: false,
+            loading_progress: 0.0,
+        }
+    }
+
     pub fn drain_events(&mut self, cx: &mut Context<Self>) {
         while let Ok(event) = self.event_receiver.try_recv() {
             match event {

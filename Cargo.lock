@@ -2072,6 +2072,7 @@ dependencies = [
  "cef",
  "core-foundation 0.10.0",
  "core-video",
+ "db",
  "editor",
  "gpui",
  "image",
@@ -2080,11 +2081,14 @@ dependencies = [
  "menu",
  "parking_lot",
  "paths",
+ "serde",
+ "serde_json",
  "settings",
  "smallvec",
  "theme",
  "ui",
  "url",
+ "util",
  "workspace_modes",
 ]
 
