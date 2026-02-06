@@ -68,7 +68,7 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "ctrl-f12": "outline::Toggle",
+      "ctrl-f12": "project_symbols::Toggle",
       "ctrl-r": ["buffer_search::Deploy", { "replace_enabled": true }],
       "ctrl-e": "file_finder::Toggle",
       "ctrl-shift-n": "file_finder::Toggle",
@@ -116,7 +116,7 @@
       "alt-1": "project_panel::ToggleFocus",
       "alt-5": "debug_panel::ToggleFocus",
       "alt-6": "diagnostics::Deploy",
-      "alt-7": "outline_panel::ToggleFocus",
+      "alt-7": "project_panel::ToggleFocus",
     },
   },
   {
@@ -128,7 +128,7 @@
       "alt-4": null, // Run Panel (bottom dock)
       "alt-5": "debug_panel::ToggleFocus",
       "alt-6": "diagnostics::Deploy",
-      "alt-7": "outline_panel::ToggleFocus",
+      "alt-7": "project_panel::ToggleFocus",
       "alt-8": null, // Services (bottom dock)
       "alt-9": null, // Git History (bottom dock)
       "alt-0": "git_panel::ToggleFocus",
@@ -176,9 +176,9 @@
   { "context": "ProjectPanel", "bindings": { "alt-1": "workspace::CloseActiveDock" } },
   { "context": "DebugPanel", "bindings": { "alt-5": "workspace::CloseActiveDock" } },
   { "context": "Diagnostics > Editor", "bindings": { "alt-6": "pane::CloseActiveItem" } },
-  { "context": "OutlinePanel", "bindings": { "alt-7": "workspace::CloseActiveDock" } },
+  { "context": "ProjectPanel", "bindings": { "alt-7": "workspace::CloseActiveDock" } },
   {
-    "context": "Dock || Workspace || OutlinePanel || ProjectPanel || CollabPanel || (Editor && mode == auto_height)",
+    "context": "Dock || Workspace || ProjectPanel || CollabPanel || (Editor && mode == auto_height)",
     "bindings": {
       "escape": "editor::ToggleFocus",
       "shift-escape": "workspace::CloseActiveDock",

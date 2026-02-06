@@ -174,7 +174,6 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         editor::init(cx);
         title_bar::init(cx);
         project_panel::init(cx);
-        outline_panel::init(cx);
         terminal_view::init(cx);
         image_viewer::init(cx);
         search::init(cx);

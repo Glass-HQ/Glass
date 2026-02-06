@@ -13,7 +13,7 @@ use gpui::{
 use settings::SettingsStore;
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::{ContextMenu, IconButton, Tooltip, prelude::*, right_click_menu};
+use ui::{ContextMenu, IconButton, Tab, Tooltip, prelude::*, right_click_menu};
 
 pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 
@@ -139,17 +139,40 @@ impl Render for DockButtonBar {
             return div().into_any_element();
         }
 
+        let workspace_weak = self.workspace.clone();
+        let search_button = IconButton::new("search-button", ui::IconName::MagnifyingGlass)
+            .icon_size(IconSize::Small)
+            .tooltip(|_window, cx| {
+                Tooltip::for_action(
+                    "Project Search",
+                    &crate::DeploySearch::default(),
+                    cx,
+                )
+            })
+            .on_click(move |_, window, cx| {
+                if let Some(workspace) = workspace_weak.upgrade() {
+                    workspace.update(cx, |_workspace, cx| {
+                        window.dispatch_action(
+                            Box::new(crate::DeploySearch::default()),
+                            cx,
+                        );
+                    });
+                }
+            });
+
         div()
             .w_full()
             .flex()
             .flex_row()
+            .items_center()
+            .h(Tab::container_height(cx))
             .px_1()
-            .py_0p5()
             .gap_1()
             .border_b_1()
             .border_color(cx.theme().colors().border)
             .bg(cx.theme().colors().panel_background)
             .children(buttons)
+            .child(search_button)
             .into_any_element()
     }
 }

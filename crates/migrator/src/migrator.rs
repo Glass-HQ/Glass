@@ -143,6 +143,10 @@ pub fn migrate_keymap(text: &str) -> Result<Option<String>> {
             migrations::m_2025_12_08::KEYMAP_PATTERNS,
             &KEYMAP_QUERY_2025_12_08,
         ),
+        MigrationType::TreeSitter(
+            migrations::m_2026_02_06::KEYMAP_PATTERNS,
+            &KEYMAP_QUERY_2026_02_06,
+        ),
     ];
     run_migrations(text, migrations)
 }
@@ -232,6 +236,7 @@ pub fn migrate_settings(text: &str) -> Result<Option<String>> {
             migrations::m_2025_12_15::SETTINGS_PATTERNS,
             &SETTINGS_QUERY_2025_12_15,
         ),
+        MigrationType::Json(migrations::m_2026_02_06::remove_outline_panel_settings),
     ];
     run_migrations(text, migrations)
 }
@@ -361,6 +366,10 @@ define_query!(
 define_query!(
     KEYMAP_QUERY_2025_12_08,
     migrations::m_2025_12_08::KEYMAP_PATTERNS
+);
+define_query!(
+    KEYMAP_QUERY_2026_02_06,
+    migrations::m_2026_02_06::KEYMAP_PATTERNS
 );
 define_query!(
     SETTINGS_QUERY_2025_12_15,
@@ -550,6 +559,38 @@ mod tests {
                 [
                     {
                         "context": "Editor && edit_prediction && !showing_completions"
+                    }
+                ]
+            "#,
+            ),
+        )
+    }
+
+    #[test]
+    fn test_migrate_outline_actions() {
+        assert_migrate_keymap(
+            r#"
+                [
+                    {
+                        "bindings": {
+                            "cmd-shift-o": "outline::Toggle",
+                            "cmd-shift-b": "outline_panel::ToggleFocus",
+                            "space": "outline_panel::OpenSelectedEntry"
+                        },
+                        "context": "OutlinePanel && not_editing"
+                    }
+                ]
+            "#,
+            Some(
+                r#"
+                [
+                    {
+                        "bindings": {
+                            "cmd-shift-o": "project_symbols::Toggle",
+                            "cmd-shift-b": "project_panel::ToggleFocus",
+                            "space": "project_panel::Open"
+                        },
+                        "context": "ProjectPanel && not_editing"
                     }
                 ]
             "#,
@@ -2353,6 +2394,34 @@ mod tests {
                     "preview_tabs": {
                         "other_setting_2": 2,
                         "enable_keep_preview_on_code_navigation": true
+                    }
+                }
+                "#
+                .unindent(),
+            ),
+        );
+    }
+
+    #[test]
+    fn test_remove_outline_panel_settings() {
+        assert_migrate_settings(
+            &r#"
+            {
+                "outline_panel": {
+                    "button": true,
+                    "dock": "left"
+                },
+                "project_panel": {
+                    "button": true
+                }
+            }
+            "#
+            .unindent(),
+            Some(
+                &r#"
+                {
+                    "project_panel": {
+                        "button": true
                     }
                 }
                 "#

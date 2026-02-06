@@ -97,7 +97,6 @@ To disable this behavior use:
 
   // Individual dock header buttons can be hidden:
   // "project_panel": {"button": false },
-  // "outline_panel": {"button": false },
   // "collaboration_panel": {"button": false },
   // "git_panel": {"button": false },
   // "notification_panel": {"button": false },
@@ -535,24 +534,7 @@ See [Terminal settings](./reference/all-settings.md#terminal) for additional non
     "button": true                // Show/hide dock header button
   },
 
-  // Outline Panel
-  "outline_panel": {
-    "button": true,               // Show/hide dock header button
-    "default_width": 300,         // Default width of the git panel
-    "dock": "left",               // Where to dock: left, right
-    "file_icons": true,           // Show/hide file_icons
-    "folder_icons": true,         // Show file_icons (true), chevrons (false) for dirs
-    "git_status": true,           // Show git status
-    "indent_size": 20,            // Indentation for nested items (pixels)
-    "indent_guides": {
-      "show": "always"            // Show indent guides (always, never)
-    },
-    "auto_reveal_entries": true,  // Show file in panel when activating its buffer
-    "auto_fold_dirs": true,       // Fold dirs with single subdir
-    "scrollbar": {                // Project panel scrollbar settings
-      "show": null                // Show/hide: (auto, system, always, never)
-    }
-  }
+  
 ```
 
 ## Collaboration Panels

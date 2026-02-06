@@ -614,7 +614,7 @@
       "ctrl-shift-p": "command_palette::Toggle",
       "ctrl-shift-m": "diagnostics::Deploy",
       "ctrl-shift-e": "project_panel::ToggleFocus",
-      "ctrl-shift-o": "outline_panel::ToggleFocus",
+      "ctrl-shift-o": "project_symbols::Toggle",
       "ctrl-shift-b": "workspace_modes::SwitchToBrowserMode",
       "ctrl-shift-g": "git_panel::ToggleFocus",
       "ctrl-shift-d": "debug_panel::ToggleFocus",
@@ -816,24 +816,6 @@
     "context": "ProjectSearchBar && !in_replace",
     "bindings": {
       "ctrl-enter": "project_search::SearchInNew",
-    },
-  },
-  {
-    "context": "OutlinePanel && not_editing",
-    "bindings": {
-      "escape": "menu::Cancel",
-      "left": "outline_panel::CollapseSelectedEntry",
-      "right": "outline_panel::ExpandSelectedEntry",
-      "alt-copy": "outline_panel::CopyPath",
-      "ctrl-alt-c": "outline_panel::CopyPath",
-      "alt-shift-copy": "workspace::CopyRelativePath",
-      "alt-ctrl-shift-c": "workspace::CopyRelativePath",
-      "alt-ctrl-r": "outline_panel::RevealInFileManager",
-      "space": "outline_panel::OpenSelectedEntry",
-      "shift-down": "menu::SelectNext",
-      "shift-up": "menu::SelectPrevious",
-      "alt-enter": "editor::OpenExcerpts",
-      "ctrl-alt-enter": "editor::OpenExcerptsSplit",
     },
   },
   {

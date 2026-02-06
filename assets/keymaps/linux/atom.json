@@ -32,7 +32,7 @@
       "ctrl-down": "editor::MoveLineDown", // editor:move-line-down
       "ctrl-\\": "workspace::ToggleLeftDock", // tree-view:toggle
       "ctrl-shift-m": "markdown::OpenPreviewToTheSide", // markdown-preview:toggle
-      "ctrl-r": "outline::Toggle", // symbols-view:toggle-project-symbols
+      "ctrl-r": "project_symbols::Toggle", // symbols-view:toggle-project-symbols
     },
   },
   {

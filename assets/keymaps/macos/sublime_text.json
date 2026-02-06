@@ -63,7 +63,7 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "cmd-r": "outline::Toggle",
+      "cmd-r": "project_symbols::Toggle",
     },
   },
   {

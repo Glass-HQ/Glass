@@ -247,7 +247,7 @@ WebStorm organizes auxiliary views into numbered tool windows (Project = 1, npm 
 | Project (1)          | Project Panel  | `Cmd + 1`                   |
 | Git (9 or Cmd+0)     | Git Panel      | `Cmd + 0`                   |
 | Terminal (Alt+F12)   | Terminal Panel | `Alt + F12`                 |
-| Structure (7)        | Outline Panel  | `Cmd + 7`                   |
+| Structure (7)        | Project Panel  | `Cmd + 7`                   |
 | Problems (6)         | Diagnostics    | `Cmd + 6`                   |
 | Debug (5)            | Debug Panel    | `Cmd + 5`                   |
 

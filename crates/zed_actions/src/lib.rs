@@ -219,9 +219,9 @@ pub mod workspace {
     actions!(
         workspace,
         [
-            #[action(deprecated_aliases = ["editor::CopyPath", "outline_panel::CopyPath", "project_panel::CopyPath"])]
+            #[action(deprecated_aliases = ["editor::CopyPath", "project_panel::CopyPath"])]
             CopyPath,
-            #[action(deprecated_aliases = ["editor::CopyRelativePath", "outline_panel::CopyRelativePath", "project_panel::CopyRelativePath"])]
+            #[action(deprecated_aliases = ["editor::CopyRelativePath", "project_panel::CopyRelativePath"])]
             CopyRelativePath,
             /// Opens the selected file with the system's default application.
             #[action(deprecated_aliases = ["project_panel::OpenWithSystem"])]
@@ -534,22 +534,6 @@ pub struct Rerun {
     /// If present, rerun the task with this ID, otherwise rerun the last task.
     #[serde(skip)]
     pub task_id: Option<String>,
-}
-
-pub mod outline {
-    use std::sync::OnceLock;
-
-    use gpui::{AnyView, App, Window, actions};
-
-    actions!(
-        outline,
-        [
-            #[action(name = "Toggle")]
-            ToggleOutline
-        ]
-    );
-    /// A pointer to outline::toggle function, exposed here to sewer the breadcrumbs <-> outline dependency.
-    pub static TOGGLE_OUTLINE: OnceLock<fn(AnyView, &mut Window, &mut App)> = OnceLock::new();
 }
 
 actions!(

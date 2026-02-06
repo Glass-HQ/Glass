@@ -22,14 +22,7 @@ Jump to where a symbol is defined with {#kb editor::GoToDefinition} (or `Cmd+Cli
 
 ## Go to Symbol
 
-- **Current file:** {#kb outline::Toggle} opens an outline of symbols in the active file
 - **Entire project:** {#kb project_symbols::Toggle} searches symbols across all files
-
-## Outline Panel
-
-The Outline Panel ({#kb outline_panel::ToggleFocus}) shows a persistent tree view of symbols in the current file. It's especially useful with [multibuffers](./multibuffers.md) for navigating search results or diagnostics.
-
-[Learn more about the Outline Panel →](./outline-panel.md)
 
 ## Tab Switcher
 
@@ -46,7 +39,5 @@ Quickly switch between open tabs with {#kb tab_switcher::Toggle}. Tabs are sorte
 | Project search    | {#kb pane::DeploySearch}         |
 | Go to definition  | {#kb editor::GoToDefinition}     |
 | Find references   | {#kb editor::FindAllReferences}  |
-| Symbol in file    | {#kb outline::Toggle}            |
 | Symbol in project | {#kb project_symbols::Toggle}    |
-| Outline Panel     | {#kb outline_panel::ToggleFocus} |
 | Tab Switcher      | {#kb tab_switcher::Toggle}       |

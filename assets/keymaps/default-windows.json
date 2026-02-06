@@ -606,7 +606,7 @@
       "ctrl-shift-p": "command_palette::Toggle",
       "ctrl-shift-m": "diagnostics::Deploy",
       "ctrl-shift-e": "project_panel::ToggleFocus",
-      "ctrl-shift-o": "outline_panel::ToggleFocus",
+      "ctrl-shift-o": "project_symbols::Toggle",
       "ctrl-shift-b": "workspace_modes::SwitchToBrowserMode",
       "ctrl-shift-g": "git_panel::ToggleFocus",
       "ctrl-shift-d": "debug_panel::ToggleFocus",
@@ -821,22 +821,6 @@
     "use_key_equivalents": true,
     "bindings": {
       "ctrl-enter": "project_search::SearchInNew",
-    },
-  },
-  {
-    "context": "OutlinePanel && not_editing",
-    "use_key_equivalents": true,
-    "bindings": {
-      "left": "outline_panel::CollapseSelectedEntry",
-      "right": "outline_panel::ExpandSelectedEntry",
-      "shift-alt-c": "outline_panel::CopyPath",
-      "ctrl-shift-alt-c": "workspace::CopyRelativePath",
-      "ctrl-alt-r": "outline_panel::RevealInFileManager",
-      "space": "outline_panel::OpenSelectedEntry",
-      "shift-down": "menu::SelectNext",
-      "shift-up": "menu::SelectPrevious",
-      "alt-enter": "editor::OpenExcerpts",
-      "ctrl-alt-enter": "editor::OpenExcerptsSplit",
     },
   },
   {

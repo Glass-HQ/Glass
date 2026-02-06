@@ -165,3 +165,11 @@ pub(crate) mod m_2025_12_15 {
 
     pub(crate) use settings::SETTINGS_PATTERNS;
 }
+
+pub(crate) mod m_2026_02_06 {
+    mod keymap;
+    mod settings;
+
+    pub(crate) use keymap::KEYMAP_PATTERNS;
+    pub(crate) use settings::remove_outline_panel_settings;
+}

@@ -202,11 +202,10 @@ impl Render for TitleBar {
                 .into_any_element(),
         );
 
-        let titlebar_center = active_mode
-            .and_then(|mode_id| {
-                ModeViewRegistry::try_global(cx)
-                    .and_then(|reg| reg.titlebar_center_view(mode_id).cloned())
-            });
+        let titlebar_center = active_mode.and_then(|mode_id| {
+            ModeViewRegistry::try_global(cx)
+                .and_then(|reg| reg.titlebar_center_view(mode_id).cloned())
+        });
 
         if let Some(center_view) = titlebar_center {
             children.push(
@@ -214,6 +213,7 @@ impl Render for TitleBar {
                     .flex_1()
                     .flex()
                     .items_center()
+                    .justify_center()
                     .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                     .child(center_view)
                     .into_any_element(),
@@ -724,7 +724,7 @@ impl TitleBar {
             .map(|ws| ws.read(cx).active_mode_id())
             .unwrap_or(ModeId::BROWSER);
 
-        ModeSwitcher::new(active_mode).on_mode_select(move |mode_id, _, window, cx| {
+        ModeSwitcher::new(active_mode).on_mode_select(move |mode_id, window, cx| {
             if let Some(workspace) = workspace.upgrade() {
                 workspace.update(cx, |_workspace, cx| match mode_id {
                     ModeId::BROWSER => {

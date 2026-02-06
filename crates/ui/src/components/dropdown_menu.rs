@@ -257,7 +257,7 @@ impl Component for DropdownMenu {
                 })
                 .separator()
                 .entry("Project Panel", None, |_, _| {})
-                .entry("Outline Panel", None, |_, _| {})
+                .entry("Terminal Panel", None, |_, _| {})
                 .separator()
                 .submenu("Autofill", |menu, _, _| {
                     menu.entry("Contact…", None, |_, _| {})

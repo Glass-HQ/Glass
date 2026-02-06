@@ -15,7 +15,7 @@
       "cmd-enter": "editor::NewlineBelow",
       "cmd-alt-enter": "editor::NewlineAbove",
       "cmd-shift-l": "editor::SelectLine",
-      "cmd-shift-t": "outline::Toggle",
+      "cmd-shift-t": "project_symbols::Toggle",
     },
   },
   {

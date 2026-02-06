@@ -61,7 +61,7 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "ctrl-r": "outline::Toggle",
+      "ctrl-r": "project_symbols::Toggle",
     },
   },
   {

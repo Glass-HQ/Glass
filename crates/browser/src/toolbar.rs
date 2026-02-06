@@ -125,16 +125,6 @@ impl BrowserToolbar {
         });
     }
 
-    fn open_devtools(
-        &mut self,
-        _: &gpui::ClickEvent,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        self.tab.update(cx, |tab, _| {
-            tab.open_devtools();
-        });
-    }
 }
 
 impl Focusable for BrowserToolbar {
@@ -151,6 +141,7 @@ impl Render for BrowserToolbar {
 
         h_flex()
             .w_full()
+            .max_w(px(680.))
             .h_full()
             .items_center()
             .px_2()
@@ -178,10 +169,5 @@ impl Render for BrowserToolbar {
                     .tooltip(Tooltip::text("Reload"))
             })
             .child(self.omnibox.clone())
-            .child(
-                IconButton::new("devtools", IconName::Code)
-                    .on_click(cx.listener(Self::open_devtools))
-                    .tooltip(Tooltip::text("Open DevTools")),
-            )
     }
 }

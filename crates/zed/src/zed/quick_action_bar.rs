@@ -26,7 +26,7 @@ use workspace::item::ItemBufferKind;
 use workspace::{
     ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace, item::ItemHandle,
 };
-use zed_actions::{agent::AddSelectionToThread, assistant::InlineAssist, outline::ToggleOutline};
+use zed_actions::{agent::AddSelectionToThread, assistant::InlineAssist};
 
 const MAX_CODE_ACTION_MENU_LINES: u32 = 16;
 
@@ -287,7 +287,6 @@ impl Render for QuickActionBar {
                                 )
                             })
                             .separator()
-                            .action("Go to Symbol", Box::new(ToggleOutline))
                             .action("Go to Line/Column", Box::new(ToggleGoToLine))
                             .separator()
                             .action("Next Problem", Box::new(GoToDiagnostic::default()))

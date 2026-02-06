@@ -4754,32 +4754,6 @@ You can define these in user or project settings; project settings are merged on
 }
 ```
 
-## Outline Panel
-
-- Description: Customize outline Panel
-- Setting: `outline_panel`
-- Default:
-
-```json [settings]
-"outline_panel": {
-  "button": true,
-  "default_width": 300,
-  "dock": "left",
-  "file_icons": true,
-  "folder_icons": true,
-  "git_status": true,
-  "indent_size": 20,
-  "auto_reveal_entries": true,
-  "auto_fold_dirs": true,
-  "indent_guides": {
-    "show": "always"
-  },
-  "scrollbar": {
-    "show": null
-  }
-}
-```
-
 ## Calls
 
 - Description: Customize behavior when participating in a call

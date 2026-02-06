@@ -1811,9 +1811,6 @@ mod tests {
               "project_panel": {
                 "git_status": true
               },
-              "outline_panel": {
-                "git_status": true
-              },
               "base_keymap": "VSCode",
               "tabs": {
                 "git_status": true

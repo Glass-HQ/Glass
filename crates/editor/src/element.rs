@@ -8102,14 +8102,12 @@ pub fn render_breadcrumb_text(
             .id("breadcrumb_container")
             .when(!multibuffer_header, |this| this.overflow_x_scroll())
             .child(
-                ButtonLike::new("toggle outline view")
+                ButtonLike::new("toggle breadcrumbs")
                     .child(breadcrumbs)
                     .when(multibuffer_header, |this| {
                         this.style(ButtonStyle::Transparent)
                     })
                     .when(!multibuffer_header, |this| {
-                        let focus_handle = editor.upgrade().unwrap().focus_handle(&cx);
-
                         this.tooltip(Tooltip::element(move |_window, cx| {
                             v_flex()
                                 .gap_1()
@@ -8117,12 +8115,7 @@ pub fn render_breadcrumb_text(
                                     h_flex()
                                         .gap_1()
                                         .justify_between()
-                                        .child(Label::new("Show Symbol Outline"))
-                                        .child(ui::KeyBinding::for_action_in(
-                                            &zed_actions::outline::ToggleOutline,
-                                            &focus_handle,
-                                            cx,
-                                        )),
+                                        .child(Label::new("File Breadcrumbs")),
                                 )
                                 .when(has_project_path, |this| {
                                     this.child(
@@ -8137,17 +8130,6 @@ pub fn render_breadcrumb_text(
                                 })
                                 .into_any_element()
                         }))
-                        .on_click({
-                            let editor = editor.clone();
-                            move |_, window, cx| {
-                                if let Some((editor, callback)) = editor
-                                    .upgrade()
-                                    .zip(zed_actions::outline::TOGGLE_OUTLINE.get())
-                                {
-                                    callback(editor.to_any_view(), window, cx);
-                                }
-                            }
-                        })
                         .when(has_project_path, |this| {
                             this.on_right_click({
                                 let editor = editor.clone();

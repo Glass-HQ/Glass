@@ -417,6 +417,7 @@ impl Render for Omnibox {
         div()
             .relative()
             .flex_1()
+            .min_w(px(100.))
             .key_context("Omnibox")
             .on_action(cx.listener(Self::confirm))
             .on_action(cx.listener(Self::cancel))

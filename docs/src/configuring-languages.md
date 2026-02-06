@@ -4,7 +4,7 @@ Zed offers powerful customization options for each programming language it suppo
 
 Zed's language support is built on two main technologies:
 
-1. Tree-sitter: This handles syntax highlighting and structure-based features like the outline panel.
+1. Tree-sitter: This handles syntax highlighting and structure-based features like symbol extraction.
 2. Language Server Protocol (LSP): This provides semantic features such as code completion and diagnostics.
 
 These components work together to provide Zed's language capabilities.
