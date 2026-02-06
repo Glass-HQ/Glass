@@ -4701,16 +4701,11 @@ impl Workspace {
         );
         cx.notify();
 
-        match leader_id {
-            CollaboratorId::PeerId(_leader_peer_id) => {
-                // Collaboration features removed - PeerId following not supported
-                None
-            }
-            CollaboratorId::Agent => {
-                self.leader_updated(leader_id, window, cx)?;
-                Some(Task::ready(Ok(())))
-            }
+        if leader_id != CollaboratorId::Agent {
+            return None;
         }
+        self.leader_updated(leader_id, window, cx)?;
+        Some(Task::ready(Ok(())))
     }
 
     pub fn follow(
@@ -4721,8 +4716,7 @@ impl Workspace {
     ) {
         let leader_id = leader_id.into();
 
-        // Collaboration features removed - only Agent following is supported
-        if let CollaboratorId::PeerId(_peer_id) = leader_id {
+        if leader_id != CollaboratorId::Agent {
             return;
         }
 
@@ -6290,13 +6284,10 @@ fn leader_border_for_pane(
         }
     })?;
 
-    let mut leader_color = match leader_id {
-        CollaboratorId::PeerId(_leader_peer_id) => {
-            // Collaboration features removed
-            return None;
-        }
-        CollaboratorId::Agent => cx.theme().players().agent().cursor,
-    };
+    if leader_id != CollaboratorId::Agent {
+        return None;
+    }
+    let mut leader_color = cx.theme().players().agent().cursor;
     leader_color.fade_out(0.3);
     Some(
         div()

@@ -1560,28 +1560,10 @@ impl EditorElement {
 
             if let Some(collaboration_hub) = &editor.collaboration_hub {
                 // When following someone, render the local selections in their color.
-                if let Some(leader_id) = editor.leader_id {
-                    match leader_id {
-                        CollaboratorId::PeerId(peer_id) => {
-                            if let Some(collaborator) =
-                                collaboration_hub.collaborators(cx).get(&peer_id)
-                                && let Some(participant_index) = collaboration_hub
-                                    .user_participant_indices(cx)
-                                    .get(&collaborator.user_id)
-                                && let Some((local_selection_style, _)) = selections.first_mut()
-                            {
-                                *local_selection_style = cx
-                                    .theme()
-                                    .players()
-                                    .color_for_participant(participant_index.0);
-                            }
-                        }
-                        CollaboratorId::Agent => {
-                            if let Some((local_selection_style, _)) = selections.first_mut() {
-                                *local_selection_style = cx.theme().players().agent();
-                            }
-                        }
-                    }
+                if editor.leader_id == Some(CollaboratorId::Agent)
+                    && let Some((local_selection_style, _)) = selections.first_mut()
+                {
+                    *local_selection_style = cx.theme().players().agent();
                 }
 
                 let mut remote_selections = HashMap::default();

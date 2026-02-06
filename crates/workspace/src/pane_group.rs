@@ -374,18 +374,11 @@ impl PaneLeaderDecorator for PaneRenderContext<'_> {
             return LeaderDecoration::default();
         };
 
-        let mut leader_color;
-        let status_box;
-        match leader_id {
-            CollaboratorId::PeerId(_peer_id) => {
-                // Collaboration features removed
-                return LeaderDecoration::default();
-            }
-            CollaboratorId::Agent => {
-                status_box = None;
-                leader_color = cx.theme().players().agent().cursor;
-            }
+        if leader_id != CollaboratorId::Agent {
+            return LeaderDecoration::default();
         }
+        let status_box = None;
+        let mut leader_color = cx.theme().players().agent().cursor;
 
         let is_in_panel = follower_state.dock_pane.is_some();
         if is_in_panel {
