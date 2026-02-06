@@ -14,6 +14,7 @@ use crate::events::EventSender;
 use crate::life_span_handler::{LifeSpanHandlerBuilder, OsrLifeSpanHandler};
 use crate::load_handler::{LoadHandlerBuilder, OsrLoadHandler};
 use crate::render_handler::{OsrRenderHandler, RenderHandlerBuilder, RenderState};
+use crate::request_handler::{OsrRequestHandler, RequestHandlerBuilder};
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -75,6 +76,7 @@ wrap_client! {
         display_handler: DisplayHandler,
         life_span_handler: LifeSpanHandler,
         keyboard_handler: KeyboardHandler,
+        request_handler: cef::RequestHandler,
     }
 
     impl Client {
@@ -97,6 +99,10 @@ wrap_client! {
         fn keyboard_handler(&self) -> Option<cef::KeyboardHandler> {
             Some(self.keyboard_handler.clone())
         }
+
+        fn request_handler(&self) -> Option<cef::RequestHandler> {
+            Some(self.request_handler.clone())
+        }
     }
 }
 
@@ -108,13 +114,15 @@ impl ClientBuilder {
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
-        let life_span_handler = OsrLifeSpanHandler::new(event_sender);
+        let life_span_handler = OsrLifeSpanHandler::new(event_sender.clone());
+        let request_handler = OsrRequestHandler::new(event_sender);
         Self::new(
             RenderHandlerBuilder::build(render_handler),
             LoadHandlerBuilder::build(load_handler),
             DisplayHandlerBuilder::build(display_handler),
             LifeSpanHandlerBuilder::build(life_span_handler),
             KeyboardHandlerBuilder::build(),
+            RequestHandlerBuilder::build(request_handler),
         )
     }
 }

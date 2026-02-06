@@ -49,6 +49,39 @@ impl BrowserToolbar {
         }
     }
 
+    pub fn set_active_tab(
+        &mut self,
+        tab: Entity<BrowserTab>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.tab = tab;
+        self._subscriptions.clear();
+
+        let subscription = cx.subscribe_in(&self.tab, window, {
+            let url_editor = self.url_editor.clone();
+            move |_this, _tab, event, window, cx| match event {
+                TabEvent::AddressChanged(url) => {
+                    let url = url.clone();
+                    url_editor.update(cx, |editor, cx| {
+                        editor.set_text(url, window, cx);
+                    });
+                }
+                TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
+                    cx.notify();
+                }
+                _ => {}
+            }
+        });
+        self._subscriptions.push(subscription);
+
+        let url = self.tab.read(cx).url().to_string();
+        self.url_editor.update(cx, |editor, cx| {
+            editor.set_text(url, window, cx);
+        });
+        cx.notify();
+    }
+
     fn go_back(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
         self.tab.update(cx, |tab, _| {
             tab.go_back();

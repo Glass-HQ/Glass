@@ -15,6 +15,7 @@ mod load_handler;
 #[cfg(target_os = "macos")]
 mod macos_protocol;
 mod render_handler;
+mod request_handler;
 mod tab;
 mod toolbar;
 

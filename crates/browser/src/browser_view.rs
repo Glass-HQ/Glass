@@ -1,7 +1,7 @@
 //! Browser View
 //!
 //! The main view for Browser Mode. Renders CEF browser content and handles
-//! user input for navigation and interaction.
+//! user input for navigation and interaction. Supports multiple tabs.
 
 use crate::cef_instance::CefInstance;
 use crate::input;
@@ -13,7 +13,7 @@ use gpui::{
     ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
 };
 use std::time::Duration;
-use ui::{prelude::*, Icon, IconName, IconSize};
+use ui::{prelude::*, Icon, IconButton, IconName, IconSize, Tooltip};
 use workspace_modes::{ModeId, ModeViewRegistry};
 
 actions!(
@@ -25,6 +25,10 @@ actions!(
         Undo,
         Redo,
         SelectAll,
+        NewTab,
+        CloseTab,
+        NextTab,
+        PreviousTab,
     ]
 );
 
@@ -32,12 +36,14 @@ const DEFAULT_URL: &str = "https://www.google.com";
 
 pub struct BrowserView {
     focus_handle: FocusHandle,
-    tab: Option<Entity<BrowserTab>>,
+    tabs: Vec<Entity<BrowserTab>>,
+    active_tab_index: usize,
     toolbar: Option<Entity<BrowserToolbar>>,
     content_bounds: Bounds<Pixels>,
     cef_available: bool,
-    browser_created: bool,
+    message_pump_started: bool,
     last_viewport: Option<(u32, u32, u32)>,
+    pending_new_tab_urls: Vec<String>,
     _message_pump_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -48,30 +54,124 @@ impl BrowserView {
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
-            tab: None,
+            tabs: Vec::new(),
+            active_tab_index: 0,
             toolbar: None,
             content_bounds: Bounds::default(),
             cef_available,
-            browser_created: false,
+            message_pump_started: false,
             last_viewport: None,
+            pending_new_tab_urls: Vec::new(),
             _message_pump_task: None,
             _subscriptions: Vec::new(),
         };
 
         if cef_available {
-            this.initialize_tab(cx);
+            this.add_tab(cx);
         }
 
         this
     }
 
-    fn initialize_tab(&mut self, cx: &mut Context<Self>) {
+    fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
+        self.tabs.get(self.active_tab_index)
+    }
+
+    fn add_tab(&mut self, cx: &mut Context<Self>) {
         let tab = cx.new(|cx| BrowserTab::new(cx));
 
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
 
-        self.tab = Some(tab);
+        self.tabs.push(tab);
+        self.active_tab_index = self.tabs.len() - 1;
+    }
+
+    fn add_tab_with_url(
+        &mut self,
+        url: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.add_tab(cx);
+
+        if let Some(tab) = self.active_tab() {
+            let (width, height, scale_factor) = self.current_dimensions(window);
+            if width > 0 && height > 0 {
+                tab.update(cx, |tab, _| {
+                    tab.set_scale_factor(scale_factor);
+                    tab.set_size(width, height);
+                    if let Err(e) = tab.create_browser(url) {
+                        log::error!("[browser] Failed to create browser for new tab: {}", e);
+                        return;
+                    }
+                    tab.set_focus(true);
+                    tab.invalidate();
+                });
+            }
+        }
+
+        self.update_toolbar_active_tab(window, cx);
+        cx.notify();
+    }
+
+    fn current_dimensions(&self, window: &mut Window) -> (u32, u32, f32) {
+        let scale_factor = window.scale_factor();
+        let actual_width = f32::from(self.content_bounds.size.width);
+        let actual_height = f32::from(self.content_bounds.size.height);
+
+        if actual_width > 0.0 && actual_height > 0.0 {
+            (actual_width as u32, actual_height as u32, scale_factor)
+        } else {
+            let viewport_size = window.viewport_size();
+            (
+                f32::from(viewport_size.width) as u32,
+                f32::from(viewport_size.height) as u32,
+                scale_factor,
+            )
+        }
+    }
+
+    fn switch_to_tab(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() || index == self.active_tab_index {
+            return;
+        }
+
+        // Unfocus old tab
+        if let Some(old_tab) = self.active_tab() {
+            old_tab.update(cx, |tab, _| {
+                tab.set_focus(false);
+            });
+        }
+
+        self.active_tab_index = index;
+
+        // Focus new tab, ensure browser is created
+        if let Some(new_tab) = self.active_tab() {
+            let (width, height, scale_factor) = self.current_dimensions(window);
+            new_tab.update(cx, |tab, _| {
+                if tab.current_frame().is_none() && width > 0 && height > 0 {
+                    tab.set_scale_factor(scale_factor);
+                    tab.set_size(width, height);
+                    if let Err(e) = tab.create_browser(DEFAULT_URL) {
+                        log::error!("[browser] Failed to create browser on tab switch: {}", e);
+                        return;
+                    }
+                }
+                tab.set_focus(true);
+            });
+        }
+
+        self.update_toolbar_active_tab(window, cx);
+        cx.notify();
+    }
+
+    fn update_toolbar_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let (Some(toolbar), Some(tab)) = (self.toolbar.clone(), self.active_tab().cloned()) {
+            toolbar.update(cx, |toolbar, cx| {
+                toolbar.set_active_tab(tab, window, cx);
+            });
+        }
     }
 
     fn handle_tab_event(
@@ -85,12 +185,16 @@ impl BrowserView {
                 cx.notify();
             }
             TabEvent::NavigateToUrl(url) => {
-                if let Some(tab) = &self.tab {
+                if let Some(tab) = self.active_tab() {
                     let url = url.clone();
                     tab.update(cx, |tab, _| {
                         tab.navigate(&url);
                     });
                 }
+            }
+            TabEvent::OpenNewTab(url) => {
+                self.pending_new_tab_urls.push(url.clone());
+                cx.notify();
             }
             TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) | TabEvent::LoadingStateChanged => {
                 cx.notify();
@@ -115,7 +219,7 @@ impl BrowserView {
                     let _ = cx.update(|cx| {
                         if let Some(this) = this.upgrade() {
                             this.update(cx, |view, cx| {
-                                if let Some(tab) = &view.tab {
+                                for tab in &view.tabs {
                                     tab.update(cx, |tab, cx| {
                                         tab.drain_events(cx);
                                     });
@@ -135,7 +239,7 @@ impl BrowserView {
     }
 
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(tab) = self.tab.clone() {
+        if let Some(tab) = self.active_tab().cloned() {
             let toolbar = cx.new(|cx| BrowserToolbar::new(tab, window, cx));
             self.toolbar = Some(toolbar.clone());
 
@@ -152,11 +256,11 @@ impl BrowserView {
         scale_factor: f32,
         cx: &mut Context<Self>,
     ) {
-        if self.browser_created || !CefInstance::is_context_ready() {
+        if !CefInstance::is_context_ready() {
             return;
         }
 
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_scale_factor(scale_factor);
                 tab.set_size(width, height);
@@ -167,9 +271,11 @@ impl BrowserView {
                 tab.set_focus(true);
                 tab.invalidate();
             });
-            self.browser_created = true;
             self.last_viewport = Some((width, height, (scale_factor * 1000.0) as u32));
-            self._message_pump_task = Some(Self::start_message_pump(cx));
+            if !self.message_pump_started {
+                self._message_pump_task = Some(Self::start_message_pump(cx));
+                self.message_pump_started = true;
+            }
         }
     }
 
@@ -179,7 +285,7 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_mouse_down(&tab.read(cx), event, offset);
 
@@ -196,7 +302,7 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_mouse_up(&tab.read(cx), event, offset);
         }
@@ -208,7 +314,7 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_mouse_move(&tab.read(cx), event, offset);
         }
@@ -220,7 +326,7 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_scroll_wheel(&tab.read(cx), event, offset);
         }
@@ -234,7 +340,7 @@ impl BrowserView {
     ) {
         log::info!("[browser::view] handle_key_down called (key={}, is_held={})",
             event.keystroke.key, event.is_held);
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_focus(true);
             });
@@ -258,7 +364,7 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) {
         log::info!("[browser::view] handle_key_up called (key={})", event.keystroke.key);
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
 
@@ -271,45 +377,165 @@ impl BrowserView {
     }
 
     fn handle_copy(&mut self, _: &Copy, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).copy();
         }
     }
 
     fn handle_cut(&mut self, _: &Cut, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).cut();
         }
     }
 
     fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).paste();
         }
     }
 
     fn handle_undo(&mut self, _: &Undo, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).undo();
         }
     }
 
     fn handle_redo(&mut self, _: &Redo, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).redo();
         }
     }
 
     fn handle_select_all(&mut self, _: &SelectAll, _window: &mut Window, cx: &mut Context<Self>) {
-
-        if let Some(tab) = &self.tab {
+        if let Some(tab) = self.active_tab() {
             tab.read(cx).select_all();
         }
+    }
+
+    fn handle_new_tab(&mut self, _: &NewTab, window: &mut Window, cx: &mut Context<Self>) {
+        self.add_tab_with_url(DEFAULT_URL, window, cx);
+    }
+
+    fn handle_close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
+        if self.tabs.len() <= 1 {
+            // Always keep at least one tab — replace with a fresh one
+            if let Some(tab) = self.tabs.pop() {
+                drop(tab);
+            }
+            self.active_tab_index = 0;
+            self.add_tab(cx);
+
+            if let Some(tab) = self.active_tab() {
+                let (width, height, scale_factor) = self.current_dimensions(window);
+                if width > 0 && height > 0 {
+                    tab.update(cx, |tab, _| {
+                        tab.set_scale_factor(scale_factor);
+                        tab.set_size(width, height);
+                        if let Err(e) = tab.create_browser(DEFAULT_URL) {
+                            log::error!("[browser] Failed to create replacement tab: {}", e);
+                            return;
+                        }
+                        tab.set_focus(true);
+                        tab.invalidate();
+                    });
+                }
+            }
+
+            self.update_toolbar_active_tab(window, cx);
+            cx.notify();
+            return;
+        }
+
+        let closed_index = self.active_tab_index;
+        self.tabs.remove(closed_index);
+
+        if closed_index >= self.tabs.len() {
+            self.active_tab_index = self.tabs.len() - 1;
+        } else {
+            self.active_tab_index = closed_index;
+        }
+
+        // Focus the new active tab
+        if let Some(tab) = self.active_tab() {
+            tab.update(cx, |tab, _| {
+                tab.set_focus(true);
+            });
+        }
+
+        self.update_toolbar_active_tab(window, cx);
+        cx.notify();
+    }
+
+    fn handle_next_tab(&mut self, _: &NextTab, window: &mut Window, cx: &mut Context<Self>) {
+        if self.tabs.len() <= 1 {
+            return;
+        }
+        let next_index = (self.active_tab_index + 1) % self.tabs.len();
+        self.switch_to_tab(next_index, window, cx);
+    }
+
+    fn handle_previous_tab(&mut self, _: &PreviousTab, window: &mut Window, cx: &mut Context<Self>) {
+        if self.tabs.len() <= 1 {
+            return;
+        }
+        let previous_index = if self.active_tab_index == 0 {
+            self.tabs.len() - 1
+        } else {
+            self.active_tab_index - 1
+        };
+        self.switch_to_tab(previous_index, window, cx);
+    }
+
+    fn close_tab_at(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if self.tabs.len() <= 1 {
+            // Last tab — replace with fresh
+            if let Some(tab) = self.tabs.pop() {
+                drop(tab);
+            }
+            self.active_tab_index = 0;
+            self.add_tab(cx);
+
+            if let Some(tab) = self.active_tab() {
+                let (width, height, scale_factor) = self.current_dimensions(window);
+                if width > 0 && height > 0 {
+                    tab.update(cx, |tab, _| {
+                        tab.set_scale_factor(scale_factor);
+                        tab.set_size(width, height);
+                        if let Err(e) = tab.create_browser(DEFAULT_URL) {
+                            log::error!("[browser] Failed to create replacement tab: {}", e);
+                            return;
+                        }
+                        tab.set_focus(true);
+                        tab.invalidate();
+                    });
+                }
+            }
+
+            self.update_toolbar_active_tab(window, cx);
+            cx.notify();
+            return;
+        }
+
+        self.tabs.remove(index);
+
+        if self.active_tab_index >= self.tabs.len() {
+            self.active_tab_index = self.tabs.len() - 1;
+        } else if index < self.active_tab_index {
+            self.active_tab_index -= 1;
+        } else if index == self.active_tab_index {
+            // Active tab was closed; clamp and focus replacement
+            if self.active_tab_index >= self.tabs.len() {
+                self.active_tab_index = self.tabs.len() - 1;
+            }
+            if let Some(tab) = self.active_tab() {
+                tab.update(cx, |tab, _| {
+                    tab.set_focus(true);
+                });
+            }
+        }
+
+        self.update_toolbar_active_tab(window, cx);
+        cx.notify();
     }
 
     fn render_placeholder(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -350,12 +576,83 @@ impl BrowserView {
             )
     }
 
+    fn render_tab_strip(&self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let active_index = self.active_tab_index;
+
+        h_flex()
+            .w_full()
+            .h(px(30.))
+            .flex_shrink_0()
+            .bg(theme.colors().title_bar_background)
+            .border_b_1()
+            .border_color(theme.colors().border)
+            .children(self.tabs.iter().enumerate().map(|(index, tab)| {
+                let title = tab.read(cx).title().to_string();
+                let is_active = index == active_index;
+                let display_title = if title.len() > 24 {
+                    format!("{}...", &title[..21])
+                } else {
+                    title
+                };
+
+                div()
+                    .id(("browser-tab", index))
+                    .flex()
+                    .items_center()
+                    .h_full()
+                    .px_2()
+                    .gap_1()
+                    .min_w(px(80.))
+                    .max_w(px(200.))
+                    .border_r_1()
+                    .border_color(theme.colors().border)
+                    .cursor_pointer()
+                    .when(is_active, |this| {
+                        this.bg(theme.colors().editor_background)
+                    })
+                    .when(!is_active, |this| {
+                        this.hover(|style| style.bg(theme.colors().ghost_element_hover))
+                    })
+                    .on_click(cx.listener(move |this, _, window, cx| {
+                        this.switch_to_tab(index, window, cx);
+                    }))
+                    .child(
+                        div()
+                            .flex_1()
+                            .overflow_hidden()
+                            .text_size(rems(0.75))
+                            .text_color(if is_active {
+                                theme.colors().text
+                            } else {
+                                theme.colors().text_muted
+                            })
+                            .child(display_title)
+                    )
+                    .child(
+                        IconButton::new(("close-tab", index), IconName::Close)
+                            .icon_size(IconSize::XSmall)
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.close_tab_at(index, window, cx);
+                            }))
+                            .tooltip(Tooltip::text("Close Tab")),
+                    )
+            }))
+            .child(
+                IconButton::new("new-tab-button", IconName::Plus)
+                    .icon_size(IconSize::XSmall)
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        this.add_tab_with_url(DEFAULT_URL, window, cx);
+                    }))
+                    .tooltip(Tooltip::text("New Tab")),
+            )
+    }
+
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
 
         let current_frame = self
-            .tab
-            .as_ref()
+            .active_tab()
             .and_then(|t| t.read(cx).current_frame());
 
         let has_frame = current_frame.is_some();
@@ -428,16 +725,22 @@ impl Render for BrowserView {
                 .into_any_element();
         }
 
-        if self.toolbar.is_none() && self.tab.is_some() {
+        if self.toolbar.is_none() && !self.tabs.is_empty() {
             cx.defer_in(window, |this, window, cx| {
                 this.create_toolbar(window, cx);
             });
         }
 
+        // Process any pending new tab URLs queued from OpenNewTab events
+        if !self.pending_new_tab_urls.is_empty() {
+            let urls: Vec<String> = std::mem::take(&mut self.pending_new_tab_urls);
+            for url in urls {
+                self.add_tab_with_url(&url, window, cx);
+            }
+        }
+
         let scale_factor = window.scale_factor();
 
-        // Use actual content_bounds from the layout engine when available,
-        // falling back to calculated values only for initial browser creation.
         let actual_width = f32::from(self.content_bounds.size.width);
         let actual_height = f32::from(self.content_bounds.size.height);
         let has_actual_bounds = actual_width > 0.0 && actual_height > 0.0;
@@ -453,9 +756,9 @@ impl Render for BrowserView {
         };
 
         if content_width > 0 && content_height > 0 {
-            if !self.browser_created {
+            if !self.message_pump_started {
                 self.ensure_browser_created(content_width, content_height, scale_factor, cx);
-                if !self.browser_created {
+                if !self.message_pump_started {
                     cx.notify();
                 }
             } else {
@@ -463,7 +766,7 @@ impl Render for BrowserView {
                 let new_viewport = (content_width, content_height, scale_key);
                 if self.last_viewport != Some(new_viewport) {
                     self.last_viewport = Some(new_viewport);
-                    if let Some(tab) = &self.tab {
+                    if let Some(tab) = self.active_tab() {
                         tab.update(cx, |tab, _| {
                             tab.set_scale_factor(scale_factor);
                             tab.set_size(content_width, content_height);
@@ -485,9 +788,14 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_undo))
             .on_action(cx.listener(Self::handle_redo))
             .on_action(cx.listener(Self::handle_select_all))
+            .on_action(cx.listener(Self::handle_new_tab))
+            .on_action(cx.listener(Self::handle_close_tab))
+            .on_action(cx.listener(Self::handle_next_tab))
+            .on_action(cx.listener(Self::handle_previous_tab))
             .size_full()
             .flex()
             .flex_col()
+            .child(self.render_tab_strip(cx))
             .child(self.render_browser_content(cx))
             .into_any_element();
 

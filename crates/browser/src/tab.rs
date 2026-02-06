@@ -21,6 +21,7 @@ pub enum TabEvent {
     LoadingStateChanged,
     FrameReady,
     NavigateToUrl(String),
+    OpenNewTab(String),
     LoadError {
         url: String,
         error_code: i32,
@@ -92,7 +93,7 @@ impl BrowserTab {
                 }
                 BrowserEvent::BrowserCreated => {}
                 BrowserEvent::PopupRequested(url) => {
-                    cx.emit(TabEvent::NavigateToUrl(url));
+                    cx.emit(TabEvent::OpenNewTab(url));
                 }
                 BrowserEvent::LoadError {
                     url,

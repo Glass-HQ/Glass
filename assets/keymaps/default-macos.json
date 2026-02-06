@@ -1179,7 +1179,11 @@
       "cmd-v": "browser::Paste",
       "cmd-z": "browser::Undo",
       "cmd-shift-z": "browser::Redo",
-      "cmd-a": "browser::SelectAll"
+      "cmd-a": "browser::SelectAll",
+      "cmd-t": "browser::NewTab",
+      "cmd-w": "browser::CloseTab",
+      "cmd-shift-]": "browser::NextTab",
+      "cmd-shift-[": "browser::PreviousTab"
     }
   },
   {
