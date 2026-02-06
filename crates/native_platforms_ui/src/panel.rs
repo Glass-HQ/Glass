@@ -6,7 +6,7 @@ use gpui::{
     Action, App, AppContext, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle,
     Focusable, Pixels, Render, Subscription, Task, WeakEntity, Window, actions, px,
 };
-use native_platforms::apple::{build, simulator, xcode};
+use native_platforms::apple::{build, run, simulator, xcode};
 use native_platforms::{BuildConfiguration, Device, DeviceState, DeviceType};
 use project::Project;
 use serde::{Deserialize, Serialize};
@@ -354,14 +354,14 @@ impl NativePlatformsPanel {
         let workspace = self.workspace.clone();
 
         self.build_task = Some(cx.spawn_in(window, async move |this, cx| {
-            let build_result = build::run(&xcode_project, &options).await;
+            let run_result = run::run(&xcode_project, &options).await;
 
-            match build_result {
+            match run_result {
                 Ok(process) => {
                     if let Some(workspace) = workspace.upgrade() {
                         workspace.update_in(cx, |workspace, window, cx| {
                             let build_logs = cx.new(|cx| {
-                                BuildLogsView::new(process.output_receiver, window, cx)
+                                BuildLogsView::new_run(process.output_receiver, window, cx)
                             });
                             workspace.add_item_to_active_pane(
                                 Box::new(build_logs),

@@ -5,6 +5,9 @@ use gpui::{
     UniformListScrollHandle, Window, uniform_list,
 };
 use native_platforms::apple::build::BuildOutput;
+use native_platforms::apple::install::InstallOutput;
+use native_platforms::apple::launch::LaunchOutput;
+use native_platforms::apple::run::RunOutput;
 use ui::prelude::*;
 use ui::Tooltip;
 use workspace::item::{Item, ItemEvent, TabContentParams};
@@ -15,6 +18,7 @@ pub struct BuildLogsView {
     scroll_handle: UniformListScrollHandle,
     is_complete: bool,
     build_success: Option<bool>,
+    header_label: &'static str,
     _receiver_task: Task<()>,
 }
 
@@ -24,6 +28,9 @@ enum LogLine {
     Error(String),
     Warning(String),
     Progress(String),
+    InstallProgress { phase: String, percent: f32 },
+    PhaseChange(String),
+    Retry(String),
 }
 
 impl BuildLogsView {
@@ -150,6 +157,222 @@ impl BuildLogsView {
             scroll_handle: UniformListScrollHandle::new(),
             is_complete: false,
             build_success: None,
+            header_label: "Build Output",
+            _receiver_task: receiver_task,
+        }
+    }
+
+    pub fn new_run(
+        mut receiver: mpsc::UnboundedReceiver<RunOutput>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let focus_handle = cx.focus_handle();
+
+        let receiver_task = cx.spawn_in(window, async move |this, cx| {
+            let mut pending_lines: Vec<LogLine> = Vec::new();
+            let mut last_notify = std::time::Instant::now();
+            let mut is_complete = false;
+            let mut build_success = None;
+
+            loop {
+                use futures::future::{select, Either};
+                use std::time::Duration;
+
+                let timeout = cx.background_executor().timer(Duration::from_millis(50));
+                let next_output = receiver.next();
+
+                futures::pin_mut!(timeout);
+                futures::pin_mut!(next_output);
+
+                match select(next_output, timeout).await {
+                    Either::Left((Some(output), _)) => {
+                        match output {
+                            RunOutput::PhaseChanged(phase) => {
+                                pending_lines.push(LogLine::PhaseChange(phase.label().to_string()));
+                            }
+                            RunOutput::Build(build_output) => {
+                                match build_output {
+                                    BuildOutput::Line(line) => {
+                                        pending_lines.push(LogLine::Normal(line));
+                                    }
+                                    BuildOutput::Error(error) => {
+                                        let msg = if let Some(file) = &error.file {
+                                            if let Some(line) = error.line {
+                                                format!("{}:{}: error: {}", file, line, error.message)
+                                            } else {
+                                                format!("{}: error: {}", file, error.message)
+                                            }
+                                        } else {
+                                            format!("error: {}", error.message)
+                                        };
+                                        pending_lines.push(LogLine::Error(msg));
+                                    }
+                                    BuildOutput::Warning(warning) => {
+                                        let msg = if let Some(file) = &warning.file {
+                                            if let Some(line) = warning.line {
+                                                format!("{}:{}: warning: {}", file, line, warning.message)
+                                            } else {
+                                                format!("{}: warning: {}", file, warning.message)
+                                            }
+                                        } else {
+                                            format!("warning: {}", warning.message)
+                                        };
+                                        pending_lines.push(LogLine::Warning(msg));
+                                    }
+                                    BuildOutput::Progress { phase, .. } => {
+                                        pending_lines.push(LogLine::Progress(phase));
+                                    }
+                                    BuildOutput::Completed(result) => {
+                                        // Build completed but pipeline continues
+                                        if result.success {
+                                            pending_lines.push(LogLine::Progress("Build succeeded".to_string()));
+                                        } else {
+                                            pending_lines.push(LogLine::Error("Build failed".to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                            RunOutput::Install(install_output) => {
+                                match install_output {
+                                    InstallOutput::Line(line) => {
+                                        pending_lines.push(LogLine::Normal(line));
+                                    }
+                                    InstallOutput::Progress(progress) => {
+                                        pending_lines.push(LogLine::InstallProgress {
+                                            phase: progress.phase.label().to_string(),
+                                            percent: progress.percent,
+                                        });
+                                    }
+                                    InstallOutput::Error(err) => {
+                                        if err.kind.is_retryable() {
+                                            pending_lines.push(LogLine::Warning(format!(
+                                                "Install error (retryable): {}",
+                                                err.message
+                                            )));
+                                        } else {
+                                            pending_lines.push(LogLine::Error(format!(
+                                                "Install error: {} — {}",
+                                                err.message,
+                                                err.kind.user_suggestion()
+                                            )));
+                                        }
+                                    }
+                                    InstallOutput::Retrying { attempt, max_retries, reason } => {
+                                        pending_lines.push(LogLine::Retry(format!(
+                                            "Retrying install ({}/{}) — {}",
+                                            attempt, max_retries, reason
+                                        )));
+                                    }
+                                    InstallOutput::Completed => {
+                                        pending_lines.push(LogLine::Progress("Installation complete".to_string()));
+                                    }
+                                    InstallOutput::Failed(err) => {
+                                        pending_lines.push(LogLine::Error(format!(
+                                            "Installation failed: {} — {}",
+                                            err.message,
+                                            err.kind.user_suggestion()
+                                        )));
+                                    }
+                                }
+                            }
+                            RunOutput::Launch(launch_output) => {
+                                match launch_output {
+                                    LaunchOutput::Line(line) => {
+                                        pending_lines.push(LogLine::Normal(line));
+                                    }
+                                    LaunchOutput::Progress(msg) => {
+                                        pending_lines.push(LogLine::Progress(msg));
+                                    }
+                                    LaunchOutput::Completed { pid } => {
+                                        let msg = if let Some(pid) = pid {
+                                            format!("App launched (PID: {})", pid)
+                                        } else {
+                                            "App launched".to_string()
+                                        };
+                                        pending_lines.push(LogLine::Progress(msg));
+                                    }
+                                    LaunchOutput::Failed(err) => {
+                                        pending_lines.push(LogLine::Error(format!(
+                                            "Launch failed: {}",
+                                            err.message
+                                        )));
+                                    }
+                                }
+                            }
+                            RunOutput::Completed => {
+                                is_complete = true;
+                                build_success = Some(true);
+                                pending_lines.push(LogLine::Progress("Pipeline complete".to_string()));
+                            }
+                            RunOutput::Failed { phase, message } => {
+                                is_complete = true;
+                                build_success = Some(false);
+                                pending_lines.push(LogLine::Error(format!(
+                                    "Failed during {}: {}",
+                                    phase.label(),
+                                    message
+                                )));
+                            }
+                        }
+
+                        let should_flush = is_complete
+                            || pending_lines.len() >= 100
+                            || last_notify.elapsed() > Duration::from_millis(100);
+
+                        if should_flush && !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let complete = is_complete;
+                            let success = build_success;
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                if complete {
+                                    this.is_complete = true;
+                                    this.build_success = success;
+                                }
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                            last_notify = std::time::Instant::now();
+                        }
+
+                        if is_complete {
+                            break;
+                        }
+                    }
+                    Either::Left((None, _)) => {
+                        if !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                        }
+                        break;
+                    }
+                    Either::Right((_, _)) => {
+                        if !pending_lines.is_empty() {
+                            let lines_to_add = std::mem::take(&mut pending_lines);
+                            let _ = this.update(cx, |this, cx| {
+                                this.lines.extend(lines_to_add);
+                                cx.emit(ItemEvent::UpdateTab);
+                                cx.notify();
+                            });
+                            last_notify = std::time::Instant::now();
+                        }
+                    }
+                }
+            }
+        });
+
+        Self {
+            focus_handle,
+            lines: Vec::new(),
+            scroll_handle: UniformListScrollHandle::new(),
+            is_complete: false,
+            build_success: None,
+            header_label: "Run Output",
             _receiver_task: receiver_task,
         }
     }
@@ -187,6 +410,65 @@ impl BuildLogsView {
                             .child(Label::new(text.clone()).size(LabelSize::Small).color(Color::Accent))
                     )
             }
+            LogLine::InstallProgress { phase, percent } => {
+                let label = format!("{} — {:.0}%", phase, percent);
+                let bar_width = (*percent).clamp(0.0, 100.0);
+                div()
+                    .px_2()
+                    .py_px()
+                    .child(
+                        v_flex()
+                            .gap_1()
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(Icon::new(IconName::ArrowRight).size(IconSize::Small).color(Color::Accent))
+                                    .child(Label::new(label).size(LabelSize::Small).color(Color::Accent))
+                            )
+                            .child(
+                                div()
+                                    .h(px(3.0))
+                                    .w_full()
+                                    .bg(cx.theme().colors().border)
+                                    .child(
+                                        div()
+                                            .h_full()
+                                            .w(relative(bar_width / 100.0))
+                                            .bg(cx.theme().status().info)
+                                    )
+                            )
+                    )
+            }
+            LogLine::PhaseChange(text) => {
+                div()
+                    .px_2()
+                    .py_1()
+                    .border_t_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(Icon::new(IconName::ArrowRight).size(IconSize::Small).color(Color::Accent))
+                            .child(
+                                Label::new(text.clone())
+                                    .size(LabelSize::Small)
+                                    .color(Color::Accent)
+                                    .weight(gpui::FontWeight::BOLD)
+                            )
+                    )
+            }
+            LogLine::Retry(text) => {
+                div()
+                    .px_2()
+                    .py_px()
+                    .bg(cx.theme().status().warning_background)
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .child(Icon::new(IconName::ArrowCircle).size(IconSize::Small).color(Color::Warning))
+                            .child(Label::new(text.clone()).size(LabelSize::Small).color(Color::Warning))
+                    )
+            }
         }
     }
 
@@ -198,6 +480,11 @@ impl BuildLogsView {
                 LogLine::Error(text) => text.clone(),
                 LogLine::Warning(text) => text.clone(),
                 LogLine::Progress(text) => text.clone(),
+                LogLine::InstallProgress { phase, percent } => {
+                    format!("{} — {:.0}%", phase, percent)
+                }
+                LogLine::PhaseChange(text) => format!("--- {} ---", text),
+                LogLine::Retry(text) => text.clone(),
             })
             .collect::<Vec<_>>()
             .join("\n")
@@ -217,6 +504,7 @@ impl Render for BuildLogsView {
         let lines = self.lines.clone();
         let line_count = lines.len();
         let full_text = self.full_text();
+        let header_label = self.header_label;
 
         v_flex()
             .key_context("BuildLogsView")
@@ -233,7 +521,7 @@ impl Render for BuildLogsView {
                     .border_b_1()
                     .border_color(cx.theme().colors().border)
                     .child(
-                        Label::new("Build Output")
+                        Label::new(header_label)
                             .size(LabelSize::Small)
                             .color(Color::Muted),
                     )
