@@ -4,6 +4,7 @@
 //! and drains the event channel from CEF handlers to emit GPUI events.
 
 use crate::client::{ClientBuilder, MANUAL_KEY_EVENT};
+use crate::context_menu_handler::ContextMenuContext;
 use crate::events::{self, BrowserEvent, EventReceiver};
 use crate::render_handler::RenderState;
 use anyhow::{Context as _, Result};
@@ -26,6 +27,9 @@ pub enum TabEvent {
         url: String,
         error_code: i32,
         error_text: String,
+    },
+    ContextMenuOpen {
+        context: ContextMenuContext,
     },
 }
 
@@ -105,6 +109,9 @@ impl BrowserTab {
                         error_code,
                         error_text,
                     });
+                }
+                BrowserEvent::ContextMenuRequested { context } => {
+                    cx.emit(TabEvent::ContextMenuOpen { context });
                 }
             }
         }
@@ -211,6 +218,10 @@ impl BrowserTab {
 
     pub fn select_all(&self) {
         self.with_focused_frame(|frame| frame.select_all());
+    }
+
+    pub fn delete(&self) {
+        self.with_focused_frame(|frame| frame.del());
     }
 
     pub fn open_devtools(&self) {

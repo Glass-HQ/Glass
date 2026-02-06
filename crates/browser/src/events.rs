@@ -3,6 +3,7 @@
 //! Defines events sent from CEF handler threads to the BrowserTab entity
 //! on the main/foreground thread via a channel.
 
+use crate::context_menu_handler::ContextMenuContext;
 use std::sync::mpsc;
 
 pub enum BrowserEvent {
@@ -21,6 +22,9 @@ pub enum BrowserEvent {
         url: String,
         error_code: i32,
         error_text: String,
+    },
+    ContextMenuRequested {
+        context: ContextMenuContext,
     },
 }
 

@@ -4,13 +4,15 @@
 //! user input for navigation and interaction. Supports multiple tabs.
 
 use crate::cef_instance::CefInstance;
+use crate::context_menu_handler::ContextMenuContext;
 use crate::input;
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    actions, canvas, div, point, prelude::*, surface, App, Bounds, Context, Entity, EventEmitter,
-    FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton, ObjectFit,
-    ParentElement, Pixels, Render, Styled, Subscription, Task, Window,
+    actions, anchored, canvas, deferred, div, point, prelude::*, surface, App, Bounds, Context,
+    Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render, Styled,
+    Subscription, Task, Window,
 };
 use std::time::Duration;
 use ui::{prelude::*, Icon, IconButton, IconName, IconSize, Tooltip};
@@ -34,6 +36,16 @@ actions!(
 
 const DEFAULT_URL: &str = "https://www.google.com";
 
+struct BrowserContextMenu {
+    menu: Entity<ui::ContextMenu>,
+    position: Point<Pixels>,
+    _dismiss_subscription: Subscription,
+}
+
+struct PendingContextMenu {
+    context: ContextMenuContext,
+}
+
 pub struct BrowserView {
     focus_handle: FocusHandle,
     tabs: Vec<Entity<BrowserTab>>,
@@ -44,6 +56,8 @@ pub struct BrowserView {
     message_pump_started: bool,
     last_viewport: Option<(u32, u32, u32)>,
     pending_new_tab_urls: Vec<String>,
+    context_menu: Option<BrowserContextMenu>,
+    pending_context_menu: Option<PendingContextMenu>,
     _message_pump_task: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -62,6 +76,8 @@ impl BrowserView {
             message_pump_started: false,
             last_viewport: None,
             pending_new_tab_urls: Vec::new(),
+            context_menu: None,
+            pending_context_menu: None,
             _message_pump_task: None,
             _subscriptions: Vec::new(),
         };
@@ -203,7 +219,156 @@ impl BrowserView {
                 log::warn!("[browser] load error: url={} err={}", url, error_text);
                 cx.notify();
             }
+            TabEvent::ContextMenuOpen { context } => {
+                self.pending_context_menu = Some(PendingContextMenu {
+                    context: context.clone(),
+                });
+                cx.notify();
+            }
         }
+    }
+
+    fn open_context_menu(
+        &mut self,
+        context: ContextMenuContext,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let position = window.mouse_position();
+        let tab = match self.active_tab().cloned() {
+            Some(tab) => tab,
+            None => return,
+        };
+
+        let menu = ui::ContextMenu::build(window, cx, move |mut menu, _window, _cx| {
+            let has_link = context.link_url.is_some();
+            let has_selection = context.selection_text.is_some();
+
+            // Link actions
+            if let Some(link_url) = &context.link_url {
+                let url = link_url.clone();
+                let tab = tab.clone();
+                menu = menu.entry("Open Link in New Tab", None, move |_window, cx| {
+                    tab.update(cx, |_, cx| {
+                        cx.emit(TabEvent::OpenNewTab(url.clone()));
+                    });
+                });
+
+                let url = link_url.clone();
+                menu = menu.entry("Copy Link Address", None, move |_window, cx| {
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(url.clone()));
+                });
+
+                menu = menu.separator();
+            }
+
+            // Edit actions for editable fields
+            if context.is_editable {
+                if context.can_undo {
+                    let tab = tab.clone();
+                    menu = menu.entry("Undo", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.undo());
+                    });
+                }
+                if context.can_redo {
+                    let tab = tab.clone();
+                    menu = menu.entry("Redo", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.redo());
+                    });
+                }
+                if context.can_undo || context.can_redo {
+                    menu = menu.separator();
+                }
+                if context.can_cut {
+                    let tab = tab.clone();
+                    menu = menu.entry("Cut", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.cut());
+                    });
+                }
+                if context.can_copy {
+                    let tab = tab.clone();
+                    menu = menu.entry("Copy", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.copy());
+                    });
+                }
+                if context.can_paste {
+                    let tab = tab.clone();
+                    menu = menu.entry("Paste", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.paste());
+                    });
+                }
+                if context.can_delete {
+                    let tab = tab.clone();
+                    menu = menu.entry("Delete", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.delete());
+                    });
+                }
+                menu = menu.separator();
+                if context.can_select_all {
+                    let tab = tab.clone();
+                    menu = menu.entry("Select All", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.select_all());
+                    });
+                }
+            } else {
+                // Non-editable: just copy if there's a selection
+                if has_selection {
+                    let tab = tab.clone();
+                    menu = menu.entry("Copy", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.copy());
+                    });
+                    menu = menu.separator();
+                }
+            }
+
+            // Navigation (only when not on a link or selection)
+            if !has_link && !has_selection && !context.is_editable {
+                {
+                    let tab = tab.clone();
+                    menu = menu.entry("Back", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.go_back());
+                    });
+                }
+                {
+                    let tab = tab.clone();
+                    menu = menu.entry("Forward", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.go_forward());
+                    });
+                }
+                {
+                    let tab = tab.clone();
+                    menu = menu.entry("Reload", None, move |_window, cx| {
+                        tab.update(cx, |tab, _| tab.reload());
+                    });
+                }
+                menu = menu.separator();
+            }
+
+            // Always show Inspect
+            {
+                let tab = tab.clone();
+                menu = menu.entry("Inspect", None, move |_window, cx| {
+                    tab.update(cx, |tab, _| tab.open_devtools());
+                });
+            }
+
+            menu
+        });
+
+        let dismiss_subscription = cx.subscribe(&menu, {
+            move |this, _, _event: &DismissEvent, cx| {
+                this.context_menu.take();
+                cx.notify();
+            }
+        });
+
+        self.context_menu = Some(BrowserContextMenu {
+            menu,
+            position,
+            _dismiss_subscription: dismiss_subscription,
+        });
+
+        cx.notify();
     }
 
     fn start_message_pump(cx: &mut Context<Self>) -> Task<()> {
@@ -285,6 +450,10 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.context_menu.is_some() && event.button != MouseButton::Right {
+            self.dismiss_context_menu();
+        }
+
         if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_mouse_down(&tab.read(cx), event, offset);
@@ -294,6 +463,12 @@ impl BrowserView {
             });
         }
         window.focus(&self.focus_handle, cx);
+    }
+
+    fn dismiss_context_menu(&mut self) {
+        if let Some(cm) = self.context_menu.take() {
+            drop(cm);
+        }
     }
 
     fn handle_mouse_up(
@@ -669,6 +844,17 @@ impl BrowserView {
         .absolute()
         .size_full();
 
+        let context_menu_overlay = self.context_menu.as_ref().map(|cm| {
+            deferred(
+                anchored()
+                    .position(cm.position)
+                    .anchor(Corner::TopLeft)
+                    .snap_to_window_with_margin(px(8.))
+                    .child(cm.menu.clone()),
+            )
+            .with_priority(1)
+        });
+
         let element = div()
             .id("browser-content")
             .relative()
@@ -700,6 +886,9 @@ impl BrowserView {
                                 .child("Loading..."),
                         ),
                 )
+            })
+            .when_some(context_menu_overlay, |this, overlay| {
+                this.child(overlay)
             });
 
         element
@@ -737,6 +926,10 @@ impl Render for BrowserView {
             for url in urls {
                 self.add_tab_with_url(&url, window, cx);
             }
+        }
+
+        if let Some(pending) = self.pending_context_menu.take() {
+            self.open_context_menu(pending.context, window, cx);
         }
 
         let scale_factor = window.scale_factor();

@@ -6,6 +6,7 @@
 mod browser_view;
 mod cef_instance;
 mod client;
+mod context_menu_handler;
 mod display_handler;
 mod events;
 mod input;

@@ -4,11 +4,12 @@
 //! Ties together the render, load, display, life span, and keyboard handlers.
 
 use cef::{
-    rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, DisplayHandler, ImplClient,
-    ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler, LoadHandler, RenderHandler,
-    WrapClient, WrapKeyboardHandler,
+    rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, ContextMenuHandler,
+    DisplayHandler, ImplClient, ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler,
+    LoadHandler, RenderHandler, WrapClient, WrapKeyboardHandler,
 };
 
+use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
 use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};
 use crate::events::EventSender;
 use crate::life_span_handler::{LifeSpanHandlerBuilder, OsrLifeSpanHandler};
@@ -77,6 +78,7 @@ wrap_client! {
         life_span_handler: LifeSpanHandler,
         keyboard_handler: KeyboardHandler,
         request_handler: cef::RequestHandler,
+        context_menu_handler: ContextMenuHandler,
     }
 
     impl Client {
@@ -103,6 +105,10 @@ wrap_client! {
         fn request_handler(&self) -> Option<cef::RequestHandler> {
             Some(self.request_handler.clone())
         }
+
+        fn context_menu_handler(&self) -> Option<cef::ContextMenuHandler> {
+            Some(self.context_menu_handler.clone())
+        }
     }
 }
 
@@ -115,7 +121,8 @@ impl ClientBuilder {
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
         let life_span_handler = OsrLifeSpanHandler::new(event_sender.clone());
-        let request_handler = OsrRequestHandler::new(event_sender);
+        let request_handler = OsrRequestHandler::new(event_sender.clone());
+        let context_menu_handler = OsrContextMenuHandler::new(event_sender);
         Self::new(
             RenderHandlerBuilder::build(render_handler),
             LoadHandlerBuilder::build(load_handler),
@@ -123,6 +130,7 @@ impl ClientBuilder {
             LifeSpanHandlerBuilder::build(life_span_handler),
             KeyboardHandlerBuilder::build(),
             RequestHandlerBuilder::build(request_handler),
+            ContextMenuHandlerBuilder::build(context_menu_handler),
         )
     }
 }
