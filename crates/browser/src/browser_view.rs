@@ -900,7 +900,11 @@ impl BrowserView {
                 let title = tab.read(cx).title().to_string();
                 let is_active = index == active_index;
                 let display_title = if title.len() > 24 {
-                    format!("{}...", &title[..21])
+                    let truncated = match title.char_indices().nth(21) {
+                        Some((byte_index, _)) => &title[..byte_index],
+                        None => &title,
+                    };
+                    format!("{truncated}...")
                 } else {
                     title
                 };
