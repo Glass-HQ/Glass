@@ -26,6 +26,7 @@ pub enum BrowserEvent {
     ContextMenuRequested {
         context: ContextMenuContext,
     },
+    FaviconUrlChanged(Vec<String>),
 }
 
 pub type EventSender = mpsc::Sender<BrowserEvent>;

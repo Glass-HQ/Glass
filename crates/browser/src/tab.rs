@@ -23,6 +23,7 @@ pub enum TabEvent {
     FrameReady,
     NavigateToUrl(String),
     OpenNewTab(String),
+    FaviconChanged(Option<String>),
     LoadError {
         url: String,
         error_code: i32,
@@ -44,6 +45,10 @@ pub struct BrowserTab {
     can_go_back: bool,
     can_go_forward: bool,
     loading_progress: f64,
+    is_new_tab_page: bool,
+    is_pinned: bool,
+    favicon_url: Option<String>,
+    pending_url: Option<String>,
 }
 
 impl EventEmitter<TabEvent> for BrowserTab {}
@@ -59,16 +64,26 @@ impl BrowserTab {
             client,
             render_state,
             event_receiver: receiver,
-            url: String::from("about:blank"),
+            url: String::from("glass://newtab"),
             title: String::from("New Tab"),
             is_loading: false,
             can_go_back: false,
             can_go_forward: false,
             loading_progress: 0.0,
+            is_new_tab_page: true,
+            is_pinned: false,
+            favicon_url: None,
+            pending_url: None,
         }
     }
 
-    pub fn new_with_state(url: String, title: String, _cx: &mut Context<Self>) -> Self {
+    pub fn new_with_state(
+        url: String,
+        title: String,
+        is_new_tab_page: bool,
+        favicon_url: Option<String>,
+        _cx: &mut Context<Self>,
+    ) -> Self {
         let render_state = Arc::new(Mutex::new(RenderState::default()));
         let (sender, receiver) = events::event_channel();
         let client = ClientBuilder::build(render_state.clone(), sender);
@@ -84,6 +99,10 @@ impl BrowserTab {
             can_go_back: false,
             can_go_forward: false,
             loading_progress: 0.0,
+            is_new_tab_page,
+            is_pinned: false,
+            favicon_url,
+            pending_url: None,
         }
     }
 
@@ -132,6 +151,10 @@ impl BrowserTab {
                 BrowserEvent::ContextMenuRequested { context } => {
                     cx.emit(TabEvent::ContextMenuOpen { context });
                 }
+                BrowserEvent::FaviconUrlChanged(urls) => {
+                    self.favicon_url = urls.into_iter().next();
+                    cx.emit(TabEvent::FaviconChanged(self.favicon_url.clone()));
+                }
             }
         }
     }
@@ -174,7 +197,8 @@ impl BrowserTab {
         Ok(())
     }
 
-    pub fn navigate(&mut self, url: &str) {
+    pub fn navigate(&mut self, url: &str, cx: &mut Context<Self>) {
+        self.favicon_url = None;
         if let Some(browser) = &self.browser {
             if let Some(frame) = browser.main_frame() {
                 let url_string = cef::CefString::from(url);
@@ -182,6 +206,9 @@ impl BrowserTab {
                 self.url = url.to_string();
                 self.is_loading = true;
             }
+        } else {
+            self.url = url.to_string();
+            cx.emit(TabEvent::NavigateToUrl(url.to_string()));
         }
     }
 
@@ -279,6 +306,18 @@ impl BrowserTab {
         });
     }
 
+    pub fn set_hidden(&self, hidden: bool) {
+        self.with_host(|host| {
+            host.was_hidden(if hidden { 1 } else { 0 });
+        });
+    }
+
+    pub fn set_audio_muted(&self, muted: bool) {
+        self.with_host(|host| {
+            host.set_audio_muted(if muted { 1 } else { 0 });
+        });
+    }
+
     pub fn send_mouse_click(
         &self,
         x: i32,
@@ -353,6 +392,48 @@ impl BrowserTab {
 
     pub fn can_go_forward(&self) -> bool {
         self.can_go_forward
+    }
+
+    pub fn favicon_url(&self) -> Option<&str> {
+        self.favicon_url.as_deref()
+    }
+
+    pub fn is_new_tab_page(&self) -> bool {
+        self.is_new_tab_page
+    }
+
+    pub fn set_new_tab_page(&mut self, value: bool) {
+        self.is_new_tab_page = value;
+    }
+
+    pub fn set_pending_url(&mut self, url: String) {
+        self.url = url.clone();
+        self.title = url.clone();
+        self.pending_url = Some(url);
+    }
+
+    pub fn take_pending_url(&mut self) -> Option<String> {
+        self.pending_url.take()
+    }
+
+    pub fn has_pending_url(&self) -> bool {
+        self.pending_url.is_some()
+    }
+
+    pub fn is_pinned(&self) -> bool {
+        self.is_pinned
+    }
+
+    pub fn set_pinned(&mut self, value: bool) {
+        self.is_pinned = value;
+    }
+
+    pub fn close_browser(&mut self) {
+        if let Some(browser) = self.browser.take() {
+            if let Some(host) = browser.host() {
+                host.close_browser(1);
+            }
+        }
     }
 
     fn with_host(&self, callback: impl FnOnce(&cef::BrowserHost)) {

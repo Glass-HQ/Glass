@@ -3,18 +3,20 @@
 //! The main view for Browser Mode. Renders CEF browser content and handles
 //! user input for navigation and interaction. Supports multiple tabs.
 
+use crate::bookmarks::{BookmarkBar, BookmarkBarEvent};
 use crate::cef_instance::CefInstance;
 use crate::context_menu_handler::ContextMenuContext;
 use crate::history::BrowserHistory;
 use crate::input;
+use crate::new_tab_page;
 use crate::session::{self, SerializedBrowserTabs, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
     App, Bounds, Context, Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     InteractiveElement, IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render,
-    Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, point,
-    prelude::*, surface,
+    SharedUri, Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, img,
+    point, prelude::*, surface,
 };
 use std::time::Duration;
 use ui::{Icon, IconButton, IconName, IconSize, Tooltip, prelude::*};
@@ -39,10 +41,11 @@ actions!(
         GoBack,
         GoForward,
         OpenDevTools,
+        PinTab,
+        UnpinTab,
+        BookmarkCurrentPage,
     ]
 );
-
-const DEFAULT_URL: &str = "https://www.google.com";
 
 struct BrowserContextMenu {
     menu: Entity<ui::ContextMenu>,
@@ -59,6 +62,7 @@ pub struct BrowserView {
     tabs: Vec<Entity<BrowserTab>>,
     active_tab_index: usize,
     toolbar: Option<Entity<BrowserToolbar>>,
+    bookmark_bar: Entity<BookmarkBar>,
     history: Entity<BrowserHistory>,
     content_bounds: Bounds<Pixels>,
     cef_available: bool,
@@ -78,12 +82,15 @@ impl BrowserView {
 
         let quit_subscription = cx.on_app_quit(Self::save_tabs_on_quit);
         let history = cx.new(|cx| BrowserHistory::new(cx));
+        let bookmark_bar = cx.new(|cx| BookmarkBar::new(cx));
+        let bookmark_subscription = cx.subscribe(&bookmark_bar, Self::handle_bookmark_bar_event);
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
             tabs: Vec::new(),
             active_tab_index: 0,
             toolbar: None,
+            bookmark_bar,
             history,
             content_bounds: Bounds::default(),
             cef_available,
@@ -94,7 +101,7 @@ impl BrowserView {
             pending_context_menu: None,
             _message_pump_task: None,
             _schedule_save: None,
-            _subscriptions: vec![quit_subscription],
+            _subscriptions: vec![quit_subscription, bookmark_subscription],
         };
 
         if cef_available {
@@ -120,13 +127,23 @@ impl BrowserView {
         for serialized_tab in &saved.tabs {
             let url = serialized_tab.url.clone();
             let title = serialized_tab.title.clone();
-            let tab = cx.new(|cx| BrowserTab::new_with_state(url, title, cx));
+            let is_new_tab_page = serialized_tab.is_new_tab_page;
+            let is_pinned = serialized_tab.is_pinned;
+            let favicon_url = serialized_tab.favicon_url.clone();
+            let tab = cx.new(|cx| {
+                let mut tab =
+                    BrowserTab::new_with_state(url, title, is_new_tab_page, favicon_url, cx);
+                tab.set_pinned(is_pinned);
+                tab
+            });
             let subscription = cx.subscribe(&tab, Self::handle_tab_event);
             self._subscriptions.push(subscription);
             self.tabs.push(tab);
         }
 
+        self.sort_tabs_pinned_first(cx);
         self.active_tab_index = saved.active_index.min(self.tabs.len().saturating_sub(1));
+        self.sync_bookmark_bar_visibility(cx);
         true
     }
 
@@ -143,6 +160,9 @@ impl BrowserView {
                 SerializedTab {
                     url: tab.url().to_string(),
                     title: tab.title().to_string(),
+                    is_new_tab_page: tab.is_new_tab_page(),
+                    is_pinned: tab.is_pinned(),
+                    favicon_url: tab.favicon_url().map(|s| s.to_string()),
                 }
             })
             .collect();
@@ -206,27 +226,56 @@ impl BrowserView {
         self.schedule_save(cx);
     }
 
-    fn add_tab_with_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.add_tab(cx);
+    fn add_tab_in_background(&mut self, url: &str, cx: &mut Context<Self>) {
+        let tab = cx.new(|cx| {
+            let mut tab = BrowserTab::new(cx);
+            tab.set_new_tab_page(false);
+            tab.set_pending_url(url.to_string());
+            tab
+        });
+        let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+        self._subscriptions.push(subscription);
+        self.tabs.push(tab);
 
-        if let Some(tab) = self.active_tab() {
-            let (width, height, scale_factor) = self.current_dimensions(window);
-            if width > 0 && height > 0 {
-                tab.update(cx, |tab, _| {
-                    tab.set_scale_factor(scale_factor);
-                    tab.set_size(width, height);
-                    if let Err(e) = tab.create_browser(url) {
-                        log::error!("[browser] Failed to create browser for new tab: {}", e);
-                        return;
-                    }
-                    tab.set_focus(true);
-                    tab.invalidate();
-                });
-            }
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn create_browser_and_navigate(
+        &mut self,
+        tab_entity: &Entity<BrowserTab>,
+        url: &str,
+        cx: &mut Context<Self>,
+    ) {
+        let (width, height, scale_factor) = if let Some(vp) = self.last_viewport {
+            (vp.0, vp.1, vp.2 as f32 / 1000.0)
+        } else {
+            return;
+        };
+
+        if width == 0 || height == 0 {
+            return;
         }
 
-        self.update_toolbar_active_tab(window, cx);
-        self.schedule_save(cx);
+        let url = url.to_string();
+        tab_entity.update(cx, |tab, _| {
+            tab.set_new_tab_page(false);
+            tab.set_scale_factor(scale_factor);
+            tab.set_size(width, height);
+            if let Err(e) = tab.create_browser(&url) {
+                log::error!("[browser] Failed to create browser for tab: {}", e);
+                return;
+            }
+            tab.set_focus(true);
+            tab.invalidate();
+        });
+
+        if !self.message_pump_started {
+            self._message_pump_task = Some(Self::start_message_pump(cx));
+            self.message_pump_started = true;
+        }
+
+        self.sync_bookmark_bar_visibility(cx);
         cx.notify();
     }
 
@@ -252,34 +301,48 @@ impl BrowserView {
             return;
         }
 
-        // Unfocus old tab
+        // Hide and unfocus old tab
         if let Some(old_tab) = self.active_tab() {
             old_tab.update(cx, |tab, _| {
                 tab.set_focus(false);
+                tab.set_hidden(true);
+                tab.set_audio_muted(true);
             });
         }
 
         self.active_tab_index = index;
 
-        // Focus new tab, ensure browser is created
+        // Focus new tab, ensure browser is created (unless it's a new tab page)
         if let Some(new_tab) = self.active_tab() {
-            let (width, height, scale_factor) = self.current_dimensions(window);
-            new_tab.update(cx, |tab, _| {
-                if tab.current_frame().is_none() && width > 0 && height > 0 {
-                    tab.set_scale_factor(scale_factor);
-                    tab.set_size(width, height);
-                    let url = if tab.url() != "about:blank" {
-                        tab.url().to_string()
-                    } else {
-                        DEFAULT_URL.to_string()
-                    };
-                    if let Err(e) = tab.create_browser(&url) {
-                        log::error!("[browser] Failed to create browser on tab switch: {}", e);
-                        return;
-                    }
+            let is_new_tab_page = new_tab.read(cx).is_new_tab_page();
+            if !is_new_tab_page {
+                let has_pending = new_tab.read(cx).has_pending_url();
+                if has_pending {
+                    // Deferred load: tab was opened in background, create browser now
+                    let new_tab = new_tab.clone();
+                    let url = new_tab.read(cx).url().to_string();
+                    self.create_browser_and_navigate(&new_tab, &url, cx);
+                    new_tab.update(cx, |tab, _| {
+                        tab.take_pending_url();
+                    });
+                } else {
+                    let (width, height, scale_factor) = self.current_dimensions(window);
+                    new_tab.update(cx, |tab, _| {
+                        if tab.current_frame().is_none() && width > 0 && height > 0 {
+                            tab.set_scale_factor(scale_factor);
+                            tab.set_size(width, height);
+                            let url = tab.url().to_string();
+                            if let Err(e) = tab.create_browser(&url) {
+                                log::error!("[browser] Failed to create browser on tab switch: {}", e);
+                                return;
+                            }
+                        }
+                        tab.set_hidden(false);
+                        tab.set_audio_muted(false);
+                        tab.set_focus(true);
+                    });
                 }
-                tab.set_focus(true);
-            });
+            }
         }
 
         self.update_toolbar_active_tab(window, cx);
@@ -293,6 +356,17 @@ impl BrowserView {
                 toolbar.set_active_tab(tab, window, cx);
             });
         }
+        self.sync_bookmark_bar_visibility(cx);
+    }
+
+    fn sync_bookmark_bar_visibility(&self, cx: &mut Context<Self>) {
+        let is_new_tab_page = self
+            .active_tab()
+            .map(|t| t.read(cx).is_new_tab_page())
+            .unwrap_or(true);
+        self.bookmark_bar.update(cx, |bar, _| {
+            bar.set_active_tab_is_new_tab_page(is_new_tab_page);
+        });
     }
 
     fn handle_tab_event(
@@ -306,12 +380,8 @@ impl BrowserView {
                 cx.notify();
             }
             TabEvent::NavigateToUrl(url) => {
-                if let Some(tab) = self.active_tab() {
-                    let url = url.clone();
-                    tab.update(cx, |tab, _| {
-                        tab.navigate(&url);
-                    });
-                }
+                let url = url.clone();
+                self.create_browser_and_navigate(&tab_entity, &url, cx);
             }
             TabEvent::OpenNewTab(url) => {
                 self.pending_new_tab_urls.push(url.clone());
@@ -334,6 +404,10 @@ impl BrowserView {
                 self.schedule_save(cx);
                 cx.notify();
             }
+            TabEvent::FaviconChanged(_) => {
+                self.schedule_save(cx);
+                cx.notify();
+            }
             TabEvent::LoadingStateChanged => {
                 cx.notify();
             }
@@ -350,6 +424,80 @@ impl BrowserView {
                 cx.notify();
             }
         }
+    }
+
+    fn handle_bookmark_bar_event(
+        &mut self,
+        _bookmark_bar: Entity<BookmarkBar>,
+        event: &BookmarkBarEvent,
+        cx: &mut Context<Self>,
+    ) {
+        match event {
+            BookmarkBarEvent::NavigateToUrl(url) => {
+                if let Some(tab) = self.active_tab().cloned() {
+                    let url = url.clone();
+                    self.create_browser_and_navigate(&tab, &url, cx);
+                }
+            }
+            BookmarkBarEvent::OpenInNewTab(url) => {
+                self.pending_new_tab_urls.push(url.clone());
+                cx.notify();
+            }
+        }
+    }
+
+    fn handle_bookmark_current_page(
+        &mut self,
+        _: &BookmarkCurrentPage,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.toggle_bookmark_active_tab(cx);
+    }
+
+    fn toggle_bookmark_active_tab(&mut self, cx: &mut Context<Self>) {
+        if let Some(tab) = self.active_tab().cloned() {
+            self.toggle_bookmark_for_tab(&tab, cx);
+        }
+    }
+
+    fn toggle_bookmark_at(&mut self, index: usize, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.get(index).cloned() {
+            self.toggle_bookmark_for_tab(&tab, cx);
+        }
+    }
+
+    fn toggle_bookmark_for_tab(
+        &mut self,
+        tab: &Entity<BrowserTab>,
+        cx: &mut Context<Self>,
+    ) {
+        let tab = tab.read(cx);
+        let url = tab.url().to_string();
+        if url == "glass://newtab" || url.is_empty() {
+            return;
+        }
+        let title = tab.title().to_string();
+        let favicon_url = tab.favicon_url().map(|s| s.to_string());
+        let stripped = url
+            .strip_prefix("https://")
+            .or_else(|| url.strip_prefix("http://"))
+            .unwrap_or(&url);
+        let title = if title.is_empty() || title == "New Tab" {
+            stripped
+                .strip_prefix("www.")
+                .unwrap_or(stripped)
+                .to_string()
+        } else {
+            title
+        };
+        self.bookmark_bar.update(cx, |bar, cx| {
+            if bar.is_bookmarked(&url) {
+                bar.remove_bookmark(&url, cx);
+            } else {
+                bar.add_bookmark(url, title, favicon_url, cx);
+            }
+        });
     }
 
     fn open_context_menu(
@@ -552,21 +700,20 @@ impl BrowserView {
         }
 
         if let Some(tab) = self.active_tab() {
-            tab.update(cx, |tab, _| {
-                tab.set_scale_factor(scale_factor);
-                tab.set_size(width, height);
-                let url = if tab.url() != "about:blank" {
-                    tab.url().to_string()
-                } else {
-                    DEFAULT_URL.to_string()
-                };
-                if let Err(e) = tab.create_browser(&url) {
-                    log::error!("[browser] Failed to create browser: {}", e);
-                    return;
-                }
-                tab.set_focus(true);
-                tab.invalidate();
-            });
+            let is_new_tab_page = tab.read(cx).is_new_tab_page();
+            if !is_new_tab_page {
+                tab.update(cx, |tab, _| {
+                    tab.set_scale_factor(scale_factor);
+                    tab.set_size(width, height);
+                    let url = tab.url().to_string();
+                    if let Err(e) = tab.create_browser(&url) {
+                        log::error!("[browser] Failed to create browser: {}", e);
+                        return;
+                    }
+                    tab.set_focus(true);
+                    tab.invalidate();
+                });
+            }
             self.last_viewport = Some((width, height, (scale_factor * 1000.0) as u32));
             if !self.message_pump_started {
                 self._message_pump_task = Some(Self::start_message_pump(cx));
@@ -725,33 +872,30 @@ impl BrowserView {
     }
 
     fn handle_new_tab(&mut self, _: &NewTab, window: &mut Window, cx: &mut Context<Self>) {
-        self.add_tab_with_url(DEFAULT_URL, window, cx);
+        self.add_tab(cx);
+        self.update_toolbar_active_tab(window, cx);
+        cx.notify();
     }
 
     fn handle_close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
-        if self.tabs.len() <= 1 {
-            // Always keep at least one tab — replace with a fresh one
-            if let Some(tab) = self.tabs.pop() {
-                drop(tab);
+        // Cmd+W should not close pinned tabs
+        if let Some(tab) = self.active_tab() {
+            if tab.read(cx).is_pinned() {
+                return;
             }
+        }
+
+        // Explicitly close the CEF browser before removing
+        if let Some(tab) = self.active_tab().cloned() {
+            tab.update(cx, |tab, _| {
+                tab.close_browser();
+            });
+        }
+
+        if self.tabs.len() <= 1 {
+            self.tabs.pop();
             self.active_tab_index = 0;
             self.add_tab(cx);
-
-            if let Some(tab) = self.active_tab() {
-                let (width, height, scale_factor) = self.current_dimensions(window);
-                if width > 0 && height > 0 {
-                    tab.update(cx, |tab, _| {
-                        tab.set_scale_factor(scale_factor);
-                        tab.set_size(width, height);
-                        if let Err(e) = tab.create_browser(DEFAULT_URL) {
-                            log::error!("[browser] Failed to create replacement tab: {}", e);
-                            return;
-                        }
-                        tab.set_focus(true);
-                        tab.invalidate();
-                    });
-                }
-            }
 
             self.update_toolbar_active_tab(window, cx);
             self.schedule_save(cx);
@@ -768,9 +912,11 @@ impl BrowserView {
             self.active_tab_index = closed_index;
         }
 
-        // Focus the new active tab
+        // Unhide and focus the new active tab
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
+                tab.set_hidden(false);
+                tab.set_audio_muted(false);
                 tab.set_focus(true);
             });
         }
@@ -854,32 +1000,29 @@ impl BrowserView {
         }
     }
 
-    fn close_tab_at(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
+    fn close_tab_at(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
+        self.close_tab_at_inner(index, cx);
+    }
+
+    fn close_tab_at_inner(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() {
+            return;
+        }
+
+        let was_active = index == self.active_tab_index;
+
+        // Explicitly close the CEF browser before removing, since other
+        // entities (e.g. toolbar) may hold strong Entity refs that prevent drop.
+        self.tabs[index].update(cx, |tab, _| {
+            tab.close_browser();
+        });
+
         if self.tabs.len() <= 1 {
-            // Last tab — replace with fresh
-            if let Some(tab) = self.tabs.pop() {
-                drop(tab);
-            }
+            self.tabs.pop();
             self.active_tab_index = 0;
             self.add_tab(cx);
 
-            if let Some(tab) = self.active_tab() {
-                let (width, height, scale_factor) = self.current_dimensions(window);
-                if width > 0 && height > 0 {
-                    tab.update(cx, |tab, _| {
-                        tab.set_scale_factor(scale_factor);
-                        tab.set_size(width, height);
-                        if let Err(e) = tab.create_browser(DEFAULT_URL) {
-                            log::error!("[browser] Failed to create replacement tab: {}", e);
-                            return;
-                        }
-                        tab.set_focus(true);
-                        tab.invalidate();
-                    });
-                }
-            }
-
-            self.update_toolbar_active_tab(window, cx);
+            self.sync_bookmark_bar_visibility(cx);
             self.schedule_save(cx);
             cx.notify();
             return;
@@ -887,23 +1030,102 @@ impl BrowserView {
 
         self.tabs.remove(index);
 
-        if self.active_tab_index >= self.tabs.len() {
-            self.active_tab_index = self.tabs.len() - 1;
-        } else if index < self.active_tab_index {
+        if index < self.active_tab_index {
             self.active_tab_index -= 1;
-        } else if index == self.active_tab_index {
-            // Active tab was closed; clamp and focus replacement
+        } else if was_active {
             if self.active_tab_index >= self.tabs.len() {
                 self.active_tab_index = self.tabs.len() - 1;
             }
+            // Unhide and focus the newly active tab
             if let Some(tab) = self.active_tab() {
                 tab.update(cx, |tab, _| {
+                    tab.set_hidden(false);
+                    tab.set_audio_muted(false);
                     tab.set_focus(true);
                 });
             }
         }
 
-        self.update_toolbar_active_tab(window, cx);
+        self.sync_bookmark_bar_visibility(cx);
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn sort_tabs_pinned_first(&mut self, cx: &App) {
+        self.tabs
+            .sort_by_key(|tab| !tab.read(cx).is_pinned());
+    }
+
+    fn pin_tab_at(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() {
+            return;
+        }
+        self.tabs[index].update(cx, |tab, _| {
+            tab.set_pinned(true);
+        });
+
+        let active_tab = self.active_tab().cloned();
+        self.sort_tabs_pinned_first(cx);
+
+        if let Some(active) = active_tab {
+            if let Some(new_index) = self.tabs.iter().position(|t| t == &active) {
+                self.active_tab_index = new_index;
+            }
+        }
+
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn unpin_tab_at(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.tabs.len() {
+            return;
+        }
+        self.tabs[index].update(cx, |tab, _| {
+            tab.set_pinned(false);
+        });
+
+        let active_tab = self.active_tab().cloned();
+        self.sort_tabs_pinned_first(cx);
+
+        if let Some(active) = active_tab {
+            if let Some(new_index) = self.tabs.iter().position(|t| t == &active) {
+                self.active_tab_index = new_index;
+            }
+        }
+
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn close_other_tabs_at(&mut self, keep_index: usize, cx: &mut Context<Self>) {
+        if keep_index >= self.tabs.len() {
+            return;
+        }
+        let keep_tab = self.tabs[keep_index].clone();
+        for tab in &self.tabs {
+            if tab != &keep_tab && !tab.read(cx).is_pinned() {
+                tab.update(cx, |tab, _| {
+                    tab.close_browser();
+                });
+            }
+        }
+        self.tabs.retain(|tab| {
+            tab == &keep_tab || tab.read(cx).is_pinned()
+        });
+        if let Some(new_index) = self.tabs.iter().position(|t| t == &keep_tab) {
+            self.active_tab_index = new_index;
+        } else {
+            self.active_tab_index = 0;
+        }
+        if let Some(tab) = self.active_tab() {
+            tab.update(cx, |tab, _| {
+                tab.set_hidden(false);
+                tab.set_audio_muted(false);
+                tab.set_focus(true);
+            });
+        }
+        self.sync_bookmark_bar_visibility(cx);
         self.schedule_save(cx);
         cx.notify();
     }
@@ -946,9 +1168,10 @@ impl BrowserView {
             )
     }
 
-    fn render_tab_strip(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_tab_strip(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
         let active_index = self.active_tab_index;
+        let view = cx.entity().downgrade();
 
         h_flex()
             .w_full()
@@ -958,63 +1181,159 @@ impl BrowserView {
             .border_b_1()
             .border_color(theme.colors().border)
             .children(self.tabs.iter().enumerate().map(|(index, tab)| {
-                let title = tab.read(cx).title().to_string();
+                let tab_data = tab.read(cx);
+                let title = tab_data.title().to_string();
+                let favicon_url = tab_data.favicon_url().map(|s| s.to_string());
+                let is_pinned = tab_data.is_pinned();
                 let is_active = index == active_index;
-                let display_title = if title.len() > 24 {
-                    let truncated = match title.char_indices().nth(21) {
-                        Some((byte_index, _)) => &title[..byte_index],
-                        None => &title,
-                    };
-                    format!("{truncated}...")
+
+                let favicon_element = if let Some(ref url) = favicon_url {
+                    img(SharedUri::from(url.clone()))
+                        .size(px(14.))
+                        .rounded_sm()
+                        .flex_shrink_0()
+                        .into_any_element()
                 } else {
-                    title
+                    Icon::new(IconName::Globe)
+                        .size(IconSize::XSmall)
+                        .color(Color::Muted)
+                        .into_any_element()
                 };
 
-                div()
-                    .id(("browser-tab", index))
-                    .flex()
-                    .items_center()
-                    .h_full()
-                    .px_2()
-                    .gap_1()
-                    .min_w(px(80.))
-                    .max_w(px(200.))
-                    .border_r_1()
-                    .border_color(theme.colors().border)
-                    .cursor_pointer()
-                    .when(is_active, |this| this.bg(theme.colors().editor_background))
-                    .when(!is_active, |this| {
-                        this.hover(|style| style.bg(theme.colors().ghost_element_hover))
-                    })
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        this.switch_to_tab(index, window, cx);
-                    }))
-                    .child(
-                        div()
-                            .flex_1()
-                            .overflow_hidden()
-                            .text_size(rems(0.75))
-                            .text_color(if is_active {
-                                theme.colors().text
+                let tab_content = if is_pinned {
+                    div()
+                        .id(("browser-tab-inner", index))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .h_full()
+                        .w(px(36.))
+                        .flex_shrink_0()
+                        .border_r_1()
+                        .border_color(theme.colors().border)
+                        .cursor_pointer()
+                        .when(is_active, |this| this.bg(theme.colors().editor_background))
+                        .when(!is_active, |this| {
+                            this.hover(|style| style.bg(theme.colors().ghost_element_hover))
+                        })
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.switch_to_tab(index, window, cx);
+                        }))
+                        .child(favicon_element)
+                        .into_any_element()
+                } else {
+                    let display_title = if title.len() > 24 {
+                        let truncated = match title.char_indices().nth(21) {
+                            Some((byte_index, _)) => &title[..byte_index],
+                            None => &title,
+                        };
+                        format!("{truncated}...")
+                    } else {
+                        title
+                    };
+
+                    div()
+                        .id(("browser-tab-inner", index))
+                        .flex()
+                        .items_center()
+                        .h_full()
+                        .px_2()
+                        .gap_1()
+                        .min_w(px(80.))
+                        .max_w(px(200.))
+                        .border_r_1()
+                        .border_color(theme.colors().border)
+                        .cursor_pointer()
+                        .when(is_active, |this| this.bg(theme.colors().editor_background))
+                        .when(!is_active, |this| {
+                            this.hover(|style| style.bg(theme.colors().ghost_element_hover))
+                        })
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            this.switch_to_tab(index, window, cx);
+                        }))
+                        .child(favicon_element)
+                        .child(
+                            div()
+                                .flex_1()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis()
+                                .text_size(rems(0.75))
+                                .text_color(if is_active {
+                                    theme.colors().text
+                                } else {
+                                    theme.colors().text_muted
+                                })
+                                .child(display_title),
+                        )
+                        .child(
+                            IconButton::new(("close-tab", index), IconName::Close)
+                                .icon_size(IconSize::XSmall)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.close_tab_at(index, window, cx);
+                                }))
+                                .tooltip(Tooltip::text("Close Tab")),
+                        )
+                        .into_any_element()
+                };
+
+                let view = view.clone();
+                ui::right_click_menu(("tab-ctx-menu", index))
+                    .trigger(move |_, _, _| tab_content)
+                    .menu(move |window, cx| {
+                        let view = view.clone();
+                        ui::ContextMenu::build(window, cx, move |mut menu, _window, _cx| {
+                            if is_pinned {
+                                let view = view.clone();
+                                menu = menu.entry("Unpin Tab", None, move |_window, cx| {
+                                    view.update(cx, |this, cx| {
+                                        this.unpin_tab_at(index, cx);
+                                    }).ok();
+                                });
                             } else {
-                                theme.colors().text_muted
-                            })
-                            .child(display_title),
-                    )
-                    .child(
-                        IconButton::new(("close-tab", index), IconName::Close)
-                            .icon_size(IconSize::XSmall)
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                this.close_tab_at(index, window, cx);
-                            }))
-                            .tooltip(Tooltip::text("Close Tab")),
-                    )
+                                let view = view.clone();
+                                menu = menu.entry("Pin Tab", None, move |_window, cx| {
+                                    view.update(cx, |this, cx| {
+                                        this.pin_tab_at(index, cx);
+                                    }).ok();
+                                });
+                            }
+                            menu = menu.separator();
+                            {
+                                let view = view.clone();
+                                menu = menu.entry("Close Tab", None, move |_window, cx| {
+                                    view.update(cx, |this, cx| {
+                                        this.close_tab_at_inner(index, cx);
+                                    }).ok();
+                                });
+                            }
+                            {
+                                let view = view.clone();
+                                menu = menu.entry("Close Other Tabs", None, move |_window, cx| {
+                                    view.update(cx, |this, cx| {
+                                        this.close_other_tabs_at(index, cx);
+                                    }).ok();
+                                });
+                            }
+                            if !is_pinned {
+                                menu = menu.separator();
+                                menu = menu.entry("Bookmark This Page", None, move |_window, cx| {
+                                    view.update(cx, |this, cx| {
+                                        this.toggle_bookmark_at(index, cx);
+                                    }).ok();
+                                });
+                            }
+                            menu
+                        })
+                    })
             }))
             .child(
                 IconButton::new("new-tab-button", IconName::Plus)
                     .icon_size(IconSize::XSmall)
                     .on_click(cx.listener(|this, _, window, cx| {
-                        this.add_tab_with_url(DEFAULT_URL, window, cx);
+                        this.add_tab(cx);
+                        this.update_toolbar_active_tab(window, cx);
+                        cx.notify();
                     }))
                     .tooltip(Tooltip::text("New Tab")),
             )
@@ -1022,6 +1341,21 @@ impl BrowserView {
 
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
+
+        let is_new_tab_page = self
+            .active_tab()
+            .map(|t| t.read(cx).is_new_tab_page())
+            .unwrap_or(false);
+
+        if is_new_tab_page {
+            return div()
+                .id("browser-content")
+                .relative()
+                .flex_1()
+                .w_full()
+                .child(new_tab_page::render_new_tab_page(cx))
+                .into_any_element();
+        }
 
         let current_frame = self.active_tab().and_then(|t| t.read(cx).current_frame());
 
@@ -1050,7 +1384,7 @@ impl BrowserView {
             .with_priority(1)
         });
 
-        let element = div()
+        div()
             .id("browser-content")
             .relative()
             .flex_1()
@@ -1082,9 +1416,8 @@ impl BrowserView {
                         ),
                 )
             })
-            .when_some(context_menu_overlay, |this, overlay| this.child(overlay));
-
-        element
+            .when_some(context_menu_overlay, |this, overlay| this.child(overlay))
+            .into_any_element()
     }
 }
 
@@ -1113,11 +1446,11 @@ impl Render for BrowserView {
             });
         }
 
-        // Process any pending new tab URLs queued from OpenNewTab events
+        // Process any pending new tab URLs queued from OpenNewTab events (open in background)
         if !self.pending_new_tab_urls.is_empty() {
             let urls: Vec<String> = std::mem::take(&mut self.pending_new_tab_urls);
             for url in urls {
-                self.add_tab_with_url(&url, window, cx);
+                self.add_tab_in_background(&url, cx);
             }
         }
 
@@ -1183,10 +1516,12 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_go_back))
             .on_action(cx.listener(Self::handle_go_forward))
             .on_action(cx.listener(Self::handle_open_devtools))
+            .on_action(cx.listener(Self::handle_bookmark_current_page))
             .size_full()
             .flex()
             .flex_col()
             .child(self.render_tab_strip(cx))
+            .child(self.bookmark_bar.clone())
             .child(self.render_browser_content(cx))
             .into_any_element();
 

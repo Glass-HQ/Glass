@@ -6,8 +6,8 @@
 
 use crate::events::{BrowserEvent, EventSender};
 use cef::{
-    rc::Rc as _, wrap_display_handler, Browser, DisplayHandler, ImplDisplayHandler,
-    WrapDisplayHandler,
+    rc::Rc as _, wrap_display_handler, Browser, CefStringList, DisplayHandler,
+    ImplDisplayHandler, WrapDisplayHandler,
 };
 
 #[derive(Clone)]
@@ -58,6 +58,22 @@ wrap_display_handler! {
             progress: f64,
         ) {
             let _ = self.handler.sender.send(BrowserEvent::LoadingProgress(progress));
+        }
+
+        fn on_favicon_urlchange(
+            &self,
+            _browser: Option<&mut Browser>,
+            icon_urls: Option<&mut CefStringList>,
+        ) {
+            if let Some(icon_urls) = icon_urls {
+                // CefStringList::clone() is broken for BorrowedMut variants (opaque pointer
+                // types): the clone converts to a Borrowed variant which loses the pointer.
+                // Use std::mem::take to get the original BorrowedMut, which preserves the
+                // pointer and iterates correctly. The original slot gets a new empty list.
+                let taken = std::mem::take(icon_urls);
+                let urls: Vec<String> = taken.into_iter().collect();
+                let _ = self.handler.sender.send(BrowserEvent::FaviconUrlChanged(urls));
+            }
         }
     }
 }

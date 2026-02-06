@@ -43,8 +43,8 @@ impl BrowserToolbar {
             move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
                 OmniboxEvent::Navigate(url) => {
                     let url = url.clone();
-                    tab.update(cx, |tab, _| {
-                        tab.navigate(&url);
+                    tab.update(cx, |tab, cx| {
+                        tab.navigate(&url, cx);
                         tab.set_focus(true);
                     });
                 }
@@ -88,8 +88,8 @@ impl BrowserToolbar {
             move |_this, _omnibox, event: &OmniboxEvent, cx| match event {
                 OmniboxEvent::Navigate(url) => {
                     let url = url.clone();
-                    tab.update(cx, |tab, _| {
-                        tab.navigate(&url);
+                    tab.update(cx, |tab, cx| {
+                        tab.navigate(&url, cx);
                         tab.set_focus(true);
                     });
                 }
@@ -145,9 +145,10 @@ impl Focusable for BrowserToolbar {
 
 impl Render for BrowserToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let can_go_back = self.tab.read(cx).can_go_back();
-        let can_go_forward = self.tab.read(cx).can_go_forward();
-        let is_loading = self.tab.read(cx).is_loading();
+        let is_new_tab_page = self.tab.read(cx).is_new_tab_page();
+        let can_go_back = self.tab.read(cx).can_go_back() && !is_new_tab_page;
+        let can_go_forward = self.tab.read(cx).can_go_forward() && !is_new_tab_page;
+        let is_loading = self.tab.read(cx).is_loading() && !is_new_tab_page;
 
         h_flex()
             .w_full()

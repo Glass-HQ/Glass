@@ -3,6 +3,7 @@
 //! This crate provides the browser mode functionality, integrating
 //! Chromium Embedded Framework (CEF) for a full browser experience within Glass.
 
+mod bookmarks;
 mod browser_view;
 mod cef_instance;
 mod client;
@@ -16,6 +17,7 @@ mod life_span_handler;
 mod load_handler;
 #[cfg(target_os = "macos")]
 mod macos_protocol;
+mod new_tab_page;
 mod omnibox;
 mod permission_handler;
 mod render_handler;
