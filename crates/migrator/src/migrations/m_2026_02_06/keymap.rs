@@ -1,4 +1,6 @@
+use anyhow::Result;
 use collections::HashMap;
+use serde_json::Value;
 use std::{ops::Range, sync::LazyLock};
 use tree_sitter::{Query, QueryMatch};
 
@@ -47,7 +49,6 @@ fn rename_context_key(
 
 static STRING_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
     HashMap::from_iter([
-        ("outline::Toggle", "project_symbols::Toggle"),
         ("outline_panel::ToggleFocus", "project_panel::ToggleFocus"),
         ("outline_panel::Open", "project_panel::Open"),
         ("outline_panel::OpenSelectedEntry", "project_panel::Open"),
@@ -99,3 +100,35 @@ static STRING_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
         ),
     ])
 });
+
+pub fn remove_legacy_symbol_search_bindings(keymap: &mut Value) -> Result<()> {
+    let Some(entries) = keymap.as_array_mut() else {
+        return Ok(());
+    };
+
+    for entry in entries {
+        let Some(bindings) = entry
+            .get_mut("bindings")
+            .and_then(serde_json::Value::as_object_mut)
+        else {
+            continue;
+        };
+
+        bindings.retain(|_, action| !is_legacy_symbol_search_action(action));
+    }
+
+    Ok(())
+}
+
+fn is_legacy_symbol_search_action(action: &Value) -> bool {
+    const LEGACY_ACTIONS: [&str; 2] = ["outline::Toggle", "project_symbols::Toggle"];
+
+    match action {
+        Value::String(action_name) => LEGACY_ACTIONS.contains(&action_name.as_str()),
+        Value::Array(items) => items
+            .first()
+            .and_then(Value::as_str)
+            .is_some_and(|action_name| LEGACY_ACTIONS.contains(&action_name)),
+        _ => false,
+    }
+}

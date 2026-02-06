@@ -1,0 +1,193 @@
+#!/usr/bin/env bash
+
+# Build CEF (Chromium Embedded Framework) from source with proprietary codecs.
+#
+# The pre-built CEF binaries from Spotify's CDN are compiled WITHOUT proprietary
+# codecs (proprietary_codecs=false). Streaming platforms that require H.264/AAC
+# decoding will fail without them. This script builds CEF from source with
+# proprietary_codecs=true and ffmpeg_branding=Chrome.
+#
+# Prerequisites:
+#   - macOS 12+ with Xcode 13.5–16.4 (command-line tools installed)
+#   - Python 3.9–3.11
+#   - ~150 GB free disk space
+#   - 16 GB+ RAM (32 GB+ recommended)
+#   - ~4–8 hours build time on Apple Silicon
+#
+# Usage:
+#   script/build-cef [--branch BRANCH] [--build-dir DIR] [--output-dir DIR]
+#
+# The resulting minimal distribution archive is placed in OUTPUT_DIR.
+# Set CEF_PATH to the extracted archive location when building Glass:
+#   export CEF_PATH="$HOME/.local/share/cef-custom"
+#   cargo build -p browser
+
+set -euo pipefail
+
+# CEF branch corresponding to Chromium 144.0.7559.x (matches cef-rs v144.3.0+144.0.12)
+CEF_BRANCH="7559"
+BUILD_DIR="$HOME/cef_build"
+OUTPUT_DIR=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --branch)
+            CEF_BRANCH="$2"
+            shift 2
+            ;;
+        --build-dir)
+            BUILD_DIR="$2"
+            shift 2
+            ;;
+        --output-dir)
+            OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --help|-h)
+            echo "Usage: script/build-cef [--branch BRANCH] [--build-dir DIR] [--output-dir DIR]"
+            echo ""
+            echo "Options:"
+            echo "  --branch BRANCH    CEF branch number (default: $CEF_BRANCH)"
+            echo "  --build-dir DIR    Build working directory (default: $BUILD_DIR)"
+            echo "  --output-dir DIR   Where to copy the final archive (default: build-dir/output)"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+    esac
+done
+
+if [[ -z "$OUTPUT_DIR" ]]; then
+    OUTPUT_DIR="$BUILD_DIR/output"
+fi
+
+echo "=== CEF Build Configuration ==="
+echo "  Branch:    $CEF_BRANCH"
+echo "  Build dir: $BUILD_DIR"
+echo "  Output:    $OUTPUT_DIR"
+echo ""
+
+# Detect architecture
+ARCH=$(uname -m)
+if [[ "$ARCH" == "arm64" ]]; then
+    ARCH_FLAG="--arm64-build"
+    PLATFORM="macosarm64"
+    echo "  Platform:  macOS ARM64 (Apple Silicon)"
+else
+    ARCH_FLAG="--x64-build"
+    PLATFORM="macosx64"
+    echo "  Platform:  macOS x86_64 (Intel)"
+fi
+echo ""
+
+# Check prerequisites
+echo "Checking prerequisites..."
+
+if ! xcode-select -p &>/dev/null; then
+    echo "Error: Xcode command-line tools not installed."
+    echo "  Install with: xcode-select --install"
+    exit 1
+fi
+
+if ! command -v python3 &>/dev/null; then
+    echo "Error: Python 3 is required."
+    exit 1
+fi
+
+PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.minor}")')
+if [[ "$PYTHON_VERSION" -lt 9 ]] || [[ "$PYTHON_VERSION" -gt 11 ]]; then
+    echo "Warning: Python 3.9–3.11 recommended (found 3.$PYTHON_VERSION)."
+    echo "  The build may still work, but Chromium officially supports 3.9–3.11."
+fi
+
+AVAILABLE_DISK_GB=$(df -g "$HOME" | tail -1 | awk '{print $4}')
+if [[ "$AVAILABLE_DISK_GB" -lt 100 ]]; then
+    echo "Warning: Only ${AVAILABLE_DISK_GB}GB free disk space. ~150GB recommended."
+    echo "  The build may fail if space runs out."
+fi
+
+echo "Prerequisites OK."
+echo ""
+
+# Step 1: Create directories
+echo "=== Step 1/4: Setting up directories ==="
+mkdir -p "$BUILD_DIR/automate" "$BUILD_DIR/chromium_git"
+
+# Step 2: Clone depot_tools
+echo "=== Step 2/4: Setting up depot_tools ==="
+if [[ -d "$BUILD_DIR/depot_tools" ]]; then
+    echo "depot_tools already exists, updating..."
+    git -C "$BUILD_DIR/depot_tools" pull --quiet
+else
+    echo "Cloning depot_tools..."
+    git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git "$BUILD_DIR/depot_tools"
+fi
+export PATH="$BUILD_DIR/depot_tools:$PATH"
+
+# Step 3: Download automate-git.py
+echo "=== Step 3/4: Downloading automate-git.py ==="
+curl -sL -o "$BUILD_DIR/automate/automate-git.py" \
+    https://raw.githubusercontent.com/chromiumembedded/cef/master/tools/automate/automate-git.py
+echo "Downloaded automate-git.py"
+
+# Step 4: Build CEF
+echo "=== Step 4/4: Building CEF (this will take several hours) ==="
+echo ""
+echo "GN_DEFINES: is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome"
+echo ""
+
+export GN_DEFINES="is_official_build=true proprietary_codecs=true ffmpeg_branding=Chrome"
+
+python3 "$BUILD_DIR/automate/automate-git.py" \
+    --download-dir="$BUILD_DIR/chromium_git" \
+    --depot-tools-dir="$BUILD_DIR/depot_tools" \
+    --branch="$CEF_BRANCH" \
+    $ARCH_FLAG \
+    --no-debug-build \
+    --minimal-distrib-only \
+    --with-pgo-profiles \
+    --force-clean
+
+echo ""
+echo "=== Build complete ==="
+
+# Find and copy the output archive
+DISTRIB_DIR="$BUILD_DIR/chromium_git/chromium/src/cef/binary_distrib"
+ARCHIVE=$(find "$DISTRIB_DIR" -name "*_${PLATFORM}_minimal.tar.bz2" -type f | head -1)
+
+if [[ -z "$ARCHIVE" ]]; then
+    echo "Error: Could not find the minimal distribution archive in $DISTRIB_DIR"
+    echo "Contents:"
+    ls -la "$DISTRIB_DIR" 2>/dev/null || echo "  (directory does not exist)"
+    exit 1
+fi
+
+mkdir -p "$OUTPUT_DIR"
+cp "$ARCHIVE" "$OUTPUT_DIR/"
+ARCHIVE_NAME=$(basename "$ARCHIVE")
+
+echo ""
+echo "=== Output ==="
+echo "  Archive: $OUTPUT_DIR/$ARCHIVE_NAME"
+echo ""
+echo "To use this build with Glass:"
+echo ""
+echo "  # Extract the archive"
+echo "  mkdir -p ~/.local/share/cef-custom"
+echo "  cd /tmp"
+echo "  tar -xjf \"$OUTPUT_DIR/$ARCHIVE_NAME\""
+echo "  EXTRACTED=\$(ls -d cef_binary_* | head -1)"
+echo ""
+echo "  # Copy files into place"
+echo "  cp -R /tmp/\$EXTRACTED/Release/* ~/.local/share/cef-custom/"
+echo "  cp /tmp/\$EXTRACTED/CMakeLists.txt ~/.local/share/cef-custom/"
+echo "  cp -R /tmp/\$EXTRACTED/cmake ~/.local/share/cef-custom/"
+echo "  cp -R /tmp/\$EXTRACTED/include ~/.local/share/cef-custom/"
+echo "  cp -R /tmp/\$EXTRACTED/libcef_dll ~/.local/share/cef-custom/"
+echo "  echo '{\"type\":\"minimal\",\"name\":\"$ARCHIVE_NAME\",\"sha1\":\"custom\"}' > ~/.local/share/cef-custom/archive.json"
+echo ""
+echo "  # Build Glass with the custom CEF"
+echo "  export CEF_PATH=\"\$HOME/.local/share/cef-custom\""
+echo "  cargo build -p browser"

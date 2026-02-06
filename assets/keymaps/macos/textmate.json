@@ -15,7 +15,6 @@
       "cmd-enter": "editor::NewlineBelow",
       "cmd-alt-enter": "editor::NewlineAbove",
       "cmd-shift-l": "editor::SelectLine",
-      "cmd-shift-t": "project_symbols::Toggle",
     },
   },
   {
@@ -56,7 +55,6 @@
     "bindings": {
       "cmd-alt-ctrl-d": "workspace::ToggleLeftDock",
       "cmd-t": "file_finder::Toggle",
-      "cmd-shift-t": "project_symbols::Toggle",
     },
   },
   {

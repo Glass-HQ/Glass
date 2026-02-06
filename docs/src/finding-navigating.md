@@ -20,10 +20,6 @@ Search across all files with {#kb pane::DeploySearch}. Results appear in a [mult
 
 Jump to where a symbol is defined with {#kb editor::GoToDefinition} (or `Cmd+Click` / `Ctrl+Click`). If there are multiple definitions, they open in a multibuffer.
 
-## Go to Symbol
-
-- **Entire project:** {#kb project_symbols::Toggle} searches symbols across all files
-
 ## Tab Switcher
 
 Quickly switch between open tabs with {#kb tab_switcher::Toggle}. Tabs are sorted by recent use—keep holding Ctrl and press Tab to cycle through them.
@@ -39,5 +35,4 @@ Quickly switch between open tabs with {#kb tab_switcher::Toggle}. Tabs are sorte
 | Project search    | {#kb pane::DeploySearch}         |
 | Go to definition  | {#kb editor::GoToDefinition}     |
 | Find references   | {#kb editor::FindAllReferences}  |
-| Symbol in project | {#kb project_symbols::Toggle}    |
 | Tab Switcher      | {#kb tab_switcher::Toggle}       |

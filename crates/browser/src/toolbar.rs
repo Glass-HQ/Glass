@@ -1,8 +1,10 @@
 use crate::history::BrowserHistory;
 use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
-use gpui::{App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window};
-use ui::{h_flex, prelude::*, IconButton, IconName, Tooltip};
+use gpui::{
+    App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window,
+};
+use ui::{IconButton, IconName, Tooltip, h_flex, prelude::*};
 
 pub struct BrowserToolbar {
     tab: Entity<BrowserTab>,
@@ -14,10 +16,11 @@ impl BrowserToolbar {
     pub fn new(
         tab: Entity<BrowserTab>,
         history: Entity<BrowserHistory>,
+        browser_focus_handle: FocusHandle,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let omnibox = cx.new(|cx| Omnibox::new(history, window, cx));
+        let omnibox = cx.new(|cx| Omnibox::new(history, browser_focus_handle, window, cx));
 
         let tab_subscription = cx.subscribe_in(&tab, window, {
             let omnibox = omnibox.clone();
@@ -42,6 +45,7 @@ impl BrowserToolbar {
                     let url = url.clone();
                     tab.update(cx, |tab, _| {
                         tab.navigate(&url);
+                        tab.set_focus(true);
                     });
                 }
             }
@@ -86,6 +90,7 @@ impl BrowserToolbar {
                     let url = url.clone();
                     tab.update(cx, |tab, _| {
                         tab.navigate(&url);
+                        tab.set_focus(true);
                     });
                 }
             }
@@ -99,6 +104,12 @@ impl BrowserToolbar {
             omnibox.set_url(&url, window, cx);
         });
         cx.notify();
+    }
+
+    pub fn focus_omnibox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.omnibox.update(cx, |omnibox, cx| {
+            omnibox.focus_and_select_all(window, cx);
+        });
     }
 
     fn go_back(&mut self, _: &gpui::ClickEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -124,7 +135,6 @@ impl BrowserToolbar {
             tab.stop();
         });
     }
-
 }
 
 impl Focusable for BrowserToolbar {

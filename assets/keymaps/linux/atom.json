@@ -32,7 +32,6 @@
       "ctrl-down": "editor::MoveLineDown", // editor:move-line-down
       "ctrl-\\": "workspace::ToggleLeftDock", // tree-view:toggle
       "ctrl-shift-m": "markdown::OpenPreviewToTheSide", // markdown-preview:toggle
-      "ctrl-r": "project_symbols::Toggle", // symbols-view:toggle-project-symbols
     },
   },
   {
@@ -50,7 +49,6 @@
       "ctrl-\\": "workspace::ToggleLeftDock", // tree-view:toggle
       "ctrl-k ctrl-b": "workspace::ToggleLeftDock", // tree-view:toggle
       "ctrl-t": "file_finder::Toggle", // fuzzy-finder:toggle-file-finder
-      "ctrl-r": "project_symbols::Toggle", // symbols-view:toggle-project-symbols
     },
   },
   {

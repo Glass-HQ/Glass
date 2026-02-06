@@ -44,7 +44,7 @@ Or add this directly to your `settings.json`:
 }
 ```
 
-This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+O` for Go to Class, and `Cmd+Shift+A` for Find Action.
+This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shift+O` for Go to File, and `Cmd+Shift+A` for Find Action.
 
 ## Set Up Editor Preferences
 
@@ -94,7 +94,6 @@ Once inside a project:
 
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like RustRover's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like RustRover's "Search Everywhere")
-- Use `Cmd+O` to search for symbols (like RustRover's "Go to Symbol")
 
 Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like RustRover's Project tool window).
 
@@ -109,7 +108,6 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 | Search Everywhere             | `Shift Shift`           |
 | Find Action / Command Palette | `Cmd + Shift + A`       |
 | Go to File                    | `Cmd + Shift + O`       |
-| Go to Symbol                  | `Cmd + O`               |
 | Recent Files                  | `Cmd + E`               |
 | Go to Definition              | `Cmd + B`               |
 | Find Usages                   | `Alt + F7`              |
@@ -129,7 +127,7 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 
 | Action                 | RustRover   | Zed (JetBrains keymap)   |
 | ---------------------- | ----------- | ------------------------ |
-| File Structure         | `Cmd + F12` | `Cmd + F12` (outline)    |
+| File Structure         | `Cmd + F12` | Not available            |
 | Navigate to Next Error | `F2`        | `F2`                     |
 | Run                    | `Ctrl + R`  | `Ctrl + Alt + R` (tasks) |
 | Debug                  | `Ctrl + D`  | `Alt + Shift + F9`       |
@@ -162,7 +160,6 @@ Zed skips the indexing step. You open a folder and start working right away. Sin
 
 **How to adapt:**
 
-- Use `Cmd+O` to search symbols across your crate (rust-analyzer handles this)
 - Jump to files by name with `Cmd+Shift+O`
 - `Cmd+Shift+F` gives you fast text search across the entire project
 - For linting and deeper checks, run `cargo clippy` in the terminal

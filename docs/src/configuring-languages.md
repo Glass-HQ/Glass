@@ -452,10 +452,6 @@ When renaming a symbol that spans multiple files, Zed will open a preview in a m
 
 Use the `editor: Hover` command to display information about the symbol under the cursor. This often includes type information, documentation, and links to relevant resources.
 
-### Workspace Symbol Search
-
-The {#action project_symbols::Toggle} command allows you to search for symbols (functions, classes, variables) across your entire project. This is useful for quickly navigating large codebases.
-
 ### Code Completion
 
 Zed provides intelligent code completion suggestions as you type. You can manually trigger completion with the `editor: Show Completions` command. Use <kbd>tab|tab</kbd> or <kbd>enter|enter</kbd> to accept suggestions.

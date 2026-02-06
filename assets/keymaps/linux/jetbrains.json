@@ -68,7 +68,6 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "ctrl-f12": "project_symbols::Toggle",
       "ctrl-r": ["buffer_search::Deploy", { "replace_enabled": true }],
       "ctrl-e": "file_finder::Toggle",
       "ctrl-shift-n": "file_finder::Toggle",
@@ -108,10 +107,8 @@
       "ctrl-k": "git_panel::ToggleFocus", // bug: This should also focus commit editor
       "ctrl-shift-n": "file_finder::Toggle",
       "ctrl-alt-n": "file_finder::Toggle",
-      "ctrl-n": "project_symbols::Toggle",
       "ctrl-shift-a": "command_palette::Toggle",
       "shift shift": "command_palette::Toggle",
-      "ctrl-alt-shift-n": "project_symbols::Toggle",
       "alt-0": "git_panel::ToggleFocus",
       "alt-1": "project_panel::ToggleFocus",
       "alt-5": "debug_panel::ToggleFocus",

@@ -121,7 +121,6 @@ members = [
     "crates/project",
     "crates/project_benchmarks",
     "crates/project_panel",
-    "crates/project_symbols",
     "crates/prompt_store",
     "crates/proto",
     "crates/recent_projects",
@@ -346,7 +345,6 @@ prettier = { path = "crates/prettier" }
 settings_profile_selector = { path = "crates/settings_profile_selector" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
-project_symbols = { path = "crates/project_symbols" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
@@ -825,7 +823,6 @@ notifications = { codegen-units = 1 }
 ollama = { codegen-units = 1 }
 paths = { codegen-units = 1 }
 prettier = { codegen-units = 1 }
-project_symbols = { codegen-units = 1 }
 refineable = { codegen-units = 1 }
 release_channel = { codegen-units = 1 }
 reqwest_client = { codegen-units = 1 }

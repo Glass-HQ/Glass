@@ -61,7 +61,6 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "ctrl-r": "project_symbols::Toggle",
     },
   },
   {
@@ -91,7 +90,6 @@
     "bindings": {
       "ctrl-k ctrl-b": "workspace::ToggleLeftDock",
       // "ctrl-0": "project_panel::ToggleFocus", // normally resets zoom
-      "shift-ctrl-r": "project_symbols::Toggle",
     },
   },
 ]

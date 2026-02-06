@@ -4678,7 +4678,6 @@ mod tests {
                 "project_dropdown",
                 "project_panel",
                 "project_search",
-                "project_symbols",
                 "projects",
                 "remote_debug",
                 "repl",

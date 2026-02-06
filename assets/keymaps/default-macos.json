@@ -668,14 +668,12 @@
       "cmd-k cmd-s": "zed::OpenKeymap",
       "cmd-k cmd-t": "theme_selector::Toggle",
       "ctrl-alt-cmd-p": "settings_profile_selector::Toggle",
-      "cmd-t": "project_symbols::Toggle",
       "cmd-p": "file_finder::Toggle",
       "ctrl-shift-tab": ["tab_switcher::Toggle", { "select_last": true }],
       "ctrl-tab": "tab_switcher::Toggle",
       "cmd-shift-p": "command_palette::Toggle",
       "cmd-shift-m": "diagnostics::Deploy",
       "cmd-shift-e": "project_panel::ToggleFocus",
-      "cmd-shift-o": "project_symbols::Toggle",
       "cmd-shift-b": "workspace_modes::SwitchToBrowserMode",
       "ctrl-shift-g": "git_panel::ToggleFocus",
       "cmd-shift-d": "debug_panel::ToggleFocus",
@@ -1163,10 +1161,16 @@
       "cmd-z": "browser::Undo",
       "cmd-shift-z": "browser::Redo",
       "cmd-a": "browser::SelectAll",
+      "cmd-l": "browser::FocusOmnibox",
       "cmd-t": "browser::NewTab",
       "cmd-w": "browser::CloseTab",
       "cmd-shift-]": "browser::NextTab",
-      "cmd-shift-[": "browser::PreviousTab"
+      "cmd-shift-[": "browser::PreviousTab",
+      "cmd-r": "browser::Reload",
+      "cmd-[": "browser::GoBack",
+      "cmd-]": "browser::GoForward",
+      "cmd-alt-i": "browser::OpenDevTools",
+      "f12": "browser::OpenDevTools"
     }
   },
   {

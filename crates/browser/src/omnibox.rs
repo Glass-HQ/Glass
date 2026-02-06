@@ -1,22 +1,19 @@
 use crate::history::{BrowserHistory, HistoryMatch};
-use editor::Editor;
+use editor::{Editor, actions::SelectAll};
 use gpui::{
-    anchored, canvas, deferred, div, point, prelude::*, px, App, Bounds, Context, Corner, Entity,
-    EventEmitter, FocusHandle, Focusable, IntoElement, ParentElement, Pixels, Render, SharedString,
-    Styled, Subscription, Task, Window,
+    App, Bounds, Context, Corner, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
+    ParentElement, Pixels, Render, SharedString, Styled, Subscription, Task, Window, anchored,
+    canvas, deferred, div, point, prelude::*, px,
 };
 use std::time::Duration;
-use ui::{h_flex, prelude::*, v_flex, Icon, IconName, IconSize};
+use ui::{Icon, IconName, IconSize, h_flex, prelude::*, v_flex};
 
 pub enum OmniboxEvent {
     Navigate(String),
 }
 
 pub enum OmniboxSuggestion {
-    HistoryItem {
-        url: String,
-        title: String,
-    },
+    HistoryItem { url: String, title: String },
     RawUrl(String),
     SearchQuery(String),
 }
@@ -44,10 +41,12 @@ impl OmniboxSuggestion {
 pub struct Omnibox {
     url_editor: Entity<Editor>,
     history: Entity<BrowserHistory>,
+    content_focus_handle: FocusHandle,
     suggestions: Vec<OmniboxSuggestion>,
     selected_index: usize,
     is_open: bool,
     suppress_search: bool,
+    navigation_started: bool,
     current_page_url: String,
     pending_search: Option<Task<()>>,
     editor_bounds: Bounds<Pixels>,
@@ -59,6 +58,7 @@ impl EventEmitter<OmniboxEvent> for Omnibox {}
 impl Omnibox {
     pub fn new(
         history: Entity<BrowserHistory>,
+        content_focus_handle: FocusHandle,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -69,24 +69,29 @@ impl Omnibox {
         });
 
         let buffer_subscription = cx.subscribe(&url_editor, Self::on_editor_event);
+        let focus_subscription =
+            cx.on_focus(&url_editor.focus_handle(cx), window, Self::on_editor_focus);
         let blur_subscription =
             cx.on_blur(&url_editor.focus_handle(cx), window, Self::on_editor_blur);
 
         Self {
             url_editor,
             history,
+            content_focus_handle,
             suggestions: Vec::new(),
             selected_index: 0,
             is_open: false,
             suppress_search: false,
+            navigation_started: false,
             current_page_url: String::new(),
             pending_search: None,
             editor_bounds: Bounds::default(),
-            _subscriptions: vec![buffer_subscription, blur_subscription],
+            _subscriptions: vec![buffer_subscription, focus_subscription, blur_subscription],
         }
     }
 
     pub fn set_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.navigation_started = false;
         self.current_page_url = url.to_string();
         if !self.is_open {
             self.suppress_search = true;
@@ -94,6 +99,15 @@ impl Omnibox {
                 editor.set_text(url.to_string(), window, cx);
             });
         }
+    }
+
+    pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_dropdown(cx);
+        let focus_handle = self.url_editor.focus_handle(cx);
+        window.focus(&focus_handle, cx);
+        self.url_editor.update(cx, |editor, cx| {
+            editor.select_all(&SelectAll, window, cx);
+        });
     }
 
     fn on_editor_event(
@@ -111,8 +125,26 @@ impl Omnibox {
         }
     }
 
+    fn on_editor_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.url_editor.update(cx, |editor, cx| {
+            editor.select_all(&SelectAll, window, cx);
+        });
+    }
+
     fn on_editor_blur(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         self.close_dropdown(cx);
+        if self.navigation_started {
+            self.navigation_started = false;
+            return;
+        }
+
+        let current_page_url = self.current_page_url.clone();
+        if self.url_editor.read(cx).text(cx) != current_page_url {
+            self.suppress_search = true;
+            self.url_editor.update(cx, |editor, cx| {
+                editor.set_text(current_page_url, _window, cx);
+            });
+        }
     }
 
     fn schedule_search(&mut self, cx: &mut Context<Self>) {
@@ -182,8 +214,7 @@ impl Omnibox {
         }
 
         // Always append a search query suggestion as the last item
-        self.suggestions
-            .push(OmniboxSuggestion::SearchQuery(query));
+        self.suggestions.push(OmniboxSuggestion::SearchQuery(query));
 
         self.selected_index = 0;
         self.is_open = true;
@@ -191,11 +222,11 @@ impl Omnibox {
 
     fn confirm(&mut self, _: &menu::Confirm, window: &mut Window, cx: &mut Context<Self>) {
         if self.is_open && !self.suggestions.is_empty() {
-            let index = self.selected_index.min(self.suggestions.len().saturating_sub(1));
+            let index = self
+                .selected_index
+                .min(self.suggestions.len().saturating_sub(1));
             let url = self.suggestions[index].url_or_search();
-            self.close_dropdown(cx);
-            cx.emit(OmniboxEvent::Navigate(url));
-            window.blur();
+            self.navigate(url, window, cx);
             return;
         }
 
@@ -214,19 +245,17 @@ impl Omnibox {
             format!("https://www.google.com/search?q={}", encoded)
         };
 
-        self.close_dropdown(cx);
-        cx.emit(OmniboxEvent::Navigate(url));
-        window.blur();
+        self.navigate(url, window, cx);
     }
 
     fn cancel(&mut self, _: &menu::Cancel, window: &mut Window, cx: &mut Context<Self>) {
-        if self.is_open {
-            self.close_dropdown(cx);
-            // Restore the current page URL
-            let url = self.current_page_url.clone();
+        self.close_dropdown(cx);
+        self.navigation_started = false;
+        let current_page_url = self.current_page_url.clone();
+        if self.url_editor.read(cx).text(cx) != current_page_url {
             self.suppress_search = true;
             self.url_editor.update(cx, |editor, cx| {
-                editor.set_text(url, window, cx);
+                editor.set_text(current_page_url, window, cx);
             });
         }
     }
@@ -239,7 +268,19 @@ impl Omnibox {
         cx.notify();
     }
 
-    fn move_up(&mut self, _: &editor::actions::MoveUp, _window: &mut Window, cx: &mut Context<Self>) {
+    fn navigate(&mut self, url: String, window: &mut Window, cx: &mut Context<Self>) {
+        self.navigation_started = true;
+        self.close_dropdown(cx);
+        cx.emit(OmniboxEvent::Navigate(url));
+        window.focus(&self.content_focus_handle, cx);
+    }
+
+    fn move_up(
+        &mut self,
+        _: &editor::actions::MoveUp,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if !self.is_open || self.suggestions.is_empty() {
             return;
         }
@@ -314,13 +355,11 @@ impl Omnibox {
                         this.hover(|style| style.bg(theme.colors().ghost_element_hover))
                     })
                     .cursor_pointer()
-                    .on_click(cx.listener(move |this, _, window, cx| {
+                    .on_mouse_down(gpui::MouseButton::Left, cx.listener(move |this, _, window, cx| {
                         this.selected_index = index;
                         if let Some(suggestion) = this.suggestions.get(index) {
                             let url = suggestion.url_or_search();
-                            this.close_dropdown(cx);
-                            cx.emit(OmniboxEvent::Navigate(url));
-                            window.blur();
+                            this.navigate(url, window, cx);
                         }
                     }))
                     .child(
@@ -437,9 +476,7 @@ impl Render for Omnibox {
                     .child(bounds_tracker)
                     .child(self.url_editor.clone()),
             )
-            .when(show_dropdown, |this| {
-                this.child(self.render_dropdown(cx))
-            })
+            .when(show_dropdown, |this| this.child(self.render_dropdown(cx)))
     }
 }
 

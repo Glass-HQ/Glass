@@ -821,6 +821,7 @@ impl BufferSearchBar {
 
     pub fn dismiss(&mut self, _: &Dismiss, window: &mut Window, cx: &mut Context<Self>) {
         self.dismissed = true;
+        self.cancel_pending_search();
         self.query_error = None;
         self.sync_select_next_case_sensitivity(cx);
 
@@ -1318,7 +1319,9 @@ impl BufferSearchBar {
                 cx.spawn_in(window, async move |this, cx| {
                     if search.await.is_ok() {
                         this.update_in(cx, |this, window, cx| {
-                            this.activate_current_match(window, cx);
+                            if !this.dismissed {
+                                this.activate_current_match(window, cx);
+                            }
                             #[cfg(target_os = "macos")]
                             this.update_find_pasteboard(cx);
                         })?;
@@ -1446,9 +1449,7 @@ impl BufferSearchBar {
     ) -> oneshot::Receiver<()> {
         let (done_tx, done_rx) = oneshot::channel();
         let query = self.query(cx);
-        self.pending_search.take();
-        #[cfg(target_os = "macos")]
-        self.pending_external_query.take();
+        self.cancel_pending_search();
 
         if let Some(active_searchable_item) = self.active_searchable_item.as_ref() {
             self.query_error = None;
@@ -1555,6 +1556,12 @@ impl BufferSearchBar {
             }
         }
         done_rx
+    }
+
+    fn cancel_pending_search(&mut self) {
+        self.pending_search.take();
+        #[cfg(target_os = "macos")]
+        self.pending_external_query.take();
     }
 
     fn reverse_direction_if_backwards(&self, direction: Direction) -> Direction {

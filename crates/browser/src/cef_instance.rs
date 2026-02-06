@@ -116,6 +116,10 @@ wrap_app! {
             command_line.append_switch(Some(&"hide-crash-restore-bubble".into()));
             command_line.append_switch(Some(&"use-mock-keychain".into()));
             command_line.append_switch(Some(&"disable-gpu-sandbox".into()));
+            command_line.append_switch_with_value(
+                Some(&"autoplay-policy".into()),
+                Some(&"no-user-gesture-required".into()),
+            );
 
             #[cfg(debug_assertions)]
             {

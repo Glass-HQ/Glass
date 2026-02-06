@@ -33,7 +33,6 @@
       "ctrl-cmd-down": "editor::MoveLineDown",
       "cmd-\\": "workspace::ToggleLeftDock",
       "ctrl-shift-m": "markdown::OpenPreviewToTheSide",
-      "cmd-r": "project_symbols::Toggle",
     },
   },
   {
@@ -51,7 +50,6 @@
       "cmd-\\": "workspace::ToggleLeftDock",
       "cmd-k cmd-b": "workspace::ToggleLeftDock",
       "cmd-t": "file_finder::Toggle",
-      "cmd-shift-r": "project_symbols::Toggle",
     },
   },
   {

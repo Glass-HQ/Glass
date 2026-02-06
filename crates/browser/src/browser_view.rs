@@ -11,13 +11,13 @@ use crate::session::{self, SerializedBrowserTabs, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    actions, anchored, canvas, deferred, div, point, prelude::*, surface, App, Bounds, Context,
-    Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render, Styled,
-    Subscription, Task, Window,
+    App, Bounds, Context, Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
+    InteractiveElement, IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render,
+    Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, point,
+    prelude::*, surface,
 };
 use std::time::Duration;
-use ui::{prelude::*, Icon, IconButton, IconName, IconSize, Tooltip};
+use ui::{Icon, IconButton, IconName, IconSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace_modes::{ModeId, ModeViewRegistry};
 
@@ -34,6 +34,11 @@ actions!(
         CloseTab,
         NextTab,
         PreviousTab,
+        FocusOmnibox,
+        Reload,
+        GoBack,
+        GoForward,
+        OpenDevTools,
     ]
 );
 
@@ -158,10 +163,7 @@ impl BrowserView {
 
             let (tabs_json, history_json) = this
                 .read_with(cx, |this, cx| {
-                    (
-                        this.serialize_tabs(cx),
-                        this.history.read(cx).serialize(),
-                    )
+                    (this.serialize_tabs(cx), this.history.read(cx).serialize())
                 })
                 .ok()
                 .unwrap_or((None, None));
@@ -204,12 +206,7 @@ impl BrowserView {
         self.schedule_save(cx);
     }
 
-    fn add_tab_with_url(
-        &mut self,
-        url: &str,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    fn add_tab_with_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.add_tab(cx);
 
         if let Some(tab) = self.active_tab() {
@@ -340,7 +337,9 @@ impl BrowserView {
             TabEvent::LoadingStateChanged => {
                 cx.notify();
             }
-            TabEvent::LoadError { url, error_text, .. } => {
+            TabEvent::LoadError {
+                url, error_text, ..
+            } => {
                 log::warn!("[browser] load error: url={} err={}", url, error_text);
                 cx.notify();
             }
@@ -530,7 +529,9 @@ impl BrowserView {
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(tab) = self.active_tab().cloned() {
             let history = self.history.clone();
-            let toolbar = cx.new(|cx| BrowserToolbar::new(tab, history, window, cx));
+            let browser_focus_handle = self.focus_handle.clone();
+            let toolbar =
+                cx.new(|cx| BrowserToolbar::new(tab, history, browser_focus_handle, window, cx));
             self.toolbar = Some(toolbar.clone());
 
             ModeViewRegistry::global_mut(cx)
@@ -643,8 +644,11 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        log::info!("[browser::view] handle_key_down called (key={}, is_held={})",
-            event.keystroke.key, event.is_held);
+        log::info!(
+            "[browser::view] handle_key_down called (key={}, is_held={})",
+            event.keystroke.key,
+            event.is_held
+        );
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_focus(true);
@@ -668,7 +672,10 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        log::info!("[browser::view] handle_key_up called (key={})", event.keystroke.key);
+        log::info!(
+            "[browser::view] handle_key_up called (key={})",
+            event.keystroke.key
+        );
         if let Some(tab) = self.active_tab() {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
@@ -781,7 +788,12 @@ impl BrowserView {
         self.switch_to_tab(next_index, window, cx);
     }
 
-    fn handle_previous_tab(&mut self, _: &PreviousTab, window: &mut Window, cx: &mut Context<Self>) {
+    fn handle_previous_tab(
+        &mut self,
+        _: &PreviousTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.tabs.len() <= 1 {
             return;
         }
@@ -791,6 +803,55 @@ impl BrowserView {
             self.active_tab_index - 1
         };
         self.switch_to_tab(previous_index, window, cx);
+    }
+
+    fn handle_focus_omnibox(
+        &mut self,
+        _: &FocusOmnibox,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(toolbar) = self.toolbar.clone() {
+            toolbar.update(cx, |toolbar, cx| {
+                toolbar.focus_omnibox(window, cx);
+            });
+            cx.stop_propagation();
+        }
+    }
+
+    fn handle_reload(&mut self, _: &Reload, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.active_tab() {
+            tab.update(cx, |tab, _| {
+                tab.reload();
+            });
+        }
+    }
+
+    fn handle_go_back(&mut self, _: &GoBack, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.active_tab() {
+            tab.update(cx, |tab, _| {
+                tab.go_back();
+            });
+        }
+    }
+
+    fn handle_go_forward(&mut self, _: &GoForward, _window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(tab) = self.active_tab() {
+            tab.update(cx, |tab, _| {
+                tab.go_forward();
+            });
+        }
+    }
+
+    fn handle_open_devtools(
+        &mut self,
+        _: &OpenDevTools,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(tab) = self.active_tab() {
+            tab.read(cx).open_devtools();
+        }
     }
 
     fn close_tab_at(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -921,9 +982,7 @@ impl BrowserView {
                     .border_r_1()
                     .border_color(theme.colors().border)
                     .cursor_pointer()
-                    .when(is_active, |this| {
-                        this.bg(theme.colors().editor_background)
-                    })
+                    .when(is_active, |this| this.bg(theme.colors().editor_background))
                     .when(!is_active, |this| {
                         this.hover(|style| style.bg(theme.colors().ghost_element_hover))
                     })
@@ -940,7 +999,7 @@ impl BrowserView {
                             } else {
                                 theme.colors().text_muted
                             })
-                            .child(display_title)
+                            .child(display_title),
                     )
                     .child(
                         IconButton::new(("close-tab", index), IconName::Close)
@@ -964,9 +1023,7 @@ impl BrowserView {
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
 
-        let current_frame = self
-            .active_tab()
-            .and_then(|t| t.read(cx).current_frame());
+        let current_frame = self.active_tab().and_then(|t| t.read(cx).current_frame());
 
         let has_frame = current_frame.is_some();
 
@@ -1025,9 +1082,7 @@ impl BrowserView {
                         ),
                 )
             })
-            .when_some(context_menu_overlay, |this, overlay| {
-                this.child(overlay)
-            });
+            .when_some(context_menu_overlay, |this, overlay| this.child(overlay));
 
         element
     }
@@ -1123,6 +1178,11 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_close_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_previous_tab))
+            .on_action(cx.listener(Self::handle_focus_omnibox))
+            .on_action(cx.listener(Self::handle_reload))
+            .on_action(cx.listener(Self::handle_go_back))
+            .on_action(cx.listener(Self::handle_go_forward))
+            .on_action(cx.listener(Self::handle_open_devtools))
             .size_full()
             .flex()
             .flex_col()

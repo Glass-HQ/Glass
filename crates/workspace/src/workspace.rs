@@ -382,15 +382,6 @@ pub struct CloseInactiveTabsAndPanes {
 #[action(namespace = workspace)]
 pub struct SendKeystrokes(pub String);
 
-actions!(
-    project_symbols,
-    [
-        /// Toggles the project symbols search.
-        #[action(name = "Toggle")]
-        ToggleProjectSymbols
-    ]
-);
-
 /// Toggles the file finder interface.
 #[derive(Default, PartialEq, Eq, Clone, Deserialize, JsonSchema, Action)]
 #[action(namespace = file_finder, name = "Toggle")]

@@ -44,7 +44,7 @@ Or add this directly to your `settings.json`:
 }
 ```
 
-This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+O` for Go to Class, and `Cmd+Shift+A` for Find Action.
+This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shift+O` for Go to File, and `Cmd+Shift+A` for Find Action.
 
 ## Set Up Editor Preferences
 
@@ -82,7 +82,6 @@ Once inside a project:
 
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like IntelliJ's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like IntelliJ's "Search Everywhere")
-- Use `Cmd+O` to search for symbols (like IntelliJ's "Go to Class")
 
 Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like IntelliJ's Project tool window).
 
@@ -97,7 +96,6 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 | Search Everywhere             | `Shift Shift`           |
 | Find Action / Command Palette | `Cmd + Shift + A`       |
 | Go to File                    | `Cmd + Shift + O`       |
-| Go to Symbol / Class          | `Cmd + O`               |
 | Recent Files                  | `Cmd + E`               |
 | Go to Definition              | `Cmd + B`               |
 | Find Usages                   | `Alt + F7`              |
@@ -117,7 +115,7 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 
 | Action                 | IntelliJ    | Zed (JetBrains keymap)   |
 | ---------------------- | ----------- | ------------------------ |
-| File Structure         | `Cmd + F12` | `Cmd + F12` (outline)    |
+| File Structure         | `Cmd + F12` | Not available            |
 | Navigate to Next Error | `F2`        | `F2`                     |
 | Run                    | `Ctrl + R`  | `Ctrl + Alt + R` (tasks) |
 | Debug                  | `Ctrl + D`  | `Alt + Shift + F9`       |
@@ -151,7 +149,6 @@ IntelliJ's index powers features like finding all usages across your entire code
 
 **How to adapt:**
 
-- For project-wide symbol search, use `Cmd+O` / Go to Symbol (relies on your language server)
 - For finding files by name, use `Cmd+Shift+O` / Go to File
 - For text search across files, use `Cmd+Shift+F`—this is fast even on large codebases
 - If you need deep static analysis for JVM code, consider running IntelliJ's inspections as a separate step or using standalone tools like Checkstyle, PMD, or SpotBugs

@@ -75,7 +75,6 @@ Begin by typing a `/` at the beginning of the line to see a list of available co
 - `/file`: Inserts a single file or a directory of files
 - `/now`: Inserts the current date and time
 - `/prompt`: Adds a custom-configured prompt to the context ([see Rules Library](./rules.md#rules-library))
-- `/symbols`: Inserts the current tab's active symbols
 - `/tab`: Inserts the content of the active tab or all open tabs
 - `/terminal`: Inserts a select number of lines of output from the terminal
 - `/selection`: Inserts the selected text
@@ -128,13 +127,6 @@ It can also be used to nest prompts within prompts.
 Usage: `/prompt <prompt_name>`
 
 Related: `/default`
-
-### `/symbols`
-
-The `/symbols` command inserts the active symbols (functions, classes, etc.) from the current tab into the context.
-This is useful for getting an overview of the structure of the current file.
-
-Usage: `/symbols`
 
 ### `/tab`
 

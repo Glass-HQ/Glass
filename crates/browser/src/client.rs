@@ -6,7 +6,7 @@
 use cef::{
     rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, ContextMenuHandler,
     DisplayHandler, ImplClient, ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler,
-    LoadHandler, RenderHandler, WrapClient, WrapKeyboardHandler,
+    LoadHandler, PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler,
 };
 
 use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
@@ -14,6 +14,7 @@ use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};
 use crate::events::EventSender;
 use crate::life_span_handler::{LifeSpanHandlerBuilder, OsrLifeSpanHandler};
 use crate::load_handler::{LoadHandlerBuilder, OsrLoadHandler};
+use crate::permission_handler::{OsrPermissionHandler, PermissionHandlerBuilder};
 use crate::render_handler::{OsrRenderHandler, RenderHandlerBuilder, RenderState};
 use crate::request_handler::{OsrRequestHandler, RequestHandlerBuilder};
 use parking_lot::Mutex;
@@ -79,6 +80,7 @@ wrap_client! {
         keyboard_handler: KeyboardHandler,
         request_handler: cef::RequestHandler,
         context_menu_handler: ContextMenuHandler,
+        permission_handler: PermissionHandler,
     }
 
     impl Client {
@@ -109,6 +111,10 @@ wrap_client! {
         fn context_menu_handler(&self) -> Option<cef::ContextMenuHandler> {
             Some(self.context_menu_handler.clone())
         }
+
+        fn permission_handler(&self) -> Option<cef::PermissionHandler> {
+            Some(self.permission_handler.clone())
+        }
     }
 }
 
@@ -123,6 +129,7 @@ impl ClientBuilder {
         let life_span_handler = OsrLifeSpanHandler::new(event_sender.clone());
         let request_handler = OsrRequestHandler::new(event_sender.clone());
         let context_menu_handler = OsrContextMenuHandler::new(event_sender);
+        let permission_handler = OsrPermissionHandler::new();
         Self::new(
             RenderHandlerBuilder::build(render_handler),
             LoadHandlerBuilder::build(load_handler),
@@ -131,6 +138,7 @@ impl ClientBuilder {
             KeyboardHandlerBuilder::build(),
             RequestHandlerBuilder::build(request_handler),
             ContextMenuHandlerBuilder::build(context_menu_handler),
+            PermissionHandlerBuilder::build(permission_handler),
         )
     }
 }

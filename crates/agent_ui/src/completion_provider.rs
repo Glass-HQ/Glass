@@ -1732,7 +1732,7 @@ pub(crate) fn search_symbols(
             .rsplit_once("::")
             .map_or(&*query, |(_, suffix)| suffix)
             .to_owned();
-        // Note if you make changes to this filtering below, also change `project_symbols::ProjectSymbolsDelegate::filter`
+        // Keep this filtering behavior aligned with any other project-symbol matching entry points.
         const MAX_MATCHES: usize = 100;
         let mut visible_matches = cx.foreground_executor().block_on(fuzzy::match_strings(
             &visible_match_candidates,

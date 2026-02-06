@@ -44,7 +44,7 @@ Or add this directly to your `settings.json`:
 }
 ```
 
-This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+O` for Go to Class, and `Cmd+Shift+A` for Find Action.
+This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shift+O` for Go to File, and `Cmd+Shift+A` for Find Action.
 
 ## Set Up Editor Preferences
 
@@ -82,7 +82,6 @@ Once inside a project:
 
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like WebStorm's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like WebStorm's "Search Everywhere")
-- Use `Cmd+O` to search for symbols (like WebStorm's "Go to Symbol")
 
 Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like WebStorm's Project tool window).
 
@@ -97,7 +96,6 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 | Search Everywhere             | `Shift Shift`           |
 | Find Action / Command Palette | `Cmd + Shift + A`       |
 | Go to File                    | `Cmd + Shift + O`       |
-| Go to Symbol                  | `Cmd + O`               |
 | Recent Files                  | `Cmd + E`               |
 | Go to Definition              | `Cmd + B`               |
 | Find Usages                   | `Alt + F7`              |
@@ -117,7 +115,7 @@ If you chose the JetBrains keymap during onboarding, most of your shortcuts shou
 
 | Action                 | WebStorm    | Zed (JetBrains keymap)   |
 | ---------------------- | ----------- | ------------------------ |
-| File Structure         | `Cmd + F12` | `Cmd + F12` (outline)    |
+| File Structure         | `Cmd + F12` | Not available            |
 | Navigate to Next Error | `F2`        | `F2`                     |
 | Run                    | `Ctrl + R`  | `Ctrl + Alt + R` (tasks) |
 | Debug                  | `Ctrl + D`  | `Alt + Shift + F9`       |
@@ -151,7 +149,6 @@ WebStorm's index enables features like finding all usages across your entire cod
 
 **How to adapt:**
 
-- Search symbols across the project with `Cmd+O` (powered by the TypeScript language server)
 - Find files by name with `Cmd+Shift+O`
 - Use `Cmd+Shift+F` for text search—it stays fast even in large monorepos
 - Run `tsc --noEmit` or `eslint .` from the terminal when you need deeper project-wide analysis

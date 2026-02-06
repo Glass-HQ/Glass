@@ -63,7 +63,6 @@
   {
     "context": "Editor && mode == full",
     "bindings": {
-      "cmd-r": "project_symbols::Toggle",
     },
   },
   {
@@ -93,7 +92,6 @@
     "bindings": {
       "cmd-k cmd-b": "workspace::ToggleLeftDock",
       "cmd-t": "file_finder::Toggle",
-      "shift-cmd-r": "project_symbols::Toggle",
       // Currently busted: https://github.com/zed-industries/feedback/issues/898
       "ctrl-0": "project_panel::ToggleFocus",
     },

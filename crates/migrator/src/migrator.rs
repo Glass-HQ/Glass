@@ -147,6 +147,7 @@ pub fn migrate_keymap(text: &str) -> Result<Option<String>> {
             migrations::m_2026_02_06::KEYMAP_PATTERNS,
             &KEYMAP_QUERY_2026_02_06,
         ),
+        MigrationType::Json(migrations::m_2026_02_06::remove_legacy_symbol_search_bindings),
     ];
     run_migrations(text, migrations)
 }
@@ -404,7 +405,12 @@ mod tests {
 
     fn assert_migrate_keymap(input: &str, output: Option<&str>) {
         let migrated = migrate_keymap(input).unwrap();
-        pretty_assertions::assert_eq!(migrated.as_deref(), output);
+        assert_migrated_correctly(migrated.clone(), output);
+
+        if let Some(migrated) = migrated {
+            let rerun = migrate_keymap(&migrated).unwrap();
+            assert_migrated_correctly(rerun, None);
+        }
     }
 
     #[track_caller]
@@ -582,18 +588,41 @@ mod tests {
                 ]
             "#,
             Some(
-                r#"
+                r#"[
+    {
+        "bindings": {
+            "cmd-shift-b": "project_panel::ToggleFocus",
+            "space": "project_panel::Open"
+        },
+        "context": "ProjectPanel && not_editing"
+    }
+]"#,
+            ),
+        )
+    }
+
+    #[test]
+    fn test_remove_project_symbols_actions() {
+        assert_migrate_keymap(
+            r#"
                 [
                     {
                         "bindings": {
-                            "cmd-shift-o": "project_symbols::Toggle",
-                            "cmd-shift-b": "project_panel::ToggleFocus",
-                            "space": "project_panel::Open"
-                        },
-                        "context": "ProjectPanel && not_editing"
+                            "cmd-o": "project_symbols::Toggle",
+                            "ctrl-shift-o": ["project_symbols::Toggle", { "some": "value" }],
+                            "cmd-p": "file_finder::Toggle"
+                        }
                     }
                 ]
             "#,
+            Some(
+                r#"[
+    {
+        "bindings": {
+            "cmd-p": "file_finder::Toggle"
+        }
+    }
+]"#,
             ),
         )
     }
