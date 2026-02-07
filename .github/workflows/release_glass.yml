@@ -100,7 +100,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/cef
-          key: cef-custom-${{ matrix.cef_platform }}-v144
+          key: cef-${{ matrix.cef_platform }}-v144
 
       - name: Download and extract CEF
         run: |
@@ -114,16 +114,40 @@ jobs:
           if [ -d "$CEF_PATH/Chromium Embedded Framework.framework" ]; then
             echo "CEF framework found in cache"
           else
-            echo "Downloading custom CEF build (with proprietary codecs)..."
+            echo "Downloading CEF from Spotify CDN..."
 
-            # Custom CEF built from source with proprietary_codecs=true ffmpeg_branding=Chrome
-            # Hosted on Glass-HQ/cef-builds GitHub Releases
-            CEF_VERSION="v144.0.12"
-            CEF_ARCHIVE="cef_binary_${{ matrix.cef_platform }}_minimal.tar.bz2"
-            CEF_URL="https://github.com/Glass-HQ/cef-builds/releases/download/${CEF_VERSION}/${CEF_ARCHIVE}"
+            # CEF version must match what cef-rs expects (check Cargo.lock: cef version 144.3.0+144.0.12)
+            CEF_VERSION="144.0.12"
+            CEF_CDN="https://cef-builds.spotifycdn.com"
 
-            echo "Downloading: $CEF_URL"
-            curl -fL -o "/tmp/cef.tar.bz2" "$CEF_URL"
+            # Fetch index to get the exact filename with chromium version
+            echo "Fetching CEF index..."
+            INDEX_JSON=$(curl -sL "$CEF_CDN/index.json")
+
+            # Find the minimal archive for the target platform
+            if [ "${{ matrix.cef_platform }}" = "macosarm64" ]; then
+              CEF_FILE=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .name' | head -1)
+              CEF_SHA1=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .sha1' | head -1)
+            else
+              CEF_FILE=$(echo "$INDEX_JSON" | jq -r '.macosx64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .name' | head -1)
+              CEF_SHA1=$(echo "$INDEX_JSON" | jq -r '.macosx64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .sha1' | head -1)
+            fi
+
+            if [ -z "$CEF_FILE" ] || [ "$CEF_FILE" = "null" ]; then
+              echo "Error: Could not find CEF version $CEF_VERSION for ${{ matrix.cef_platform }}"
+              exit 1
+            fi
+
+            echo "Downloading: $CEF_FILE"
+            curl -L -o "/tmp/cef.tar.bz2" "$CEF_CDN/$CEF_FILE"
+
+            # Verify SHA1
+            DOWNLOADED_SHA1=$(shasum -a 1 /tmp/cef.tar.bz2 | cut -d' ' -f1)
+            if [ "$DOWNLOADED_SHA1" != "$CEF_SHA1" ]; then
+              echo "Error: SHA1 mismatch. Expected $CEF_SHA1, got $DOWNLOADED_SHA1"
+              exit 1
+            fi
+            echo "SHA1 verified: $CEF_SHA1"
 
             # Extract archive
             echo "Extracting CEF archive..."
@@ -144,7 +168,7 @@ jobs:
             cp -R "/tmp/$EXTRACTED_DIR/libcef_dll" "$CEF_PATH/" || true
 
             # Create archive.json for version tracking
-            echo '{"type":"minimal","name":"'"$CEF_ARCHIVE"'","sha1":"custom"}' > "$CEF_PATH/archive.json"
+            echo '{"type":"minimal","name":"'"$CEF_FILE"'","sha1":"'"$CEF_SHA1"'"}' > "$CEF_PATH/archive.json"
 
             # Cleanup
             rm -rf /tmp/cef.tar.bz2 "/tmp/$EXTRACTED_DIR"
