@@ -36,7 +36,8 @@ pub fn handle_cef_subprocess() -> anyhow::Result<()> {
     CefInstance::handle_subprocess()
 }
 
-use gpui::{App, AppContext, Focusable};
+use gpui::{App, AppContext as _, Focusable};
+use std::sync::Arc;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 
 pub fn init(cx: &mut App) {
@@ -47,15 +48,16 @@ pub fn init(cx: &mut App) {
         }
     }
 
-    let browser_view = cx.new(|cx| BrowserView::new(cx));
-    let focus_handle = browser_view.focus_handle(cx);
-
-    ModeViewRegistry::global_mut(cx).register(
+    ModeViewRegistry::global_mut(cx).register_factory(
         ModeId::BROWSER,
-        RegisteredModeView {
-            view: browser_view.into(),
-            focus_handle,
-            titlebar_center_view: None,
-        },
+        Arc::new(|cx: &mut App| {
+            let browser_view = cx.new(|cx| BrowserView::new(cx));
+            let focus_handle = browser_view.focus_handle(cx);
+            RegisteredModeView {
+                view: browser_view.into(),
+                focus_handle,
+                titlebar_center_view: None,
+            }
+        }),
     );
 }

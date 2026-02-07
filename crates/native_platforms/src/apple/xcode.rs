@@ -27,7 +27,7 @@ struct ProjectInfo {
 }
 
 pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
-    log::info!("detect_xcode_project: searching recursively in {:?}", workspace_root);
+    log::debug!("detect_xcode_project: searching recursively in {:?}", workspace_root);
 
     let mut workspaces: Vec<PathBuf> = Vec::new();
     let mut projects: Vec<PathBuf> = Vec::new();
@@ -67,11 +67,11 @@ pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
                     .unwrap_or(false);
 
                 if name != "project" && !parent_is_xcodeproj && !name.starts_with('.') {
-                    log::info!("detect_xcode_project: found workspace at {:?}", path);
+                    log::debug!("detect_xcode_project: found workspace at {:?}", path);
                     workspaces.push(path.to_path_buf());
                 }
             } else if ext_str == "xcodeproj" {
-                log::info!("detect_xcode_project: found project at {:?}", path);
+                log::debug!("detect_xcode_project: found project at {:?}", path);
                 projects.push(path.to_path_buf());
             }
         }
@@ -82,7 +82,7 @@ pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
     projects.sort_by_key(|p| p.components().count());
 
     if let Some(workspace) = workspaces.into_iter().next() {
-        log::info!("detect_xcode_project: selected workspace {:?}", workspace);
+        log::debug!("detect_xcode_project: selected workspace {:?}", workspace);
         return Some(XcodeProject {
             path: workspace,
             project_type: XcodeProjectType::Workspace,
@@ -90,20 +90,20 @@ pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
     }
 
     if let Some(project) = projects.into_iter().next() {
-        log::info!("detect_xcode_project: selected project {:?}", project);
+        log::debug!("detect_xcode_project: selected project {:?}", project);
         return Some(XcodeProject {
             path: project,
             project_type: XcodeProjectType::Project,
         });
     }
 
-    log::info!("detect_xcode_project: no Xcode project found");
+    log::debug!("detect_xcode_project: no Xcode project found");
     None
 }
 
 
 pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
-    log::info!("list_schemes: starting for {:?}", project.path);
+    log::debug!("list_schemes: starting for {:?}", project.path);
 
     // Parse schemes directly from filesystem - much faster than xcodebuild -list
     let mut schemes = Vec::new();
@@ -194,7 +194,7 @@ pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
     }
 
     schemes.sort();
-    log::info!("list_schemes: found {} schemes by parsing files", schemes.len());
+    log::debug!("list_schemes: found {} schemes by parsing files", schemes.len());
 
     Ok(schemes)
 }

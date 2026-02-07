@@ -7,6 +7,7 @@
 use crate::ModeId;
 use collections::HashMap;
 use gpui::{AnyView, App, FocusHandle, Global};
+use std::sync::Arc;
 
 /// A view that can be displayed for a workspace mode.
 ///
@@ -21,33 +22,21 @@ pub struct RegisteredModeView {
     pub titlebar_center_view: Option<AnyView>,
 }
 
+/// Factory function that creates a new mode view instance.
+pub type ModeViewFactory = Arc<dyn Fn(&mut App) -> RegisteredModeView + Send + Sync>;
+
 /// Global registry for mode views.
 ///
 /// This registry allows mode-specific crates to register their views without
 /// creating cyclic dependencies with workspace.
 ///
-/// ## Usage
-///
-/// ```ignore
-/// // In browser crate's init:
-/// let browser_view = cx.new(|cx| BrowserView::new(cx));
-/// ModeViewRegistry::global_mut(cx).register(
-///     ModeId::BROWSER,
-///     RegisteredModeView {
-///         view: browser_view.clone().into(),
-///         focus_handle: browser_view.focus_handle(cx),
-///         titlebar_center_view: None,
-///     },
-/// );
-///
-/// // In workspace when rendering:
-/// if let Some(mode_view) = ModeViewRegistry::global(cx).get(ModeId::BROWSER) {
-///     // render mode_view.view
-/// }
-/// ```
+/// Modes can register either a concrete view (via `register`) or a factory
+/// (via `register_factory`) for per-workspace instances.
 #[derive(Default)]
 pub struct ModeViewRegistry {
     views: HashMap<ModeId, RegisteredModeView>,
+    factories: HashMap<ModeId, ModeViewFactory>,
+    titlebar_center_views: HashMap<ModeId, AnyView>,
 }
 
 impl Global for ModeViewRegistry {}
@@ -73,32 +62,45 @@ impl ModeViewRegistry {
         cx.try_global::<Self>()
     }
 
-    /// Register a view for a mode
+    /// Register a concrete view for a mode (shared across all windows)
     pub fn register(&mut self, mode_id: ModeId, view: RegisteredModeView) {
         self.views.insert(mode_id, view);
     }
 
-    /// Get the registered view for a mode
+    /// Register a factory that creates per-workspace view instances.
+    /// Each workspace will call this factory to get its own independent view.
+    pub fn register_factory(&mut self, mode_id: ModeId, factory: ModeViewFactory) {
+        self.factories.insert(mode_id, factory);
+    }
+
+    /// Get the factory for a mode, if one is registered.
+    pub fn factory(&self, mode_id: ModeId) -> Option<&ModeViewFactory> {
+        self.factories.get(&mode_id)
+    }
+
+    /// Get the registered view for a mode (concrete, shared view)
     pub fn get(&self, mode_id: ModeId) -> Option<&RegisteredModeView> {
         self.views.get(&mode_id)
     }
 
-    /// Check if a mode has a registered view
+    /// Check if a mode has a registered view or factory
     pub fn has_view(&self, mode_id: ModeId) -> bool {
-        self.views.contains_key(&mode_id)
+        self.views.contains_key(&mode_id) || self.factories.contains_key(&mode_id)
     }
 
     /// Set the title bar center view for a mode
     pub fn set_titlebar_center_view(&mut self, mode_id: ModeId, view: AnyView) {
-        if let Some(registered) = self.views.get_mut(&mode_id) {
-            registered.titlebar_center_view = Some(view);
-        }
+        self.titlebar_center_views.insert(mode_id, view);
     }
 
     /// Get the title bar center view for a mode
     pub fn titlebar_center_view(&self, mode_id: ModeId) -> Option<&AnyView> {
-        self.views
+        self.titlebar_center_views
             .get(&mode_id)
-            .and_then(|v| v.titlebar_center_view.as_ref())
+            .or_else(|| {
+                self.views
+                    .get(&mode_id)
+                    .and_then(|v| v.titlebar_center_view.as_ref())
+            })
     }
 }

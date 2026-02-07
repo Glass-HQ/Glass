@@ -18,10 +18,15 @@ use gpui::{
     SharedUri, Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, img,
     point, prelude::*, surface,
 };
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use ui::{Icon, IconButton, IconName, IconSize, Tooltip, prelude::*};
 use util::ResultExt as _;
 use workspace_modes::{ModeId, ModeViewRegistry};
+
+const MAX_CLOSED_TABS: usize = 20;
+
+static TABS_RESTORED: AtomicBool = AtomicBool::new(false);
 
 actions!(
     browser,
@@ -34,6 +39,7 @@ actions!(
         SelectAll,
         NewTab,
         CloseTab,
+        ReopenClosedTab,
         NextTab,
         PreviousTab,
         FocusOmnibox,
@@ -61,6 +67,7 @@ pub struct BrowserView {
     focus_handle: FocusHandle,
     tabs: Vec<Entity<BrowserTab>>,
     active_tab_index: usize,
+    closed_tabs: Vec<SerializedTab>,
     toolbar: Option<Entity<BrowserToolbar>>,
     bookmark_bar: Entity<BookmarkBar>,
     history: Entity<BrowserHistory>,
@@ -89,6 +96,7 @@ impl BrowserView {
             focus_handle: cx.focus_handle(),
             tabs: Vec::new(),
             active_tab_index: 0,
+            closed_tabs: Vec::new(),
             toolbar: None,
             bookmark_bar,
             history,
@@ -105,7 +113,14 @@ impl BrowserView {
         };
 
         if cef_available {
-            let restored = this.restore_tabs(cx);
+            // Only restore tabs for the first BrowserView instance (app startup).
+            // Subsequent windows (e.g. opening a second Glass window) start fresh.
+            let already_restored = TABS_RESTORED.swap(true, Ordering::SeqCst);
+            let restored = if !already_restored {
+                this.restore_tabs(cx)
+            } else {
+                false
+            };
             if !restored {
                 this.add_tab(cx);
             }
@@ -877,12 +892,35 @@ impl BrowserView {
         cx.notify();
     }
 
+    fn push_closed_tab(&mut self, tab: &Entity<BrowserTab>, cx: &App) {
+        let tab = tab.read(cx);
+        let url = tab.url().to_string();
+        if url == "glass://newtab" || url.is_empty() {
+            return;
+        }
+        self.closed_tabs.push(SerializedTab {
+            url,
+            title: tab.title().to_string(),
+            is_new_tab_page: tab.is_new_tab_page(),
+            is_pinned: tab.is_pinned(),
+            favicon_url: tab.favicon_url().map(|s| s.to_string()),
+        });
+        if self.closed_tabs.len() > MAX_CLOSED_TABS {
+            self.closed_tabs.remove(0);
+        }
+    }
+
     fn handle_close_tab(&mut self, _: &CloseTab, window: &mut Window, cx: &mut Context<Self>) {
         // Cmd+W should not close pinned tabs
         if let Some(tab) = self.active_tab() {
             if tab.read(cx).is_pinned() {
                 return;
             }
+        }
+
+        // Save tab state for reopen before destroying it
+        if let Some(tab) = self.active_tab().cloned() {
+            self.push_closed_tab(&tab, cx);
         }
 
         // Explicitly close the CEF browser before removing
@@ -921,6 +959,36 @@ impl BrowserView {
             });
         }
 
+        self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn handle_reopen_closed_tab(
+        &mut self,
+        _: &ReopenClosedTab,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let closed = match self.closed_tabs.pop() {
+            Some(closed) => closed,
+            None => return,
+        };
+
+        let url = closed.url.clone();
+        let title = closed.title.clone();
+        let favicon_url = closed.favicon_url.clone();
+
+        let tab = cx.new(|cx| {
+            BrowserTab::new_with_state(url, title, false, favicon_url, cx)
+        });
+        let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+        self._subscriptions.push(subscription);
+        self.tabs.push(tab.clone());
+        self.active_tab_index = self.tabs.len() - 1;
+
+        let url = closed.url;
+        self.create_browser_and_navigate(&tab, &url, cx);
         self.update_toolbar_active_tab(window, cx);
         self.schedule_save(cx);
         cx.notify();
@@ -1010,6 +1078,9 @@ impl BrowserView {
         }
 
         let was_active = index == self.active_tab_index;
+
+        // Save tab state for reopen before destroying it
+        self.push_closed_tab(&self.tabs[index].clone(), cx);
 
         // Explicitly close the CEF browser before removing, since other
         // entities (e.g. toolbar) may hold strong Entity refs that prevent drop.
@@ -1446,6 +1517,14 @@ impl Render for BrowserView {
             });
         }
 
+        // Re-set the titlebar center view for this window's toolbar.
+        // Each BrowserView has its own toolbar; the active window's render
+        // cycle ensures the global registry reflects the correct one.
+        if let Some(toolbar) = self.toolbar.clone() {
+            ModeViewRegistry::global_mut(cx)
+                .set_titlebar_center_view(ModeId::BROWSER, toolbar.into());
+        }
+
         // Process any pending new tab URLs queued from OpenNewTab events (open in background)
         if !self.pending_new_tab_urls.is_empty() {
             let urls: Vec<String> = std::mem::take(&mut self.pending_new_tab_urls);
@@ -1509,6 +1588,7 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_select_all))
             .on_action(cx.listener(Self::handle_new_tab))
             .on_action(cx.listener(Self::handle_close_tab))
+            .on_action(cx.listener(Self::handle_reopen_closed_tab))
             .on_action(cx.listener(Self::handle_next_tab))
             .on_action(cx.listener(Self::handle_previous_tab))
             .on_action(cx.listener(Self::handle_focus_omnibox))

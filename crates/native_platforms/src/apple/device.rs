@@ -3,26 +3,14 @@ use serde::Deserialize;
 use std::process::Command;
 
 pub fn list_physical_devices() -> Vec<Device> {
-    log::info!("list_physical_devices: detecting connected devices");
-
     // Try devicectl first (iOS 17+, Xcode 15+)
     let devicectl_devices = list_devices_via_devicectl();
     if !devicectl_devices.is_empty() {
-        log::info!(
-            "list_physical_devices: found {} devices via devicectl",
-            devicectl_devices.len()
-        );
         return devicectl_devices;
     }
 
     // Fall back to xctrace for older devices
-    log::info!("list_physical_devices: falling back to xctrace");
-    let xctrace_devices = list_devices_via_xctrace();
-    log::info!(
-        "list_physical_devices: found {} devices via xctrace",
-        xctrace_devices.len()
-    );
-    xctrace_devices
+    list_devices_via_xctrace()
 }
 
 #[derive(Debug, Deserialize)]

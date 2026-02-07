@@ -161,8 +161,6 @@ impl NativePlatformsPanel {
             })
             .collect();
 
-        log::info!("detect_xcode_project: found {} worktrees", worktree_paths.len());
-
         if worktree_paths.is_empty() {
             return;
         }
@@ -171,14 +169,8 @@ impl NativePlatformsPanel {
             let result = cx
                 .background_spawn(async move {
                     for path in worktree_paths {
-                        log::info!("detect_xcode_project: checking worktree at {:?}", path);
-
                         if let Some(detected_project) = xcode::detect_xcode_project(&path) {
-                            log::info!("detect_xcode_project: detected project at {:?}", detected_project.path);
-
                             let schemes = xcode::list_schemes(&detected_project).unwrap_or_default();
-                            log::info!("detect_xcode_project: found {} schemes", schemes.len());
-
                             return Some((detected_project, schemes));
                         }
                     }
@@ -186,34 +178,16 @@ impl NativePlatformsPanel {
                 })
                 .await;
 
-            log::info!("detect_xcode_project: background task completed, result is_some={}", result.is_some());
-
-            let update_result = this.update(cx, |this, cx| {
+            this.update(cx, |this, cx| {
                 if let Some((project, schemes)) = result {
-                    log::info!(
-                        "detect_xcode_project: updating UI state with {} schemes",
-                        schemes.len()
-                    );
                     this.xcode_project = Some(project);
                     if this.selected_scheme.is_none() && !schemes.is_empty() {
                         this.selected_scheme = Some(schemes[0].clone());
-                        log::info!(
-                            "detect_xcode_project: auto-selected scheme: {:?}",
-                            this.selected_scheme
-                        );
                     }
                     this.schemes = schemes;
-                    log::info!("detect_xcode_project: calling cx.notify()");
                     cx.notify();
-                    log::info!("detect_xcode_project: UI state updated successfully");
-                } else {
-                    log::info!("detect_xcode_project: no project found in background task");
                 }
-            });
-
-            if let Err(e) = update_result {
-                log::error!("detect_xcode_project: failed to update panel state: {:?}", e);
-            }
+            }).ok();
         })
         .detach();
     }

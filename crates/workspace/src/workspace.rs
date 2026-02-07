@@ -1119,6 +1119,11 @@ struct DispatchingKeystrokes {
     task: Option<Shared<Task<()>>>,
 }
 
+struct PerWorkspaceModeView {
+    view: AnyView,
+    focus_handle: FocusHandle,
+}
+
 /// Collects everything project-related for a certain window opened.
 /// In some way, is a counterpart of a window, as the [`WindowHandle`] could be downcast into `Workspace`.
 ///
@@ -1172,6 +1177,8 @@ pub struct Workspace {
     session_id: Option<String>,
     /// The active workspace mode (Browser, Editor, or Terminal)
     active_mode: ModeId,
+    /// Per-workspace mode views created from factories (e.g. each window gets its own BrowserView)
+    per_workspace_mode_views: HashMap<ModeId, PerWorkspaceModeView>,
     /// Tracks whether the bottom dock was visible before entering Terminal Mode,
     /// so we can restore it when returning to Editor Mode
     bottom_dock_visible_before_terminal_mode: Option<bool>,
@@ -1555,6 +1562,7 @@ impl Workspace {
             _items_serializer,
             session_id: Some(session_id),
             active_mode: ModeId::BROWSER,
+            per_workspace_mode_views: HashMap::default(),
             bottom_dock_visible_before_terminal_mode: None,
 
             scheduled_tasks: Vec::new(),
@@ -4576,6 +4584,24 @@ impl Workspace {
         self.active_mode
     }
 
+    /// Lazily create a per-workspace mode view from a registered factory.
+    /// Returns the view and focus handle if available.
+    fn ensure_mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<&PerWorkspaceModeView> {
+        if let collections::hash_map::Entry::Vacant(entry) = self.per_workspace_mode_views.entry(mode_id) {
+            let factory = ModeViewRegistry::try_global(cx)
+                .and_then(|reg| reg.factory(mode_id))
+                .cloned();
+            if let Some(factory) = factory {
+                let registered = factory(cx);
+                entry.insert(PerWorkspaceModeView {
+                    view: registered.view,
+                    focus_handle: registered.focus_handle,
+                });
+            }
+        }
+        self.per_workspace_mode_views.get(&mode_id)
+    }
+
     /// Switch to a specific mode
     pub fn switch_to_mode(&mut self, mode_id: ModeId, window: &mut Window, cx: &mut Context<Self>) {
         if self.active_mode != mode_id {
@@ -4584,10 +4610,16 @@ impl Workspace {
 
             match mode_id {
                 ModeId::BROWSER => {
-                    // When switching to Browser mode, focus the browser view from registry
-                    let focus_handle = ModeViewRegistry::try_global(cx)
-                        .and_then(|registry| registry.get(ModeId::BROWSER))
-                        .map(|mode_view| mode_view.focus_handle.clone());
+                    // Ensure per-workspace BrowserView exists and focus it
+                    self.ensure_mode_view(ModeId::BROWSER, cx);
+                    let focus_handle = self.per_workspace_mode_views
+                        .get(&ModeId::BROWSER)
+                        .map(|v| v.focus_handle.clone())
+                        .or_else(|| {
+                            ModeViewRegistry::try_global(cx)
+                                .and_then(|registry| registry.get(ModeId::BROWSER))
+                                .map(|mode_view| mode_view.focus_handle.clone())
+                        });
                     if let Some(focus_handle) = focus_handle {
                         window.focus(&focus_handle, cx);
                     }
@@ -6735,10 +6767,17 @@ impl Render for Workspace {
                                 })
                                 .child({
                                     if self.active_mode == ModeId::BROWSER {
-                                        // Browser Mode: render browser view full-screen from registry
-                                        let browser_view = ModeViewRegistry::try_global(cx)
-                                            .and_then(|registry| registry.get(ModeId::BROWSER))
-                                            .map(|mode_view| mode_view.view.clone());
+                                        // Browser Mode: each workspace gets its own BrowserView
+                                        // via factory, falling back to global registry for compat
+                                        self.ensure_mode_view(ModeId::BROWSER, cx);
+                                        let browser_view = self.per_workspace_mode_views
+                                            .get(&ModeId::BROWSER)
+                                            .map(|v| v.view.clone())
+                                            .or_else(|| {
+                                                ModeViewRegistry::try_global(cx)
+                                                    .and_then(|registry| registry.get(ModeId::BROWSER))
+                                                    .map(|mode_view| mode_view.view.clone())
+                                            });
 
                                         div()
                                             .size_full()

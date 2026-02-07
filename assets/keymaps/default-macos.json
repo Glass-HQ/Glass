@@ -1164,6 +1164,7 @@
       "cmd-l": "browser::FocusOmnibox",
       "cmd-t": "browser::NewTab",
       "cmd-w": "browser::CloseTab",
+      "cmd-shift-t": "browser::ReopenClosedTab",
       "cmd-shift-]": "browser::NextTab",
       "cmd-shift-[": "browser::PreviousTab",
       "cmd-r": "browser::Reload",
