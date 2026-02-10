@@ -8,6 +8,7 @@ use agent::{SharedThread, ThreadStore};
 use agent_client_protocol;
 use agent_ui::AgentPanel;
 use anyhow::{Context as _, Error, Result};
+use browser::BrowserView;
 use clap::Parser;
 use cli::FORCE_CLI_MODE_ENV_VAR_NAME;
 use client::{Client, ProxySettings, UserStore, parse_zed_link};
@@ -53,6 +54,7 @@ use std::{
 use theme::{ActiveTheme, GlobalTheme, ThemeRegistry};
 use util::ResultExt;
 use uuid::Uuid;
+use workspace_modes::ModeId;
 use workspace::{
     AppState, PathList, SerializedWorkspaceLocation, Toast, Workspace, WorkspaceSettings,
     WorkspaceStore, notifications::NotificationId,
@@ -401,6 +403,7 @@ fn main() {
     app.on_open_urls({
         let open_listener = open_listener.clone();
         move |urls| {
+            log::info!("[default-browser] on_open_urls received: {:?}", urls);
             open_listener.open(RawOpenRequest {
                 urls,
                 diff_paths: Vec::new(),
@@ -1052,6 +1055,30 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
                         }
                     })));
                 });
+            }
+            OpenRequestKind::WebUrl { url } => {
+                log::info!("[default-browser] handling WebUrl: {}", url);
+                cx.spawn(async move |cx| {
+                    let workspace =
+                        workspace::get_any_active_workspace(app_state, cx.clone()).await?;
+                    workspace.update(cx, |workspace, window, cx| {
+                        log::info!("[default-browser] switching to browser mode");
+                        workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+                        if let Some(view) = workspace.mode_view(ModeId::BROWSER, cx) {
+                            if let Ok(browser_view) = view.downcast::<BrowserView>() {
+                                log::info!("[default-browser] calling open_url");
+                                browser_view.update(cx, |browser_view, cx| {
+                                    browser_view.open_url(&url, cx);
+                                });
+                            } else {
+                                log::error!("[default-browser] failed to downcast to BrowserView");
+                            }
+                        } else {
+                            log::error!("[default-browser] no mode view for BROWSER");
+                        }
+                    })
+                })
+                .detach_and_log_err(cx);
             }
             OpenRequestKind::GitCommit { sha } => {
                 cx.spawn(async move |cx| {

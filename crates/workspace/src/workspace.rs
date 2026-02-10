@@ -4602,6 +4602,14 @@ impl Workspace {
         self.per_workspace_mode_views.get(&mode_id)
     }
 
+    /// Get or create the mode view for a given mode, returning it as an AnyView.
+    pub fn mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<AnyView> {
+        self.ensure_mode_view(mode_id, cx);
+        self.per_workspace_mode_views
+            .get(&mode_id)
+            .map(|v| v.view.clone())
+    }
+
     /// Switch to a specific mode
     pub fn switch_to_mode(&mut self, mode_id: ModeId, window: &mut Window, cx: &mut Context<Self>) {
         if self.active_mode != mode_id {

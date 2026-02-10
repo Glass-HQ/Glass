@@ -44,7 +44,6 @@
             <string>h++</string>
             <string>hh</string>
             <string>hpp</string>
-            <string>html</string>
             <string>js</string>
             <string>json</string>
             <string>jsx</string>
@@ -58,6 +57,73 @@
             <string>ts</string>
             <string>tsx</string>
             <string>txt</string>
+        </array>
+    </dict>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>HTML document</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+            <string>public.html</string>
+        </array>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+            <string>html</string>
+            <string>htm</string>
+            <string>shtml</string>
+        </array>
+        <key>CFBundleTypeMIMETypes</key>
+        <array>
+            <string>text/html</string>
+        </array>
+    </dict>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>XHTML document</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+            <string>public.xhtml</string>
+        </array>
+        <key>CFBundleTypeExtensions</key>
+        <array>
+            <string>xhtml</string>
+            <string>xht</string>
+        </array>
+        <key>CFBundleTypeMIMETypes</key>
+        <array>
+            <string>application/xhtml+xml</string>
+        </array>
+    </dict>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>SVG document</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+            <string>public.svg-image</string>
+        </array>
+    </dict>
+    <dict>
+        <key>CFBundleTypeName</key>
+        <string>PDF document</string>
+        <key>CFBundleTypeRole</key>
+        <string>Viewer</string>
+        <key>LSHandlerRank</key>
+        <string>Alternate</string>
+        <key>LSItemContentTypes</key>
+        <array>
+            <string>com.adobe.pdf</string>
         </array>
     </dict>
 </array>

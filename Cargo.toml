@@ -762,19 +762,19 @@ windows-capture = { git = "https://github.com/zed-industries/windows-capture.git
 calloop = { git = "https://github.com/zed-industries/calloop" }
 
 # Uncomment for local gpui development:
-# [patch.'https://github.com/Obsydian-HQ/gpui.git']
-# collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
-# gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
-# gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
-# gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
-# http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
-# http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
-# media = { path = "../../Obsydian-HQ/gpui/crates/media" }
-# sum_tree = { path = "../../Obsydian-HQ/gpui/crates/sum_tree" }
-# util = { path = "../../Obsydian-HQ/gpui/crates/util" }
-# scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
-# refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
-# derive_refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable/derive_refineable" }
+[patch.'https://github.com/Obsydian-HQ/gpui.git']
+collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
+gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
+gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
+gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
+http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
+http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
+media = { path = "../../Obsydian-HQ/gpui/crates/media" }
+sum_tree = { path = "../../Obsydian-HQ/gpui/crates/sum_tree" }
+util = { path = "../../Obsydian-HQ/gpui/crates/util" }
+scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
+refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
+derive_refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable/derive_refineable" }
 
 [profile.dev]
 split-debuginfo = "unpacked"

@@ -255,7 +255,7 @@ identifier = "dev.glass.Glass-Dev"
 name = "Glass Dev"
 osx_minimum_system_version = "10.15.7"
 osx_info_plist_exts = ["resources/info/*"]
-osx_url_schemes = ["glass"]
+osx_url_schemes = ["glass", "http", "https"]
 
 [package.metadata.bundle-nightly]
 icon = ["resources/app-icon-nightly@2x.png", "resources/app-icon-nightly.png"]
@@ -263,7 +263,7 @@ identifier = "dev.glass.Glass-Nightly"
 name = "Glass Nightly"
 osx_minimum_system_version = "10.15.7"
 osx_info_plist_exts = ["resources/info/*"]
-osx_url_schemes = ["glass"]
+osx_url_schemes = ["glass", "http", "https"]
 
 [package.metadata.bundle-preview]
 icon = ["resources/app-icon-preview@2x.png", "resources/app-icon-preview.png"]
@@ -271,7 +271,7 @@ identifier = "dev.glass.Glass-Preview"
 name = "Glass Preview"
 osx_minimum_system_version = "10.15.7"
 osx_info_plist_exts = ["resources/info/*"]
-osx_url_schemes = ["glass"]
+osx_url_schemes = ["glass", "http", "https"]
 
 [package.metadata.bundle-stable]
 icon = ["resources/app-icon@2x.png", "resources/app-icon.png"]
@@ -279,7 +279,7 @@ identifier = "dev.glass.Glass"
 name = "Glass"
 osx_minimum_system_version = "10.15.7"
 osx_info_plist_exts = ["resources/info/*"]
-osx_url_schemes = ["glass"]
+osx_url_schemes = ["glass", "http", "https"]
 
 [package.metadata.cargo-machete]
 ignored = ["profiling", "zstd", "tracing"]

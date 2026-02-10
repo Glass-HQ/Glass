@@ -65,6 +65,9 @@ pub enum OpenRequestKind {
     GitCommit {
         sha: String,
     },
+    WebUrl {
+        url: String,
+    },
 }
 
 impl OpenRequest {
@@ -131,6 +134,11 @@ impl OpenRequest {
                 this.parse_git_commit_url(commit_path)?
             } else if url.starts_with("ssh://") {
                 this.parse_ssh_file_path(&url, cx)?
+            } else if url.starts_with("http://") || url.starts_with("https://") {
+                log::info!("[default-browser] parsed web URL: {}", url);
+                this.kind = Some(OpenRequestKind::WebUrl {
+                    url: url.to_string(),
+                });
             } else {
                 log::error!("unhandled url: {}", url);
             }

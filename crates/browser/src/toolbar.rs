@@ -3,6 +3,7 @@ use crate::omnibox::{Omnibox, OmniboxEvent};
 use crate::tab::{BrowserTab, TabEvent};
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window,
+    native_icon_button,
 };
 use ui::{IconButton, IconName, Tooltip, h_flex, prelude::*};
 
@@ -159,16 +160,16 @@ impl Render for BrowserToolbar {
             .gap_1()
             .key_context("BrowserToolbar")
             .child(
-                IconButton::new("back", IconName::ArrowLeft)
+                native_icon_button("back", "chevron.left")
                     .disabled(!can_go_back)
-                    .on_click(cx.listener(Self::go_back))
-                    .tooltip(Tooltip::text("Go Back")),
+                    .tooltip("Go Back")
+                    .on_click(cx.listener(Self::go_back)),
             )
             .child(
-                IconButton::new("forward", IconName::ArrowRight)
+                native_icon_button("forward", "chevron.right")
                     .disabled(!can_go_forward)
-                    .on_click(cx.listener(Self::go_forward))
-                    .tooltip(Tooltip::text("Go Forward")),
+                    .tooltip("Go Forward")
+                    .on_click(cx.listener(Self::go_forward)),
             )
             .child(if is_loading {
                 IconButton::new("stop", IconName::XCircle)

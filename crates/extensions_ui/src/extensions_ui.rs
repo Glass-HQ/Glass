@@ -14,8 +14,9 @@ use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
     Action, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
-    InteractiveElement, KeyContext, ParentElement, Point, Render, Styled, Task, TextStyle,
-    UniformListScrollHandle, WeakEntity, Window, actions, point, uniform_list,
+    InteractiveElement, KeyContext, NativeButtonStyle, NativeSegmentedStyle, ParentElement, Point,
+    Render, SegmentSelectEvent, Styled, Task, TextStyle, UniformListScrollHandle, WeakEntity,
+    Window, actions, native_button, native_toggle_group, point, uniform_list,
 };
 use num_format::{Locale, ToFormattedString};
 use project::DirectoryLister;
@@ -24,9 +25,7 @@ use settings::Settings;
 use strum::IntoEnumIterator as _;
 use theme::ThemeSettings;
 use ui::{
-    Banner, Chip, ContextMenu, PopoverMenu, ScrollableHandle, ToggleButtonGroup,
-    ToggleButtonGroupSize, ToggleButtonGroupStyle, ToggleButtonSimple, Tooltip, WithScrollbar,
-    prelude::*,
+    Banner, Chip, ContextMenu, PopoverMenu, ScrollableHandle, Tooltip, WithScrollbar, prelude::*,
 };
 use workspace::{
     Workspace,
@@ -1529,9 +1528,8 @@ impl Render for ExtensionsPage {
                             .justify_between()
                             .child(Headline::new("Extensions").size(HeadlineSize::XLarge))
                             .child(
-                                Button::new("install-dev-extension", "Install Dev Extension")
-                                    .style(ButtonStyle::Outlined)
-                                    .size(ButtonSize::Medium)
+                                native_button("install-dev-extension", "Install Dev Extension")
+                                    .button_style(NativeButtonStyle::Rounded)
                                     .on_click(|_event, window, cx| {
                                         window.dispatch_action(Box::new(InstallDevExtension), cx)
                                     }),
@@ -1544,46 +1542,26 @@ impl Render for ExtensionsPage {
                             .gap_2()
                             .child(self.render_search(cx))
                             .child(
-                                div().child(
-                                    ToggleButtonGroup::single_row(
-                                        "filter-buttons",
-                                        [
-                                            ToggleButtonSimple::new(
-                                                "All",
-                                                cx.listener(|this, _event, _, cx| {
-                                                    this.filter = ExtensionFilter::All;
-                                                    this.filter_extension_entries(cx);
-                                                    this.scroll_to_top(cx);
-                                                }),
-                                            ),
-                                            ToggleButtonSimple::new(
-                                                "Installed",
-                                                cx.listener(|this, _event, _, cx| {
-                                                    this.filter = ExtensionFilter::Installed;
-                                                    this.filter_extension_entries(cx);
-                                                    this.scroll_to_top(cx);
-                                                }),
-                                            ),
-                                            ToggleButtonSimple::new(
-                                                "Not Installed",
-                                                cx.listener(|this, _event, _, cx| {
-                                                    this.filter = ExtensionFilter::NotInstalled;
-                                                    this.filter_extension_entries(cx);
-                                                    this.scroll_to_top(cx);
-                                                }),
-                                            ),
-                                        ],
-                                    )
-                                    .style(ToggleButtonGroupStyle::Outlined)
-                                    .size(ToggleButtonGroupSize::Custom(rems_from_px(30.))) // Perfectly matches the input
-                                    .label_size(LabelSize::Default)
-                                    .auto_width()
-                                    .selected_index(match self.filter {
-                                        ExtensionFilter::All => 0,
-                                        ExtensionFilter::Installed => 1,
-                                        ExtensionFilter::NotInstalled => 2,
-                                    })
-                                    .into_any_element(),
+                                native_toggle_group(
+                                    "filter-buttons",
+                                    &["All", "Installed", "Not Installed"],
+                                )
+                                .selected_index(match self.filter {
+                                    ExtensionFilter::All => 0,
+                                    ExtensionFilter::Installed => 1,
+                                    ExtensionFilter::NotInstalled => 2,
+                                })
+                                .segment_style(NativeSegmentedStyle::Rounded)
+                                .on_select(
+                                    cx.listener(|this, event: &SegmentSelectEvent, _, cx| {
+                                        this.filter = match event.index {
+                                            0 => ExtensionFilter::All,
+                                            1 => ExtensionFilter::Installed,
+                                            _ => ExtensionFilter::NotInstalled,
+                                        };
+                                        this.filter_extension_entries(cx);
+                                        this.scroll_to_top(cx);
+                                    }),
                                 ),
                             ),
                     ),

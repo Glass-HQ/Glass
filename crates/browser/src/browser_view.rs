@@ -241,6 +241,32 @@ impl BrowserView {
         self.schedule_save(cx);
     }
 
+    pub fn open_url(&mut self, url: &str, cx: &mut Context<Self>) {
+        log::info!("[default-browser] BrowserView::open_url called with: {}, message_pump_started: {}, last_viewport: {:?}", url, self.message_pump_started, self.last_viewport);
+        let tab = cx.new(|cx| {
+            let mut tab = BrowserTab::new(cx);
+            tab.set_new_tab_page(false);
+            tab.set_pending_url(url.to_string());
+            tab
+        });
+        let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+        self._subscriptions.push(subscription);
+
+        let tab_ref = tab.clone();
+        self.tabs.push(tab);
+        self.active_tab_index = self.tabs.len() - 1;
+
+        if self.message_pump_started {
+            self.create_browser_and_navigate(&tab_ref, url, cx);
+            tab_ref.update(cx, |tab, _| {
+                tab.take_pending_url();
+            });
+        }
+
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
     fn add_tab_in_background(&mut self, url: &str, cx: &mut Context<Self>) {
         let tab = cx.new(|cx| {
             let mut tab = BrowserTab::new(cx);
