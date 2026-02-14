@@ -14,9 +14,10 @@ use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
     Action, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
-    InteractiveElement, KeyContext, NativeButtonStyle, NativeSegmentedStyle, ParentElement, Point,
-    Render, SegmentSelectEvent, Styled, Task, TextStyle, UniformListScrollHandle, WeakEntity,
-    Window, actions, native_button, native_toggle_group, point, uniform_list,
+    InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedStyle,
+    ParentElement, Point, Render, SegmentSelectEvent, Styled, Task, TextStyle,
+    UniformListScrollHandle, WeakEntity, Window, actions, native_button, native_toggle_group,
+    point, uniform_list,
 };
 use num_format::{Locale, ToFormattedString};
 use project::DirectoryLister;
@@ -622,11 +623,12 @@ impl ExtensionsPage {
                             .gap_1()
                             .justify_between()
                             .child(
-                                Button::new(
+                                native_button(
                                     SharedString::from(format!("rebuild-{}", extension.id)),
                                     "Rebuild",
                                 )
-                                .color(Color::Accent)
+                                .button_style(NativeButtonStyle::Filled)
+                                .tint(NativeButtonTint::Accent)
                                 .disabled(matches!(status, ExtensionStatus::Upgrading))
                                 .on_click({
                                     let extension_id = extension.id.clone();
@@ -638,8 +640,9 @@ impl ExtensionsPage {
                                 }),
                             )
                             .child(
-                                Button::new(SharedString::from(extension.id.clone()), "Uninstall")
-                                    .color(Color::Accent)
+                                native_button(SharedString::from(extension.id.clone()), "Uninstall")
+                                    .button_style(NativeButtonStyle::Filled)
+                                    .tint(NativeButtonTint::Destructive)
                                     .disabled(matches!(status, ExtensionStatus::Removing))
                                     .on_click({
                                         let extension_id = extension.id.clone();
@@ -652,11 +655,12 @@ impl ExtensionsPage {
                             )
                             .when(can_configure, |this| {
                                 this.child(
-                                    Button::new(
+                                    native_button(
                                         SharedString::from(format!("configure-{}", extension.id)),
                                         "Configure",
                                     )
-                                    .color(Color::Accent)
+                                    .button_style(NativeButtonStyle::Filled)
+                                    .tint(NativeButtonTint::Accent)
                                     .disabled(matches!(status, ExtensionStatus::Installing))
                                     .on_click({
                                         let manifest = Arc::new(extension.clone());

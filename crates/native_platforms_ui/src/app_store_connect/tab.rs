@@ -1,7 +1,6 @@
-use editor::Editor;
 use gpui::{
-    App, Context, Entity, EventEmitter, FocusHandle, Focusable, Render, SharedString, Task,
-    Window,
+    App, Context, EventEmitter, FocusHandle, Focusable, NativeButtonStyle, Render, SharedString,
+    Task, TextChangeEvent, Window, native_button, native_text_field,
 };
 use native_platforms::apple::app_store_connect::{
     self, App as AscApp, AscStatus, AuthStatus, BetaGroup, BetaTester, Build,
@@ -30,10 +29,10 @@ pub struct AppStoreConnectTab {
 
     auth_status: AuthStatus,
 
-    profile_name_editor: Entity<Editor>,
-    key_id_editor: Entity<Editor>,
-    issuer_id_editor: Entity<Editor>,
-    private_key_path_editor: Entity<Editor>,
+    profile_name: String,
+    key_id: String,
+    issuer_id: String,
+    private_key_path: String,
 
     apps: Vec<AscApp>,
     selected_app: Option<AscApp>,
@@ -46,7 +45,7 @@ pub struct AppStoreConnectTab {
 }
 
 impl AppStoreConnectTab {
-    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
 
         let status = app_store_connect::get_status();
@@ -58,40 +57,16 @@ impl AppStoreConnectTab {
             AscStatus::Authenticated => ViewMode::Apps,
         };
 
-        let profile_name_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("default", window, cx);
-            editor
-        });
-
-        let key_id_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("Your API Key ID", window, cx);
-            editor
-        });
-
-        let issuer_id_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("Your Issuer ID", window, cx);
-            editor
-        });
-
-        let private_key_path_editor = cx.new(|cx| {
-            let mut editor = Editor::single_line(window, cx);
-            editor.set_placeholder_text("/path/to/AuthKey_XXX.p8", window, cx);
-            editor
-        });
-
         let mut tab = Self {
             focus_handle,
             view_mode,
             is_loading: false,
             error_message: None,
             auth_status,
-            profile_name_editor,
-            key_id_editor,
-            issuer_id_editor,
-            private_key_path_editor,
+            profile_name: String::new(),
+            key_id: String::new(),
+            issuer_id: String::new(),
+            private_key_path: String::new(),
             apps: Vec::new(),
             selected_app: None,
             builds: Vec::new(),
@@ -135,13 +110,11 @@ impl AppStoreConnectTab {
     }
 
     fn authenticate(&mut self, cx: &mut Context<Self>) {
-        let profile_name = self.profile_name_editor.read(cx).text(cx).trim().to_string();
-        let key_id = self.key_id_editor.read(cx).text(cx).trim().to_string();
-        let issuer_id = self.issuer_id_editor.read(cx).text(cx).trim().to_string();
+        let profile_name = self.profile_name.trim().to_string();
+        let key_id = self.key_id.trim().to_string();
+        let issuer_id = self.issuer_id.trim().to_string();
         let private_key_path = self
-            .private_key_path_editor
-            .read(cx)
-            .text(cx)
+            .private_key_path
             .trim()
             .trim_matches(|c| c == '\'' || c == '"')
             .to_string();
@@ -338,8 +311,8 @@ impl AppStoreConnectTab {
                     .gap_3()
                     .items_center()
                     .child(
-                        Button::new("install", "Install ASC CLI")
-                            .style(ButtonStyle::Filled)
+                        native_button("install", "Install ASC CLI")
+                            .button_style(NativeButtonStyle::Filled)
                             .disabled(self.is_loading)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.install_asc(cx);
@@ -407,7 +380,12 @@ impl AppStoreConnectTab {
                             .id("api-keys-link")
                             .cursor_pointer()
                             .on_click(cx.listener(|_, _, _, _| {
-                                let _ = app_store_connect::open_api_keys_page();
+                                if let Err(error) = app_store_connect::open_api_keys_page() {
+                                    log::error!(
+                                        "Failed to open App Store Connect API keys page: {}",
+                                        error
+                                    );
+                                }
                             }))
                             .child(
                                 Label::new("Get your API credentials from App Store Connect →")
@@ -415,22 +393,70 @@ impl AppStoreConnectTab {
                                     .color(Color::Accent),
                             ),
                     )
-                    .child(self.render_editor_field("Key ID", &self.key_id_editor, cx))
-                    .child(self.render_editor_field("Issuer ID", &self.issuer_id_editor, cx))
-                    .child(self.render_editor_field(
-                        "Private Key Path (.p8)",
-                        &self.private_key_path_editor,
-                        cx,
+                    .child(self.render_text_field(
+                        "Key ID",
+                        native_text_field("app-store-connect-key-id")
+                            .w_full()
+                            .value(self.key_id.clone())
+                            .placeholder("Your API Key ID")
+                            .disabled(self.is_loading)
+                            .on_change(cx.listener(
+                                |this, event: &TextChangeEvent, _, cx| {
+                                    this.key_id = event.text.clone();
+                                    this.error_message = None;
+                                    cx.notify();
+                                },
+                            )),
                     ))
-                    .child(self.render_editor_field(
+                    .child(self.render_text_field(
+                        "Issuer ID",
+                        native_text_field("app-store-connect-issuer-id")
+                            .w_full()
+                            .value(self.issuer_id.clone())
+                            .placeholder("Your Issuer ID")
+                            .disabled(self.is_loading)
+                            .on_change(cx.listener(
+                                |this, event: &TextChangeEvent, _, cx| {
+                                    this.issuer_id = event.text.clone();
+                                    this.error_message = None;
+                                    cx.notify();
+                                },
+                            )),
+                    ))
+                    .child(self.render_text_field(
+                        "Private Key Path (.p8)",
+                        native_text_field("app-store-connect-private-key-path")
+                            .w_full()
+                            .value(self.private_key_path.clone())
+                            .placeholder("/path/to/AuthKey_XXX.p8")
+                            .disabled(self.is_loading)
+                            .on_change(cx.listener(
+                                |this, event: &TextChangeEvent, _, cx| {
+                                    this.private_key_path = event.text.clone();
+                                    this.error_message = None;
+                                    cx.notify();
+                                },
+                            )),
+                    ))
+                    .child(self.render_text_field(
                         "Profile Name (optional)",
-                        &self.profile_name_editor,
-                        cx,
+                        native_text_field("app-store-connect-profile-name")
+                            .w_full()
+                            .value(self.profile_name.clone())
+                            .placeholder("default")
+                            .disabled(self.is_loading)
+                            .on_change(cx.listener(
+                                |this, event: &TextChangeEvent, _, cx| {
+                                    this.profile_name = event.text.clone();
+                                    this.error_message = None;
+                                    cx.notify();
+                                },
+                            )),
                     )),
             )
             .child(
-                Button::new("login", "Connect")
-                    .style(ButtonStyle::Filled)
+                native_button("login", "Connect")
+                    .button_style(NativeButtonStyle::Filled)
                     .disabled(self.is_loading)
                     .on_click(cx.listener(|this, _, _, cx| {
                         this.authenticate(cx);
@@ -441,11 +467,10 @@ impl AppStoreConnectTab {
             })
     }
 
-    fn render_editor_field(
+    fn render_text_field(
         &self,
         label: impl Into<SharedString>,
-        editor: &Entity<Editor>,
-        cx: &Context<Self>,
+        field: impl IntoElement,
     ) -> impl IntoElement {
         v_flex()
             .gap_1()
@@ -454,17 +479,7 @@ impl AppStoreConnectTab {
                     .size(LabelSize::Small)
                     .color(Color::Muted),
             )
-            .child(
-                div()
-                    .w_full()
-                    .px_3()
-                    .py_2()
-                    .rounded_md()
-                    .border_1()
-                    .border_color(cx.theme().colors().border)
-                    .bg(cx.theme().colors().editor_background)
-                    .child(editor.clone()),
-            )
+            .child(field)
     }
 
     fn render_apps_list(&self, cx: &Context<Self>) -> impl IntoElement {
@@ -495,8 +510,8 @@ impl AppStoreConnectTab {
                                     .color(Color::Muted),
                             )
                             .child(
-                                Button::new("logout", "Log out")
-                                    .style(ButtonStyle::Subtle)
+                                native_button("logout", "Log out")
+                                    .button_style(NativeButtonStyle::Inline)
                                     .on_click(cx.listener(|this, _, _, cx| {
                                         this.logout(cx);
                                     })),
@@ -600,8 +615,8 @@ impl AppStoreConnectTab {
                     .border_color(cx.theme().colors().border)
                     .gap_3()
                     .child(
-                        Button::new("back", "← Back")
-                            .style(ButtonStyle::Subtle)
+                        native_button("back", "← Back")
+                            .button_style(NativeButtonStyle::Inline)
                             .on_click(cx.listener(|this, _, _, cx| {
                                 this.view_mode = ViewMode::Apps;
                                 this.selected_app = None;

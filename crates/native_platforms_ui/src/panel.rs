@@ -4,14 +4,15 @@ use anyhow::Result;
 use db::kvp::KEY_VALUE_STORE;
 use gpui::{
     Action, App, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle, Focusable, Pixels,
-    Render, Subscription, Task, WeakEntity, Window, actions, px,
+    DropdownSelectEvent, NativeButtonStyle, NativeButtonTint, Render, Subscription, Task,
+    WeakEntity, Window, actions, native_button, native_dropdown, px,
 };
 use native_platforms::apple::{build, simulator, xcode};
-use native_platforms::{BuildConfiguration, Device, DeviceState, DeviceType};
+use native_platforms::{BuildConfiguration, Device, DeviceState};
 use project::Project;
 use serde::{Deserialize, Serialize};
 use ui::prelude::*;
-use ui::{ContextMenu, Divider, PopoverMenu, PopoverMenuHandle, Tooltip};
+use ui::Divider;
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::Workspace;
 
@@ -60,9 +61,6 @@ pub struct NativePlatformsPanel {
 
     controller: BuildController,
 
-    scheme_menu_handle: PopoverMenuHandle<ContextMenu>,
-    device_menu_handle: PopoverMenuHandle<ContextMenu>,
-
     pending_serialization: Task<Option<()>>,
     _subscriptions: Vec<Subscription>,
 }
@@ -88,8 +86,6 @@ impl NativePlatformsPanel {
             selected_device: None,
             loading_devices: false,
             controller: BuildController::new(),
-            scheme_menu_handle: PopoverMenuHandle::default(),
-            device_menu_handle: PopoverMenuHandle::default(),
             pending_serialization: Task::ready(None),
             _subscriptions: Vec::new(),
         };
@@ -357,9 +353,12 @@ impl NativePlatformsPanel {
 
     fn render_scheme_section(&self, cx: &Context<Self>) -> impl IntoElement {
         let schemes = self.schemes.clone();
-        let selected = self.selected_scheme.clone().unwrap_or_else(|| "Select Scheme".to_string());
+        let selected_scheme_index = self
+            .selected_scheme
+            .as_ref()
+            .and_then(|selected_scheme| schemes.iter().position(|scheme| scheme == selected_scheme))
+            .unwrap_or(0);
         let has_schemes = !schemes.is_empty();
-        let weak_panel = cx.entity().downgrade();
 
         v_flex()
             .w_full()
@@ -372,40 +371,18 @@ impl NativePlatformsPanel {
             )
             .when(has_schemes, |this| {
                 this.child(
-                    PopoverMenu::new("scheme-selector")
-                        .trigger(
-                            Button::new("scheme-trigger", selected)
-                                .style(ButtonStyle::Subtle)
-                                .full_width()
-                                .icon(IconName::ChevronDown)
-                                .icon_position(IconPosition::End)
-                                .icon_size(IconSize::Small)
-                        )
-                        .menu({
-                            let schemes = schemes.clone();
-                            let weak_panel = weak_panel.clone();
-                            move |window, cx| {
-                                let schemes = schemes.clone();
-                                let weak_panel = weak_panel.clone();
-                                Some(ContextMenu::build(window, cx, move |mut menu, _window, _cx| {
-                                    for scheme in &schemes {
-                                        let scheme_name = scheme.clone();
-                                        let weak_panel = weak_panel.clone();
-                                        menu = menu.entry(scheme.clone(), None, {
-                                            move |_window, cx| {
-                                                weak_panel.update(cx, |panel, cx| {
-                                                    panel.selected_scheme = Some(scheme_name.clone());
-                                                    panel.serialize(cx);
-                                                    cx.notify();
-                                                }).ok();
-                                            }
-                                        });
-                                    }
-                                    menu
-                                }))
-                            }
-                        })
-                        .with_handle(self.scheme_menu_handle.clone())
+                    native_dropdown("scheme-selector", &schemes)
+                        .w_full()
+                        .selected_index(selected_scheme_index)
+                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
+                            let Some(selected_scheme) = this.schemes.get(event.index).cloned() else {
+                                return;
+                            };
+
+                            this.selected_scheme = Some(selected_scheme);
+                            this.serialize(cx);
+                            cx.notify();
+                        })),
                 )
             })
             .when(!has_schemes, |this| {
@@ -419,21 +396,37 @@ impl NativePlatformsPanel {
 
     fn render_devices_section(&self, cx: &Context<Self>) -> impl IntoElement {
         let devices = self.devices.clone();
-        let has_devices = !devices.is_empty();
-        let loading = self.loading_devices;
-        let weak_panel = cx.entity().downgrade();
-
-        let selected_label = self.selected_device
-            .as_ref()
-            .map(|d| {
-                let os = d.os_version.clone().unwrap_or_default();
-                if os.is_empty() {
-                    d.name.clone()
+        let device_labels: Vec<String> = devices
+            .iter()
+            .map(|device| {
+                let os_version = device.os_version.clone().unwrap_or_default();
+                let base_label = if os_version.is_empty() {
+                    device.name.clone()
                 } else {
-                    format!("{} ({})", d.name, os)
+                    format!("{} ({})", device.name, os_version)
+                };
+
+                match device.device_type {
+                    native_platforms::DeviceType::PhysicalDevice => {
+                        format!("{base_label} [Physical]")
+                    }
+                    native_platforms::DeviceType::Simulator => {
+                        format!("{base_label} [Simulator]")
+                    }
                 }
             })
-            .unwrap_or_else(|| "Select Device".to_string());
+            .collect();
+        let has_devices = !devices.is_empty();
+        let loading = self.loading_devices;
+        let selected_device_index = self
+            .selected_device
+            .as_ref()
+            .and_then(|selected_device| {
+                devices
+                    .iter()
+                    .position(|device| device.id == selected_device.id)
+            })
+            .unwrap_or(0);
 
         v_flex()
             .w_full()
@@ -453,67 +446,19 @@ impl NativePlatformsPanel {
             )
             .when(has_devices, |this| {
                 this.child(
-                    PopoverMenu::new("device-selector")
-                        .trigger(
-                            Button::new("device-trigger", selected_label)
-                                .style(ButtonStyle::Subtle)
-                                .full_width()
-                                .icon(IconName::ChevronDown)
-                                .icon_position(IconPosition::End)
-                                .icon_size(IconSize::Small)
-                        )
-                        .menu({
-                            let devices = devices.clone();
-                            let weak_panel = weak_panel.clone();
-                            move |window, cx| {
-                                let devices = devices.clone();
-                                let weak_panel = weak_panel.clone();
-                                Some(ContextMenu::build(window, cx, move |mut menu, _window, _cx| {
-                                    let mut last_was_physical = None;
+                    native_dropdown("device-selector", &device_labels)
+                        .w_full()
+                        .disabled(loading)
+                        .selected_index(selected_device_index)
+                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
+                            let Some(selected_device) = this.devices.get(event.index).cloned() else {
+                                return;
+                            };
 
-                                    for device in &devices {
-                                        let is_physical = device.device_type == DeviceType::PhysicalDevice;
-
-                                        if last_was_physical != Some(is_physical) {
-                                            if is_physical {
-                                                menu = menu.header("Physical Devices");
-                                            } else if last_was_physical == Some(true) {
-                                                menu = menu.separator();
-                                                menu = menu.header("Simulators");
-                                            }
-                                            last_was_physical = Some(is_physical);
-                                        }
-
-                                        let device_clone = device.clone();
-                                        let os_version = device.os_version.clone().unwrap_or_default();
-                                        let label = if os_version.is_empty() {
-                                            device.name.clone()
-                                        } else {
-                                            format!("{} ({})", device.name, os_version)
-                                        };
-                                        let is_booted = device.state == DeviceState::Booted;
-                                        let label = if is_booted {
-                                            format!("● {}", label)
-                                        } else {
-                                            format!("  {}", label)
-                                        };
-
-                                        let weak_panel = weak_panel.clone();
-                                        menu = menu.entry(label, None, {
-                                            move |_window, cx| {
-                                                weak_panel.update(cx, |panel, cx| {
-                                                    panel.selected_device = Some(device_clone.clone());
-                                                    panel.serialize(cx);
-                                                    cx.notify();
-                                                }).ok();
-                                            }
-                                        });
-                                    }
-                                    menu
-                                }))
-                            }
-                        })
-                        .with_handle(self.device_menu_handle.clone())
+                            this.selected_device = Some(selected_device);
+                            this.serialize(cx);
+                            cx.notify();
+                        })),
                 )
             })
             .when(!has_devices && !loading, |this| {
@@ -541,16 +486,18 @@ impl NativePlatformsPanel {
                 h_flex()
                     .gap_2()
                     .child(
-                        Button::new("build", "Build")
-                            .style(ButtonStyle::Filled)
+                        native_button("build", "Build")
+                            .button_style(NativeButtonStyle::Filled)
+                            .tint(NativeButtonTint::Accent)
                             .disabled(!can_build)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.start_pipeline(PipelineKind::Build, window, cx);
                             }))
                     )
                     .child(
-                        Button::new("run", "Run")
-                            .style(ButtonStyle::Filled)
+                        native_button("run", "Run")
+                            .button_style(NativeButtonStyle::Filled)
+                            .tint(NativeButtonTint::Accent)
                             .disabled(!can_build)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.start_pipeline(PipelineKind::Run, window, cx);
@@ -558,11 +505,9 @@ impl NativePlatformsPanel {
                     )
                     .when(is_active, |this| {
                         this.child(
-                            Button::new("stop", "Stop")
-                                .style(ButtonStyle::Subtle)
-                                .icon(IconName::Stop)
-                                .icon_size(IconSize::Small)
-                                .icon_color(Color::Error)
+                            native_button("stop", "Stop")
+                                .button_style(NativeButtonStyle::Filled)
+                                .tint(NativeButtonTint::Destructive)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.stop_build(cx);
                                 }))
@@ -570,12 +515,9 @@ impl NativePlatformsPanel {
                     })
                     .when(has_launched_app, |this| {
                         this.child(
-                            Button::new("terminate", "Terminate")
-                                .style(ButtonStyle::Subtle)
-                                .icon(IconName::Stop)
-                                .icon_size(IconSize::Small)
-                                .icon_color(Color::Warning)
-                                .tooltip(Tooltip::text("Terminate running app"))
+                            native_button("terminate", "Terminate")
+                                .button_style(NativeButtonStyle::Filled)
+                                .tint(NativeButtonTint::Warning)
                                 .on_click(cx.listener(|this, _, _, cx| {
                                     this.terminate_app(cx);
                                 }))
@@ -583,9 +525,9 @@ impl NativePlatformsPanel {
                     })
             )
             .child(
-                Button::new("deploy", "Deploy to App Store")
-                    .style(ButtonStyle::Subtle)
-                    .full_width()
+                native_button("deploy", "Deploy to App Store")
+                    .button_style(NativeButtonStyle::Inline)
+                    .w_full()
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.deploy(window, cx);
                     }))
