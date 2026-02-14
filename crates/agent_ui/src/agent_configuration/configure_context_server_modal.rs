@@ -10,7 +10,7 @@ use gpui::{
 };
 use language::{Language, LanguageRegistry};
 use markdown::{Markdown, MarkdownElement, MarkdownStyle};
-use notifications::status_toast::{StatusToast, ToastIcon};
+use toast::{StatusToast, ToastIcon};
 use project::{
     context_server_store::{
         ContextServerStatus, ContextServerStore, registry::ContextServerDescriptorRegistry,

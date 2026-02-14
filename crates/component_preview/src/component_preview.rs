@@ -9,7 +9,7 @@ use gpui::{
 };
 use gpui::{ListState, ScrollHandle, ScrollStrategy, UniformListScrollHandle};
 use language::LanguageRegistry;
-use notifications::status_toast::{StatusToast, ToastIcon};
+use toast::{StatusToast, ToastIcon};
 use persistence::COMPONENT_PREVIEW_DB;
 use project::Project;
 use std::{iter::Iterator, ops::Range, sync::Arc};

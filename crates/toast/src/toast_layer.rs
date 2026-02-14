@@ -5,39 +5,9 @@ use std::{
 
 use gpui::{AnyView, DismissEvent, Entity, EntityId, FocusHandle, ManagedView, Subscription, Task};
 use ui::{animation::DefaultAnimations, prelude::*};
-use zed_actions::toast;
-
-use crate::Workspace;
 
 const DEFAULT_TOAST_DURATION: Duration = Duration::from_secs(10);
 const MINIMUM_RESUME_DURATION: Duration = Duration::from_millis(800);
-
-pub fn init(cx: &mut App) {
-    cx.observe_new(|workspace: &mut Workspace, _window, _cx| {
-        workspace.register_action(|_workspace, _: &toast::RunAction, window, cx| {
-            let workspace = cx.entity();
-            let window = window.window_handle();
-            cx.defer(move |cx| {
-                let action = workspace
-                    .read(cx)
-                    .toast_layer
-                    .read(cx)
-                    .active_toast
-                    .as_ref()
-                    .and_then(|active_toast| active_toast.action.clone());
-
-                if let Some(on_click) = action.and_then(|action| action.on_click) {
-                    window
-                        .update(cx, |_, window, cx| {
-                            on_click(window, cx);
-                        })
-                        .ok();
-                }
-            });
-        });
-    })
-    .detach();
-}
 
 pub trait ToastView: ManagedView {
     fn action(&self) -> Option<ToastAction>;
@@ -81,6 +51,12 @@ pub struct ActiveToast {
     action: Option<ToastAction>,
     _subscriptions: [Subscription; 1],
     focus_handle: FocusHandle,
+}
+
+impl ActiveToast {
+    pub fn action(&self) -> Option<&ToastAction> {
+        self.action.as_ref()
+    }
 }
 
 struct DismissTimer {
@@ -160,6 +136,12 @@ impl ToastLayer {
 
     pub fn has_active_toast(&self) -> bool {
         self.active_toast.is_some()
+    }
+
+    pub fn active_toast_action(&self) -> Option<ToastAction> {
+        self.active_toast
+            .as_ref()
+            .and_then(|t| t.action().cloned())
     }
 
     fn pause_dismiss_timer(&mut self) {

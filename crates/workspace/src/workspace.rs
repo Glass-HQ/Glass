@@ -13,7 +13,7 @@ mod security_modal;
 pub mod tasks;
 mod theme_preview;
 mod title_bar_item;
-mod toast_layer;
+mod toast_init;
 mod toolbar;
 pub mod utility_pane;
 pub mod welcome;
@@ -23,7 +23,7 @@ pub use crate::notifications::NotificationFrame;
 pub use dock::Panel;
 pub use path_list::PathList;
 pub use title_bar_item::{TitleBarItemView, TitleBarItemViewHandle};
-pub use toast_layer::{ToastAction, ToastLayer, ToastView};
+pub use toast::{ToastAction, ToastLayer, ToastView};
 
 use anyhow::{Context as _, Result, anyhow};
 use client::{
@@ -600,7 +600,7 @@ fn prompt_and_open_paths(app_state: Arc<AppState>, options: PathPromptOptions, c
 pub fn init(app_state: Arc<AppState>, cx: &mut App) {
     component::init();
     theme_preview::init(cx);
-    toast_layer::init(cx);
+    toast_init::init(cx);
     history_manager::init(cx);
 
     cx.on_action(|_: &CloseWindow, cx| Workspace::close_global(cx))

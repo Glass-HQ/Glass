@@ -68,6 +68,7 @@ telemetry.workspace = true
 terminal_view.workspace = true
 text.workspace = true
 theme.workspace = true
+toast.workspace = true
 tree-sitter-json.workspace = true
 tree-sitter.workspace = true
 ui.workspace = true

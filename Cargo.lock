@@ -415,6 +415,7 @@ dependencies = [
  "time",
  "time_format",
  "title_bar",
+ "toast",
  "tree-sitter-md",
  "ui",
  "ui_input",
@@ -2087,6 +2088,7 @@ dependencies = [
  "settings",
  "smallvec",
  "theme",
+ "toast",
  "ui",
  "url",
  "util",
@@ -3048,6 +3050,7 @@ dependencies = [
  "session",
  "settings",
  "theme",
+ "toast",
  "ui",
  "ui_input",
  "uuid",
@@ -4112,6 +4115,7 @@ dependencies = [
  "terminal_view",
  "text",
  "theme",
+ "toast",
  "tree-sitter",
  "tree-sitter-go",
  "tree-sitter-json",
@@ -6514,6 +6518,7 @@ dependencies = [
  "theme",
  "time",
  "time_format",
+ "toast",
  "tracing",
  "ui",
  "unindent",
@@ -8018,6 +8023,7 @@ dependencies = [
  "telemetry",
  "tempfile",
  "theme",
+ "toast",
  "tree-sitter-json",
  "tree-sitter-rust",
  "ui",
@@ -10044,6 +10050,7 @@ dependencies = [
  "settings",
  "telemetry",
  "theme",
+ "toast",
  "ui",
  "util",
  "workspace",
@@ -11508,6 +11515,7 @@ dependencies = [
  "telemetry",
  "tempfile",
  "theme",
+ "toast",
  "ui",
  "util",
  "workspace",
@@ -15167,6 +15175,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "toast"
+version = "0.1.0"
+dependencies = [
+ "component",
+ "gpui",
+ "ui",
+ "zed_actions",
+]
+
+[[package]]
 name = "tokio"
 version = "1.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18229,6 +18247,7 @@ dependencies = [
  "telemetry",
  "tempfile",
  "theme",
+ "toast",
  "ui",
  "util",
  "uuid",

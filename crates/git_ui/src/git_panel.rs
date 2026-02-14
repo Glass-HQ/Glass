@@ -47,7 +47,7 @@ use language_model::{
 };
 use menu;
 use multi_buffer::ExcerptInfo;
-use notifications::status_toast::{StatusToast, ToastIcon};
+use toast::{StatusToast, ToastIcon};
 use panel::{
     PanelHeader, panel_button, panel_editor_container, panel_editor_style, panel_filled_button,
     panel_icon_button,

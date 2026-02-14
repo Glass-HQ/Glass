@@ -1,9 +1,11 @@
 use std::rc::Rc;
 
+use component::{Component, ComponentScope, example_group_with_title, single_example};
 use gpui::{DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, IntoElement};
 use ui::{Tooltip, prelude::*};
-use workspace::{ToastAction, ToastView};
 use zed_actions::toast;
+
+use crate::{ToastAction, ToastView};
 
 #[derive(Clone, Copy)]
 pub struct ToastIcon {

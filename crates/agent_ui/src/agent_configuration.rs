@@ -27,7 +27,7 @@ use language_model::{
     ZED_CLOUD_PROVIDER_ID,
 };
 use language_models::AllLanguageModelSettings;
-use notifications::status_toast::{StatusToast, ToastIcon};
+use toast::{StatusToast, ToastIcon};
 use project::{
     agent_server_store::{
         AgentServerStore, CLAUDE_CODE_NAME, CODEX_NAME, ExternalAgentServerName,

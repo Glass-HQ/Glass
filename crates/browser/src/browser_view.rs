@@ -133,6 +133,7 @@ pub struct BrowserView {
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     tab_bar_mode: TabBarMode,
+    toast_layer: Entity<toast::ToastLayer>,
     swipe_state: SwipeNavigationState,
     _swipe_dismiss_task: Option<Task<()>>,
     _message_pump_task: Option<Task<()>>,
@@ -148,6 +149,8 @@ impl BrowserView {
         let history = cx.new(|cx| BrowserHistory::new(cx));
         let bookmark_bar = cx.new(|cx| BookmarkBar::new(cx));
         let bookmark_subscription = cx.subscribe(&bookmark_bar, Self::handle_bookmark_bar_event);
+
+        let toast_layer = cx.new(|_| toast::ToastLayer::new());
 
         let mut this = Self {
             focus_handle: cx.focus_handle(),
@@ -165,6 +168,7 @@ impl BrowserView {
             context_menu: None,
             pending_context_menu: None,
             tab_bar_mode: TabBarMode::default(),
+            toast_layer,
             swipe_state: SwipeNavigationState::default(),
             _swipe_dismiss_task: None,
             _message_pump_task: None,
@@ -631,6 +635,14 @@ impl BrowserView {
         if let Some(tab) = self.active_tab() {
             let url = tab.read(cx).url().to_string();
             cx.write_to_clipboard(gpui::ClipboardItem::new_string(url));
+
+            let status_toast = toast::StatusToast::new("URL copied to clipboard", cx, |this, _| {
+                this.icon(toast::ToastIcon::new(ui::IconName::Check).color(ui::Color::Success))
+            });
+            self.toast_layer.update(cx, |layer, cx| {
+                layer.toggle_toast(cx, status_toast);
+                layer.start_dismiss_timer(std::time::Duration::from_secs(2), cx);
+            });
         }
     }
 
@@ -2158,6 +2170,11 @@ impl Render for BrowserView {
                 .into_any_element(),
         };
 
-        element
+        div()
+            .size_full()
+            .relative()
+            .child(element)
+            .child(self.toast_layer.clone())
+            .into_any_element()
     }
 }

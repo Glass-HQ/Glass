@@ -24,7 +24,7 @@ use gpui::{
     actions, anchored, deferred, div,
 };
 use language::{Language, LanguageConfig, ToOffset as _};
-use notifications::status_toast::{StatusToast, ToastIcon};
+use toast::{StatusToast, ToastIcon};
 use project::{CompletionDisplayOptions, Project};
 use settings::{
     BaseKeymap, KeybindSource, KeymapFile, Settings as _, SettingsAssets, infer_json_indent_size,
