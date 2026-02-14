@@ -50,6 +50,8 @@ actions!(
         PinTab,
         UnpinTab,
         BookmarkCurrentPage,
+        CopyUrl,
+        ToggleSidebar,
     ]
 );
 
@@ -98,6 +100,13 @@ impl SwipeNavigationState {
     }
 }
 
+#[derive(Default, Clone, Copy, PartialEq)]
+enum TabBarMode {
+    #[default]
+    Horizontal,
+    Sidebar,
+}
+
 struct BrowserContextMenu {
     menu: Entity<ui::ContextMenu>,
     position: Point<Pixels>,
@@ -123,6 +132,7 @@ pub struct BrowserView {
     pending_new_tab_urls: Vec<String>,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
+    tab_bar_mode: TabBarMode,
     swipe_state: SwipeNavigationState,
     _swipe_dismiss_task: Option<Task<()>>,
     _message_pump_task: Option<Task<()>>,
@@ -154,6 +164,7 @@ impl BrowserView {
             pending_new_tab_urls: Vec::new(),
             context_menu: None,
             pending_context_menu: None,
+            tab_bar_mode: TabBarMode::default(),
             swipe_state: SwipeNavigationState::default(),
             _swipe_dismiss_task: None,
             _message_pump_task: None,
@@ -207,6 +218,11 @@ impl BrowserView {
 
         self.sort_tabs_pinned_first(cx);
         self.active_tab_index = saved.active_index.min(self.tabs.len().saturating_sub(1));
+        self.tab_bar_mode = if saved.sidebar {
+            TabBarMode::Sidebar
+        } else {
+            TabBarMode::Horizontal
+        };
         self.sync_bookmark_bar_visibility(cx);
         true
     }
@@ -234,6 +250,7 @@ impl BrowserView {
         let data = SerializedBrowserTabs {
             tabs,
             active_index: self.active_tab_index,
+            sidebar: self.tab_bar_mode == TabBarMode::Sidebar,
         };
 
         serde_json::to_string(&data).log_err()
@@ -481,6 +498,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
+        self.focus_omnibox_if_new_tab(window, cx);
         self.schedule_save(cx);
         cx.notify();
     }
@@ -492,6 +510,20 @@ impl BrowserView {
             });
         }
         self.sync_bookmark_bar_visibility(cx);
+    }
+
+    fn focus_omnibox_if_new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let is_new_tab = self
+            .active_tab()
+            .map(|t| t.read(cx).is_new_tab_page())
+            .unwrap_or(false);
+        if is_new_tab {
+            if let Some(toolbar) = self.toolbar.clone() {
+                toolbar.update(cx, |toolbar, cx| {
+                    toolbar.focus_omnibox(window, cx);
+                });
+            }
+        }
     }
 
     fn sync_bookmark_bar_visibility(&self, cx: &mut Context<Self>) {
@@ -588,6 +620,18 @@ impl BrowserView {
         cx: &mut Context<Self>,
     ) {
         self.toggle_bookmark_active_tab(cx);
+    }
+
+    fn handle_copy_url(
+        &mut self,
+        _: &CopyUrl,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(tab) = self.active_tab() {
+            let url = tab.read(cx).url().to_string();
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(url));
+        }
     }
 
     fn toggle_bookmark_active_tab(&mut self, cx: &mut Context<Self>) {
@@ -819,6 +863,7 @@ impl BrowserView {
 
             ModeViewRegistry::global_mut(cx)
                 .set_titlebar_center_view(ModeId::BROWSER, toolbar.into());
+            self.focus_omnibox_if_new_tab(window, cx);
             cx.notify();
         }
     }
@@ -1076,6 +1121,7 @@ impl BrowserView {
     fn handle_new_tab(&mut self, _: &NewTab, window: &mut Window, cx: &mut Context<Self>) {
         self.add_tab(cx);
         self.update_toolbar_active_tab(window, cx);
+        self.focus_omnibox_if_new_tab(window, cx);
         cx.notify();
     }
 
@@ -1123,6 +1169,7 @@ impl BrowserView {
             self.add_tab(cx);
 
             self.update_toolbar_active_tab(window, cx);
+            self.focus_omnibox_if_new_tab(window, cx);
             self.schedule_save(cx);
             cx.notify();
             return;
@@ -1140,6 +1187,7 @@ impl BrowserView {
         self.activate_tab_for_close(cx);
 
         self.update_toolbar_active_tab(window, cx);
+        self.focus_omnibox_if_new_tab(window, cx);
         self.schedule_save(cx);
         cx.notify();
     }
@@ -1581,6 +1629,244 @@ impl BrowserView {
             )
     }
 
+    fn handle_toggle_sidebar(
+        &mut self,
+        _: &ToggleSidebar,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.tab_bar_mode = match self.tab_bar_mode {
+            TabBarMode::Horizontal => TabBarMode::Sidebar,
+            TabBarMode::Sidebar => TabBarMode::Horizontal,
+        };
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn render_sidebar(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let theme = cx.theme();
+        let active_index = self.active_tab_index;
+        let view = cx.entity().downgrade();
+
+        v_flex()
+            .h_full()
+            .w(px(200.))
+            .flex_shrink_0()
+            .bg(theme.colors().title_bar_background)
+            .border_r_1()
+            .border_color(theme.colors().border)
+            .child(
+                v_flex()
+                    .id("sidebar-tab-list")
+                    .flex_1()
+                    .overflow_y_scroll()
+                    .children(self.tabs.iter().enumerate().map(|(index, tab)| {
+                        let tab_data = tab.read(cx);
+                        let title = tab_data.title().to_string();
+                        let favicon_url = tab_data.favicon_url().map(|s| s.to_string());
+                        let is_pinned = tab_data.is_pinned();
+                        let is_active = index == active_index;
+
+                        let favicon_element = if let Some(ref url) = favicon_url {
+                            img(SharedUri::from(url.clone()))
+                                .size(px(14.))
+                                .rounded_sm()
+                                .flex_shrink_0()
+                                .into_any_element()
+                        } else {
+                            Icon::new(IconName::Globe)
+                                .size(IconSize::XSmall)
+                                .color(Color::Muted)
+                                .into_any_element()
+                        };
+
+                        let tab_content = if is_pinned {
+                            div()
+                                .id(("sidebar-tab-inner", index))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .w_full()
+                                .h(px(30.))
+                                .flex_shrink_0()
+                                .border_b_1()
+                                .border_color(theme.colors().border)
+                                .cursor_pointer()
+                                .when(is_active, |this| {
+                                    this.bg(theme.colors().editor_background)
+                                })
+                                .when(!is_active, |this| {
+                                    this.hover(|style| {
+                                        style.bg(theme.colors().ghost_element_hover)
+                                    })
+                                })
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.switch_to_tab(index, window, cx);
+                                }))
+                                .child(favicon_element)
+                                .into_any_element()
+                        } else {
+                            let display_title = if title.len() > 24 {
+                                let truncated = match title.char_indices().nth(21) {
+                                    Some((byte_index, _)) => &title[..byte_index],
+                                    None => &title,
+                                };
+                                format!("{truncated}...")
+                            } else {
+                                title
+                            };
+
+                            div()
+                                .id(("sidebar-tab-inner", index))
+                                .flex()
+                                .items_center()
+                                .w_full()
+                                .h(px(30.))
+                                .px_2()
+                                .gap_1()
+                                .flex_shrink_0()
+                                .border_b_1()
+                                .border_color(theme.colors().border)
+                                .cursor_pointer()
+                                .when(is_active, |this| {
+                                    this.bg(theme.colors().editor_background)
+                                })
+                                .when(!is_active, |this| {
+                                    this.hover(|style| {
+                                        style.bg(theme.colors().ghost_element_hover)
+                                    })
+                                })
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    this.switch_to_tab(index, window, cx);
+                                }))
+                                .child(favicon_element)
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .overflow_hidden()
+                                        .whitespace_nowrap()
+                                        .text_ellipsis()
+                                        .text_size(rems(0.75))
+                                        .text_color(if is_active {
+                                            theme.colors().text
+                                        } else {
+                                            theme.colors().text_muted
+                                        })
+                                        .child(display_title),
+                                )
+                                .child(
+                                    native_icon_button(
+                                        SharedString::from(format!("sidebar-close-tab-{index}")),
+                                        "xmark",
+                                    )
+                                    .size(px(16.))
+                                    .on_click(cx.listener(move |this, _, window, cx| {
+                                        this.close_tab_at(index, window, cx);
+                                    }))
+                                    .tooltip("Close Tab"),
+                                )
+                                .into_any_element()
+                        };
+
+                        let view = view.clone();
+                        ui::right_click_menu(("sidebar-tab-ctx-menu", index))
+                            .trigger(move |_, _, _| tab_content)
+                            .menu(move |window, cx| {
+                                let view = view.clone();
+                                ui::ContextMenu::build(
+                                    window,
+                                    cx,
+                                    move |mut menu, _window, _cx| {
+                                        if is_pinned {
+                                            let view = view.clone();
+                                            menu = menu.entry(
+                                                "Unpin Tab",
+                                                None,
+                                                move |_window, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.unpin_tab_at(index, cx);
+                                                    })
+                                                    .ok();
+                                                },
+                                            );
+                                        } else {
+                                            let view = view.clone();
+                                            menu = menu.entry(
+                                                "Pin Tab",
+                                                None,
+                                                move |_window, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.pin_tab_at(index, cx);
+                                                    })
+                                                    .ok();
+                                                },
+                                            );
+                                        }
+                                        menu = menu.separator();
+                                        {
+                                            let view = view.clone();
+                                            menu = menu.entry(
+                                                "Close Tab",
+                                                None,
+                                                move |_window, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.close_tab_at_inner(index, cx);
+                                                    })
+                                                    .ok();
+                                                },
+                                            );
+                                        }
+                                        {
+                                            let view = view.clone();
+                                            menu = menu.entry(
+                                                "Close Other Tabs",
+                                                None,
+                                                move |_window, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.close_other_tabs_at(index, cx);
+                                                    })
+                                                    .ok();
+                                                },
+                                            );
+                                        }
+                                        if !is_pinned {
+                                            menu = menu.separator();
+                                            menu = menu.entry(
+                                                "Bookmark This Page",
+                                                None,
+                                                move |_window, cx| {
+                                                    view.update(cx, |this, cx| {
+                                                        this.toggle_bookmark_at(index, cx);
+                                                    })
+                                                    .ok();
+                                                },
+                                            );
+                                        }
+                                        menu
+                                    },
+                                )
+                            })
+                    })),
+            )
+            .child(
+                div()
+                    .w_full()
+                    .p_1()
+                    .border_t_1()
+                    .border_color(theme.colors().border)
+                    .child(
+                        native_icon_button("sidebar-new-tab-button", "plus")
+                            .size(px(20.))
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.add_tab(cx);
+                                this.update_toolbar_active_tab(window, cx);
+                                cx.notify();
+                            }))
+                            .tooltip("New Tab"),
+                    ),
+            )
+    }
+
     fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
 
@@ -1590,12 +1876,16 @@ impl BrowserView {
             .unwrap_or(false);
 
         if is_new_tab_page {
+            let omnibox = self
+                .toolbar
+                .as_ref()
+                .map(|toolbar| toolbar.read(cx).omnibox().clone());
             return div()
                 .id("browser-content")
                 .relative()
                 .flex_1()
                 .w_full()
-                .child(new_tab_page::render_new_tab_page(cx))
+                .child(new_tab_page::render_new_tab_page(omnibox.as_ref(), cx))
                 .into_any_element();
         }
 
@@ -1841,13 +2131,32 @@ impl Render for BrowserView {
             .on_action(cx.listener(Self::handle_go_forward))
             .on_action(cx.listener(Self::handle_open_devtools))
             .on_action(cx.listener(Self::handle_bookmark_current_page))
+            .on_action(cx.listener(Self::handle_copy_url))
+            .on_action(cx.listener(Self::handle_toggle_sidebar))
             .size_full()
-            .flex()
-            .flex_col()
-            .child(self.render_tab_strip(cx))
-            .child(self.bookmark_bar.clone())
-            .child(self.render_browser_content(cx))
-            .into_any_element();
+            .flex();
+
+        let element = match self.tab_bar_mode {
+            TabBarMode::Horizontal => element
+                .flex_col()
+                .child(self.render_tab_strip(cx))
+                .child(self.bookmark_bar.clone())
+                .child(self.render_browser_content(cx))
+                .into_any_element(),
+            TabBarMode::Sidebar => element
+                .flex_row()
+                .child(self.render_sidebar(cx))
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .overflow_hidden()
+                        .child(self.bookmark_bar.clone())
+                        .child(self.render_browser_content(cx)),
+                )
+                .into_any_element(),
+        };
 
         element
     }

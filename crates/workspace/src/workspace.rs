@@ -6803,7 +6803,7 @@ impl Render for Workspace {
                                             )
                                             .into_any_element()
                                     } else if self.active_mode == ModeId::TERMINAL {
-                                        // Terminal Mode: render terminal panel full-screen
+                                        // Terminal Mode: render terminal panel with left dock
                                         let terminal_panel = self
                                             .bottom_dock
                                             .read(cx)
@@ -6814,6 +6814,7 @@ impl Render for Workspace {
                                             .size_full()
                                             .flex()
                                             .flex_row()
+                                            .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
                                             .child(
                                                 div()
                                                     .flex()

@@ -166,6 +166,7 @@ impl Render for TitleBar {
             .map(|ws| ws.read(cx).active_mode_id());
 
         let is_browser_mode = active_mode == Some(ModeId::BROWSER);
+        let is_terminal_mode = active_mode == Some(ModeId::TERMINAL);
 
         let mut children = Vec::new();
 
@@ -241,7 +242,7 @@ impl Render for TitleBar {
                 .gap_1()
                 .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
                 .children(self.render_connection_status(status, cx))
-                .when(!is_browser_mode, |this| {
+                .when(!is_browser_mode && !is_terminal_mode, |this| {
                     this.child(self.render_right_items())
                 })
                 .when(

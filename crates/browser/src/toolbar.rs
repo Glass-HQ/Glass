@@ -107,6 +107,10 @@ impl BrowserToolbar {
         cx.notify();
     }
 
+    pub fn omnibox(&self) -> &Entity<Omnibox> {
+        &self.omnibox
+    }
+
     pub fn focus_omnibox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.omnibox.update(cx, |omnibox, cx| {
             omnibox.focus_and_select_all(window, cx);
@@ -159,27 +163,29 @@ impl Render for BrowserToolbar {
             .px_2()
             .gap_1()
             .key_context("BrowserToolbar")
-            .child(
-                native_icon_button("back", "chevron.left")
-                    .disabled(!can_go_back)
-                    .tooltip("Go Back")
-                    .on_click(cx.listener(Self::go_back)),
-            )
-            .child(
-                native_icon_button("forward", "chevron.right")
-                    .disabled(!can_go_forward)
-                    .tooltip("Go Forward")
-                    .on_click(cx.listener(Self::go_forward)),
-            )
-            .child(if is_loading {
-                native_icon_button("stop", "xmark.circle")
-                    .on_click(cx.listener(Self::stop))
-                    .tooltip("Stop")
-            } else {
-                native_icon_button("reload", "arrow.clockwise")
-                    .on_click(cx.listener(Self::reload))
-                    .tooltip("Reload")
+            .when(!is_new_tab_page, |this| {
+                this.child(
+                    native_icon_button("back", "chevron.left")
+                        .disabled(!can_go_back)
+                        .tooltip("Go Back")
+                        .on_click(cx.listener(Self::go_back)),
+                )
+                .child(
+                    native_icon_button("forward", "chevron.right")
+                        .disabled(!can_go_forward)
+                        .tooltip("Go Forward")
+                        .on_click(cx.listener(Self::go_forward)),
+                )
+                .child(if is_loading {
+                    native_icon_button("stop", "xmark.circle")
+                        .on_click(cx.listener(Self::stop))
+                        .tooltip("Stop")
+                } else {
+                    native_icon_button("reload", "arrow.clockwise")
+                        .on_click(cx.listener(Self::reload))
+                        .tooltip("Reload")
+                })
+                .child(self.omnibox.clone())
             })
-            .child(self.omnibox.clone())
     }
 }

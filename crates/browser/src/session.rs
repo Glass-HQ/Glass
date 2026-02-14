@@ -12,6 +12,8 @@ const BROWSER_BOOKMARKS_KEY: &str = "browser_bookmarks";
 pub struct SerializedBrowserTabs {
     pub tabs: Vec<SerializedTab>,
     pub active_index: usize,
+    #[serde(default)]
+    pub sidebar: bool,
 }
 
 #[derive(Serialize, Deserialize)]

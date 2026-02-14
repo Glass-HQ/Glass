@@ -1171,7 +1171,9 @@
       "cmd-[": "browser::GoBack",
       "cmd-]": "browser::GoForward",
       "cmd-alt-i": "browser::OpenDevTools",
-      "f12": "browser::OpenDevTools"
+      "f12": "browser::OpenDevTools",
+      "cmd-s": "browser::ToggleSidebar",
+      "cmd-shift-c": "browser::CopyUrl"
     }
   },
   {

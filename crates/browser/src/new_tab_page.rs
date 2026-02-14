@@ -1,7 +1,8 @@
-use gpui::{App, IntoElement, Styled, prelude::*};
+use crate::omnibox::Omnibox;
+use gpui::{App, Entity, IntoElement, Styled, prelude::*};
 use ui::{Icon, IconName, IconSize, prelude::*};
 
-pub fn render_new_tab_page(cx: &App) -> impl IntoElement {
+pub fn render_new_tab_page(omnibox: Option<&Entity<Omnibox>>, cx: &App) -> impl IntoElement {
     let theme = cx.theme();
 
     div()
@@ -12,8 +13,18 @@ pub fn render_new_tab_page(cx: &App) -> impl IntoElement {
         .justify_center()
         .bg(theme.colors().editor_background)
         .child(
-            Icon::new(IconName::Globe)
-                .size(IconSize::Custom(rems(6.0)))
-                .color(Color::Muted),
+            div()
+                .flex()
+                .flex_col()
+                .items_center()
+                .gap_6()
+                .child(
+                    Icon::new(IconName::Globe)
+                        .size(IconSize::Custom(rems(4.0)))
+                        .color(Color::Muted),
+                )
+                .when_some(omnibox.cloned(), |this, omnibox| {
+                    this.child(div().w(px(500.)).child(omnibox))
+                }),
         )
 }
