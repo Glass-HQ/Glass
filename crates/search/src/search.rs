@@ -9,7 +9,7 @@ use ui::{Tooltip, prelude::*};
 use workspace::notifications::NotificationId;
 use workspace::{Toast, Workspace};
 
-pub use search_status_button::SEARCH_ICON;
+pub const SEARCH_ICON: ui::IconName = ui::IconName::MagnifyingGlass;
 
 use crate::project_search::ProjectSearchBar;
 

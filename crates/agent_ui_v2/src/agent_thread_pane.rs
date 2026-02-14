@@ -6,7 +6,8 @@ use agent_settings::AgentSettings;
 use agent_ui::acp::{AcpThreadHistory, AcpThreadView};
 use fs::Fs;
 use gpui::{
-    Entity, EventEmitter, Focusable, Pixels, SharedString, Subscription, WeakEntity, prelude::*,
+    Entity, EventEmitter, Focusable, Pixels, SharedString, Subscription, WeakEntity,
+    native_icon_button, prelude::*,
 };
 use project::Project;
 use prompt_store::PromptStore;
@@ -206,10 +207,9 @@ impl AgentThreadPane {
                     })
                     .child(Label::new(title).truncate())
                     .child(
-                        IconButton::new("close_btn", IconName::Close)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::text("Close Agent Pane"))
-                            .on_click(cx.listener(|this, _: &gpui::ClickEvent, _window, cx| {
+                        native_icon_button("close_btn", "xmark")
+                            .tooltip("Close Agent Pane")
+                            .on_click(cx.listener(|this, _, _window, cx| {
                                 cx.emit(ClosePane);
                                 this.thread_view = None;
                                 cx.notify()

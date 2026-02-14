@@ -10,7 +10,8 @@ use agent_client_protocol as acp;
 use collections::HashMap;
 use gpui::{
     App, Empty, Entity, EventEmitter, FocusHandle, Focusable, Global, ListAlignment, ListState,
-    StyleRefinement, Subscription, Task, TextStyleRefinement, Window, actions, list, prelude::*,
+    StyleRefinement, Subscription, Task, TextStyleRefinement, Window, actions, list,
+    native_icon_button, prelude::*,
 };
 use language::LanguageRegistry;
 use markdown::{CodeBlockRenderer, Markdown, MarkdownElement, MarkdownStyle};
@@ -576,9 +577,8 @@ impl Render for AcpToolsToolbarItemView {
                     .disabled(!has_messages)
             })
             .child(
-                IconButton::new("clear_messages", IconName::Trash)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text("Clear Messages"))
+                native_icon_button("clear_messages", "trash")
+                    .tooltip("Clear Messages")
                     .disabled(!has_messages)
                     .on_click(cx.listener(move |_this, _, _window, cx| {
                         acp_tools.update(cx, |acp_tools, cx| {

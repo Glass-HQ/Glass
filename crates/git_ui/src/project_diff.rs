@@ -14,13 +14,13 @@ use editor::{
     scroll::Autoscroll,
 };
 use git::{
-    Commit, StageAll, StageAndNext, ToggleStaged, UnstageAll, UnstageAndNext,
+    Commit, StageAndNext, ToggleStaged, UnstageAndNext,
     repository::{Branch, RepoPath, Upstream, UpstreamTracking, UpstreamTrackingStatus},
     status::FileStatus,
 };
 use gpui::{
-    Action, AnyElement, App, AppContext as _, AsyncWindowContext, Entity, EventEmitter,
-    FocusHandle, Focusable, Render, Subscription, Task, WeakEntity, actions,
+    Action, AnyElement, App, AppContext as _, AsyncWindowContext, Entity, EventEmitter, FocusHandle,
+    Focusable, Render, Subscription, Task, WeakEntity, actions, native_button, native_icon_button,
 };
 use language::{Anchor, Buffer, Capability, OffsetRangeExt};
 use multi_buffer::{MultiBuffer, PathKey};
@@ -36,7 +36,7 @@ use smol::future::yield_now;
 use std::any::{Any, TypeId};
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::{KeyBinding, Tooltip, prelude::*, vertical_divider};
+use ui::{Tooltip, prelude::*, vertical_divider};
 use util::{ResultExt as _, rel_path::RelPath};
 use workspace::{
     CloseActiveItem, ItemNavHistory, SerializableItem, ToolbarItemEvent, ToolbarItemLocation,
@@ -1045,13 +1045,7 @@ impl Render for ProjectDiff {
                         })
                         .child(
                             h_flex().justify_around().mt_1().child(
-                                Button::new("project-diff-close-button", "Close")
-                                    // .style(ButtonStyle::Transparent)
-                                    .key_binding(KeyBinding::for_action_in(
-                                        &CloseActiveItem::default(),
-                                        &keybinding_focus_handle,
-                                        cx,
-                                    ))
+                                native_button("project-diff-close-button", "Close")
                                     .on_click(move |_, window, cx| {
                                         window.focus(&keybinding_focus_handle, cx);
                                         window.dispatch_action(
@@ -1314,12 +1308,7 @@ impl Render for ProjectDiffToolbar {
                 h_group_sm()
                     .when(button_states.selection, |el| {
                         el.child(
-                            Button::new("stage", "Toggle Staged")
-                                .tooltip(Tooltip::for_action_title_in(
-                                    "Toggle Staged",
-                                    &ToggleStaged,
-                                    &focus_handle,
-                                ))
+                            native_button("stage", "Toggle Staged")
                                 .disabled(!button_states.stage && !button_states.unstage)
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.dispatch_action(&ToggleStaged, window, cx)
@@ -1328,12 +1317,7 @@ impl Render for ProjectDiffToolbar {
                     })
                     .when(!button_states.selection, |el| {
                         el.child(
-                            Button::new("stage", "Stage")
-                                .tooltip(Tooltip::for_action_title_in(
-                                    "Stage and go to next hunk",
-                                    &StageAndNext,
-                                    &focus_handle,
-                                ))
+                            native_button("stage", "Stage")
                                 .disabled(
                                     !button_states.prev_next
                                         && !button_states.stage_all
@@ -1344,12 +1328,7 @@ impl Render for ProjectDiffToolbar {
                                 })),
                         )
                         .child(
-                            Button::new("unstage", "Unstage")
-                                .tooltip(Tooltip::for_action_title_in(
-                                    "Unstage and go to next hunk",
-                                    &UnstageAndNext,
-                                    &focus_handle,
-                                ))
+                            native_button("unstage", "Unstage")
                                 .disabled(
                                     !button_states.prev_next
                                         && !button_states.stage_all
@@ -1366,26 +1345,16 @@ impl Render for ProjectDiffToolbar {
             .child(
                 h_group_sm()
                     .child(
-                        IconButton::new("up", IconName::ArrowUp)
-                            .shape(ui::IconButtonShape::Square)
-                            .tooltip(Tooltip::for_action_title_in(
-                                "Go to previous hunk",
-                                &GoToPreviousHunk,
-                                &focus_handle,
-                            ))
+                        native_icon_button("up", "chevron.up")
+                            .tooltip("Go to previous hunk")
                             .disabled(!button_states.prev_next)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.dispatch_action(&GoToPreviousHunk, window, cx)
                             })),
                     )
                     .child(
-                        IconButton::new("down", IconName::ArrowDown)
-                            .shape(ui::IconButtonShape::Square)
-                            .tooltip(Tooltip::for_action_title_in(
-                                "Go to next hunk",
-                                &GoToHunk,
-                                &focus_handle,
-                            ))
+                        native_icon_button("down", "chevron.down")
+                            .tooltip("Go to next hunk")
                             .disabled(!button_states.prev_next)
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.dispatch_action(&GoToHunk, window, cx)
@@ -1399,12 +1368,7 @@ impl Render for ProjectDiffToolbar {
                         button_states.unstage_all && !button_states.stage_all,
                         |el| {
                             el.child(
-                                Button::new("unstage-all", "Unstage All")
-                                    .tooltip(Tooltip::for_action_title_in(
-                                        "Unstage all changes",
-                                        &UnstageAll,
-                                        &focus_handle,
-                                    ))
+                                native_button("unstage-all", "Unstage All")
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.unstage_all(window, cx)
                                     })),
@@ -1415,16 +1379,9 @@ impl Render for ProjectDiffToolbar {
                         !button_states.unstage_all || button_states.stage_all,
                         |el| {
                             el.child(
-                                // todo make it so that changing to say "Unstaged"
-                                // doesn't change the position.
                                 div().child(
-                                    Button::new("stage-all", "Stage All")
+                                    native_button("stage-all", "Stage All")
                                         .disabled(!button_states.stage_all)
-                                        .tooltip(Tooltip::for_action_title_in(
-                                            "Stage all changes",
-                                            &StageAll,
-                                            &focus_handle,
-                                        ))
                                         .on_click(cx.listener(|this, _, window, cx| {
                                             this.stage_all(window, cx)
                                         })),
@@ -1433,12 +1390,7 @@ impl Render for ProjectDiffToolbar {
                         },
                     )
                     .child(
-                        Button::new("commit", "Commit")
-                            .tooltip(Tooltip::for_action_title_in(
-                                "Commit",
-                                &Commit,
-                                &focus_handle,
-                            ))
+                        native_button("commit", "Commit")
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.dispatch_action(&Commit, window, cx);
                             })),

@@ -1,9 +1,11 @@
-use crate::{BufferDiagnosticsEditor, ProjectDiagnosticsEditor, ToggleDiagnosticsRefresh};
-use gpui::{Context, EventEmitter, ParentElement, Render, Window};
+use crate::{BufferDiagnosticsEditor, ProjectDiagnosticsEditor};
+use gpui::{
+    Context, EventEmitter, NativeButtonTint, ParentElement, Render, Window, native_icon_button,
+};
 use language::DiagnosticEntry;
 use search::buffer_search;
 use text::{Anchor, BufferId};
-use ui::{Tooltip, prelude::*};
+use ui::prelude::*;
 use workspace::{ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, item::ItemHandle};
 use zed_actions::assistant::InlineAssist;
 
@@ -46,46 +48,34 @@ impl Render for ToolbarControls {
             None => {}
         }
 
-        let (warning_tooltip, warning_color) = if include_warnings {
-            ("Exclude Warnings", Color::Warning)
+        let warning_tooltip = if include_warnings {
+            "Exclude Warnings"
         } else {
-            ("Include Warnings", Color::Disabled)
+            "Include Warnings"
         };
 
         h_flex()
             .gap_1()
-            .child({
-                IconButton::new("toggle_search", IconName::MagnifyingGlass)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::for_action_title(
-                        "Buffer Search",
-                        &buffer_search::Deploy::find(),
-                    ))
+            .child(
+                native_icon_button("toggle_search", "magnifyingglass")
+                    .tooltip("Buffer Search")
                     .on_click(|_, window, cx| {
                         window.dispatch_action(Box::new(buffer_search::Deploy::find()), cx);
-                    })
-            })
-            .child({
-                IconButton::new("inline_assist", IconName::ZedAssistant)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::for_action_title(
-                        "Inline Assist",
-                        &InlineAssist::default(),
-                    ))
+                    }),
+            )
+            .child(
+                native_icon_button("inline_assist", "sparkles")
+                    .tooltip("Inline Assist")
                     .on_click(|_, window, cx| {
                         window.dispatch_action(Box::new(InlineAssist::default()), cx);
-                    })
-            })
+                    }),
+            )
             .map(|div| {
                 if is_updating {
                     div.child(
-                        IconButton::new("stop-updating", IconName::Stop)
-                            .icon_color(Color::Error)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::for_action_title(
-                                "Stop Siagnostics Update",
-                                &ToggleDiagnosticsRefresh,
-                            ))
+                        native_icon_button("stop-updating", "stop.fill")
+                            .tint(NativeButtonTint::Destructive)
+                            .tooltip("Stop Diagnostics Update")
                             .on_click(cx.listener(move |toolbar_controls, _, _, cx| {
                                 if let Some(editor) = toolbar_controls.editor() {
                                     editor.stop_updating(cx);
@@ -95,12 +85,8 @@ impl Render for ToolbarControls {
                     )
                 } else {
                     div.child(
-                        IconButton::new("refresh-diagnostics", IconName::ArrowCircle)
-                            .icon_size(IconSize::Small)
-                            .tooltip(Tooltip::for_action_title(
-                                "Refresh Diagnostics",
-                                &ToggleDiagnosticsRefresh,
-                            ))
+                        native_icon_button("refresh-diagnostics", "arrow.triangle.2.circlepath")
+                            .tooltip("Refresh Diagnostics")
                             .on_click(cx.listener({
                                 move |toolbar_controls, _, window, cx| {
                                     if let Some(editor) = toolbar_controls.editor() {
@@ -111,17 +97,20 @@ impl Render for ToolbarControls {
                     )
                 }
             })
-            .child(
-                IconButton::new("toggle-warnings", IconName::Warning)
-                    .icon_color(warning_color)
-                    .icon_size(IconSize::Small)
-                    .tooltip(Tooltip::text(warning_tooltip))
+            .child({
+                let button = native_icon_button("toggle-warnings", "exclamationmark.triangle")
+                    .tooltip(warning_tooltip)
                     .on_click(cx.listener(|this, _, window, cx| {
                         if let Some(editor) = &this.editor {
                             editor.toggle_warnings(window, cx)
                         }
-                    })),
-            )
+                    }));
+                if include_warnings {
+                    button.tint(NativeButtonTint::Warning)
+                } else {
+                    button
+                }
+            })
     }
 }
 

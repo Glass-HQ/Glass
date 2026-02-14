@@ -3,6 +3,7 @@ use settings::{Settings, SettingsStore};
 use gpui::{
     AnyWindowHandle, Context, Hsla, InteractiveElement, MouseButton, ParentElement, ScrollHandle,
     Styled, SystemWindowTab, SystemWindowTabController, Window, WindowId, actions, canvas, div,
+    native_icon_button,
 };
 
 use theme::ThemeSettings;
@@ -478,9 +479,8 @@ impl Render for SystemWindowTabs {
                     .border_l_1()
                     .border_color(cx.theme().colors().border)
                     .child(
-                        IconButton::new("plus", IconName::Plus)
-                            .icon_size(IconSize::Small)
-                            .icon_color(Color::Muted)
+                        native_icon_button("plus", "plus")
+                            .tooltip("New Window")
                             .on_click(|_event, window, cx| {
                                 window.dispatch_action(
                                     Box::new(zed_actions::OpenRecent {

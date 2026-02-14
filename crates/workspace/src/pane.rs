@@ -23,7 +23,7 @@ use gpui::{
     DragMoveEvent, Entity, EntityId, EventEmitter, ExternalPaths, FocusHandle, FocusOutEvent,
     Focusable, KeyContext, MouseButton, MouseDownEvent, NavigationDirection, Pixels, Point,
     PromptLevel, Render, ScrollHandle, Subscription, Task, WeakEntity, WeakFocusHandle, Window,
-    actions, anchored, deferred, prelude::*,
+    actions, anchored, deferred, native_icon_button, prelude::*,
 };
 use itertools::Itertools;
 use language::{Capability, DiagnosticSeverity};
@@ -3212,8 +3212,8 @@ impl Pane {
         let focus_handle = self.focus_handle.clone();
         let is_pane_focused = self.has_focus(window, cx);
 
-        let navigate_backward = IconButton::new("navigate_backward", IconName::ArrowLeft)
-            .icon_size(IconSize::Small)
+        let navigate_backward = native_icon_button("navigate_backward", "chevron.left")
+            .tooltip("Go Back")
             .on_click({
                 let entity = cx.entity();
                 move |_, window, cx| {
@@ -3222,18 +3222,7 @@ impl Pane {
                     })
                 }
             })
-            .disabled(!self.can_navigate_backward())
-            .tooltip({
-                let focus_handle = focus_handle.clone();
-                move |window, cx| {
-                    Tooltip::for_action_in(
-                        "Go Back",
-                        &GoBack,
-                        &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                        cx,
-                    )
-                }
-            });
+            .disabled(!self.can_navigate_backward());
 
         let open_aside_left = {
             let workspace = workspace.read(cx);
@@ -3299,8 +3288,8 @@ impl Pane {
             })
         };
 
-        let navigate_forward = IconButton::new("navigate_forward", IconName::ArrowRight)
-            .icon_size(IconSize::Small)
+        let navigate_forward = native_icon_button("navigate_forward", "chevron.right")
+            .tooltip("Go Forward")
             .on_click({
                 let entity = cx.entity();
                 move |_, window, cx| {
@@ -3309,18 +3298,7 @@ impl Pane {
                     })
                 }
             })
-            .disabled(!self.can_navigate_forward())
-            .tooltip({
-                let focus_handle = focus_handle.clone();
-                move |window, cx| {
-                    Tooltip::for_action_in(
-                        "Go Forward",
-                        &GoForward,
-                        &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                        cx,
-                    )
-                }
-            });
+            .disabled(!self.can_navigate_forward());
 
         let mut tab_items = self
             .items
@@ -3411,8 +3389,8 @@ impl Pane {
     fn configure_tab_bar_start(
         &mut self,
         tab_bar: TabBar,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
+        navigate_backward: impl IntoElement,
+        navigate_forward: impl IntoElement,
         open_aside_left: Option<AnyElement>,
         render_aside_toggle_left: bool,
         window: &mut Window,
@@ -3470,8 +3448,8 @@ impl Pane {
         pinned_tabs: Vec<AnyElement>,
         unpinned_tabs: Vec<AnyElement>,
         tab_count: usize,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
+        navigate_backward: impl IntoElement,
+        navigate_forward: impl IntoElement,
         open_aside_left: Option<AnyElement>,
         open_aside_right: Option<AnyElement>,
         render_aside_toggle_left: bool,
@@ -3515,8 +3493,8 @@ impl Pane {
         pinned_tabs: Vec<AnyElement>,
         unpinned_tabs: Vec<AnyElement>,
         tab_count: usize,
-        navigate_backward: IconButton,
-        navigate_forward: IconButton,
+        navigate_backward: impl IntoElement,
+        navigate_forward: impl IntoElement,
         open_aside_left: Option<AnyElement>,
         open_aside_right: Option<AnyElement>,
         render_aside_toggle_left: bool,

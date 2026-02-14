@@ -24,8 +24,9 @@ use client::{Client, UserStore, zed_urls};
 use cloud_llm_client::{Plan, PlanV2};
 use gpui::{
     Action, AnyElement, App, Context, Corner, Element, Entity, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, MouseButton, ParentElement, Render,
+    InteractiveElement, IntoElement, MouseButton, NativeButton, ParentElement, Render,
     StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window, actions, div,
+    native_button,
 };
 use onboarding_banner::OnboardingBanner;
 use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorktrees};
@@ -670,10 +671,8 @@ impl TitleBar {
 
         if self.project.read(cx).is_disconnected(cx) {
             return Some(
-                Button::new("disconnected", "Disconnected")
+                native_button("disconnected", "Disconnected")
                     .disabled(true)
-                    .color(Color::Disabled)
-                    .label_size(LabelSize::Small)
                     .into_any_element(),
             );
         }
@@ -977,8 +976,7 @@ impl TitleBar {
                 };
 
                 Some(
-                    Button::new("connection-status", label)
-                        .label_size(LabelSize::Small)
+                    native_button("connection-status", label)
                         .on_click(|_, window, cx| {
                             if let Some(auto_updater) = auto_update::AutoUpdater::get(cx)
                                 && auto_updater.read(cx).status().is_updated()
@@ -995,21 +993,19 @@ impl TitleBar {
         }
     }
 
-    pub fn render_sign_in_button(&mut self, _: &mut Context<Self>) -> Button {
+    pub fn render_sign_in_button(&mut self, _: &mut Context<Self>) -> NativeButton {
         let client = self.client.clone();
-        Button::new("sign_in", "Sign In")
-            .label_size(LabelSize::Small)
-            .on_click(move |_, window, cx| {
-                let client = client.clone();
-                window
-                    .spawn(cx, async move |cx| {
-                        client
-                            .sign_in_with_optional_connect(true, cx)
-                            .await
-                            .notify_async_err(cx);
-                    })
-                    .detach();
-            })
+        native_button("sign_in", "Sign In").on_click(move |_, window, cx| {
+            let client = client.clone();
+            window
+                .spawn(cx, async move |cx| {
+                    client
+                        .sign_in_with_optional_connect(true, cx)
+                        .await
+                        .notify_async_err(cx);
+                })
+                .detach();
+        })
     }
 
     pub fn render_user_menu_button(&mut self, cx: &mut Context<Self>) -> impl Element {

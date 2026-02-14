@@ -8,7 +8,7 @@ use gpui::{
     Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
     ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
-    deferred, div, px,
+    deferred, div, native_icon_button, px,
 };
 use settings::SettingsStore;
 use std::sync::Arc;
@@ -140,15 +140,8 @@ impl Render for DockButtonBar {
         }
 
         let workspace_weak = self.workspace.clone();
-        let search_button = IconButton::new("search-button", ui::IconName::MagnifyingGlass)
-            .icon_size(IconSize::Small)
-            .tooltip(|_window, cx| {
-                Tooltip::for_action(
-                    "Project Search",
-                    &crate::DeploySearch::default(),
-                    cx,
-                )
-            })
+        let search_button = native_icon_button("search-button", "magnifyingglass")
+            .tooltip("Project Search")
             .on_click(move |_, window, cx| {
                 if let Some(workspace) = workspace_weak.upgrade() {
                     workspace.update(cx, |_workspace, cx| {

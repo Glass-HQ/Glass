@@ -1,5 +1,5 @@
-use gpui::{Action, Entity, Global, Render, SharedString};
-use ui::{ButtonLike, Tooltip, prelude::*};
+use gpui::{Action, Entity, Global, Render, SharedString, native_icon_button};
+use ui::{ButtonLike, prelude::*};
 use util::ResultExt;
 
 /// Prompts the user to try newly released Zed's features
@@ -148,20 +148,12 @@ impl Render for OnboardingBanner {
             )
             .child(
                 div().border_l_1().border_color(border_color).child(
-                    IconButton::new("close", IconName::Close)
-                        .icon_size(IconSize::Indicator)
+                    native_icon_button("close", "xmark")
+                        .tooltip("Close Announcement Banner")
                         .on_click(cx.listener(|this, _, _window, cx| {
                             telemetry::event!("Banner Dismissed", source = this.source);
                             this.dismiss(cx)
-                        }))
-                        .tooltip(|_window, cx| {
-                            Tooltip::with_meta(
-                                "Close Announcement Banner",
-                                None,
-                                "It won't show again for this feature",
-                                cx,
-                            )
-                        }),
+                        })),
                 ),
             );
 

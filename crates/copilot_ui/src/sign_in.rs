@@ -2,8 +2,9 @@ use anyhow::Context as _;
 use copilot::{Copilot, Status, request, request::PromptUserDeviceFlow};
 use gpui::{
     App, ClipboardItem, Context, DismissEvent, Element, Entity, EventEmitter, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, MouseDownEvent, ParentElement, Render, Styled,
-    Subscription, Window, WindowBounds, WindowOptions, div, point,
+    Focusable, InteractiveElement, IntoElement, MouseDownEvent, NativeButtonStyle, NativeButtonTint,
+    ParentElement, Render, Styled, Subscription, Window, WindowBounds, WindowOptions, div,
+    native_button, point,
 };
 use ui::{ButtonLike, CommonAnimationExt, ConfiguredApiCard, Vector, VectorName, prelude::*};
 use util::ResultExt as _;
@@ -267,10 +268,10 @@ impl CopilotCodeVerification {
                     .w_full()
                     .gap_1()
                     .child(
-                        Button::new("connect-button", connect_button_label)
-                            .full_width()
-                            .style(ButtonStyle::Outlined)
-                            .size(ButtonSize::Medium)
+                        native_button("connect-button", connect_button_label)
+                            .w_full()
+                            .button_style(NativeButtonStyle::Filled)
+                            .tint(NativeButtonTint::Accent)
                             .on_click({
                                 let command = data.command.clone();
                                 cx.listener(move |this, _, _window, cx| {
@@ -320,9 +321,8 @@ impl CopilotCodeVerification {
                             }),
                     )
                     .child(
-                        Button::new("copilot-enable-cancel-button", "Cancel")
-                            .full_width()
-                            .size(ButtonSize::Medium)
+                        native_button("copilot-enable-cancel-button", "Cancel")
+                            .w_full()
                             .on_click(cx.listener(|_, _, _, cx| {
                                 cx.emit(DismissEvent);
                             })),
@@ -338,10 +338,8 @@ impl CopilotCodeVerification {
             .child(Headline::new("Copilot Enabled!").size(HeadlineSize::Large))
             .child(Label::new("You're all set to use GitHub Copilot.").color(Color::Muted))
             .child(
-                Button::new("copilot-enabled-done-button", "Done")
-                    .full_width()
-                    .style(ButtonStyle::Outlined)
-                    .size(ButtonSize::Medium)
+                native_button("copilot-enabled-done-button", "Done")
+                    .w_full()
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
             )
     }
@@ -364,16 +362,15 @@ impl CopilotCodeVerification {
             )
             .child(Label::new(description).color(Color::Warning))
             .child(
-                Button::new("copilot-subscribe-button", "Subscribe on GitHub")
-                    .full_width()
-                    .style(ButtonStyle::Outlined)
-                    .size(ButtonSize::Medium)
+                native_button("copilot-subscribe-button", "Subscribe on GitHub")
+                    .w_full()
+                    .button_style(NativeButtonStyle::Filled)
+                    .tint(NativeButtonTint::Accent)
                     .on_click(move |_, _, cx| cx.open_url(&sign_up_url)),
             )
             .child(
-                Button::new("copilot-subscribe-cancel-button", "Cancel")
-                    .full_width()
-                    .size(ButtonSize::Medium)
+                native_button("copilot-subscribe-cancel-button", "Cancel")
+                    .w_full()
                     .on_click(cx.listener(|_, _, _, cx| cx.emit(DismissEvent))),
             )
     }
@@ -386,14 +383,10 @@ impl CopilotCodeVerification {
             .child(Headline::new("An Error Happened").size(HeadlineSize::Large))
             .child(Label::new(ERROR_LABEL).color(Color::Muted))
             .child(
-                Button::new("copilot-subscribe-button", "Reinstall Copilot and Sign In")
-                    .full_width()
-                    .style(ButtonStyle::Outlined)
-                    .size(ButtonSize::Medium)
-                    .icon(IconName::Download)
-                    .icon_color(Color::Muted)
-                    .icon_position(IconPosition::Start)
-                    .icon_size(IconSize::Small)
+                native_button("copilot-subscribe-button", "Reinstall Copilot and Sign In")
+                    .w_full()
+                    .button_style(NativeButtonStyle::Filled)
+                    .tint(NativeButtonTint::Accent)
                     .on_click(|_, window, cx| reinstall_and_sign_in(window, cx)),
             )
     }
@@ -555,19 +548,10 @@ impl ConfigurationView {
             "Sign in to use GitHub Copilot"
         };
 
-        Button::new("sign_in", label)
-            .map(|this| {
-                if edit_prediction {
-                    this.size(ButtonSize::Medium)
-                } else {
-                    this.full_width()
-                }
-            })
-            .style(ButtonStyle::Outlined)
-            .icon(IconName::Github)
-            .icon_color(Color::Muted)
-            .icon_position(IconPosition::Start)
-            .icon_size(IconSize::Small)
+        native_button("sign_in", label)
+            .when(!edit_prediction, |this| this.w_full())
+            .button_style(NativeButtonStyle::Filled)
+            .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| initiate_sign_in(window, cx))
     }
 
@@ -578,19 +562,10 @@ impl ConfigurationView {
             "Reinstall Copilot and Sign in"
         };
 
-        Button::new("reinstall_and_sign_in", label)
-            .map(|this| {
-                if edit_prediction {
-                    this.size(ButtonSize::Medium)
-                } else {
-                    this.full_width()
-                }
-            })
-            .style(ButtonStyle::Outlined)
-            .icon(IconName::Download)
-            .icon_color(Color::Muted)
-            .icon_position(IconPosition::Start)
-            .icon_size(IconSize::Small)
+        native_button("reinstall_and_sign_in", label)
+            .when(!edit_prediction, |this| this.w_full())
+            .button_style(NativeButtonStyle::Filled)
+            .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| reinstall_and_sign_in(window, cx))
     }
 

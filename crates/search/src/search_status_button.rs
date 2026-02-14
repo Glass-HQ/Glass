@@ -1,10 +1,9 @@
 use editor::EditorSettings;
+use gpui::{Context, IntoElement, Render, Window, div, native_icon_button};
 use settings::Settings as _;
-use ui::{ButtonCommon, Clickable, Context, Render, Tooltip, Window, prelude::*};
+use ui::prelude::*;
 use workspace::ItemHandle;
 use workspace::TitleBarItemView;
-
-pub const SEARCH_ICON: IconName = IconName::MagnifyingGlass;
 
 pub struct SearchButton;
 
@@ -15,7 +14,7 @@ impl SearchButton {
 }
 
 impl Render for SearchButton {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl ui::IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let button = div();
 
         if !EditorSettings::get_global(cx).search.button {
@@ -23,11 +22,8 @@ impl Render for SearchButton {
         }
 
         button.child(
-            IconButton::new("project-search-indicator", SEARCH_ICON)
-                .icon_size(IconSize::Small)
-                .tooltip(|_window, cx| {
-                    Tooltip::for_action("Project Search", &workspace::DeploySearch::default(), cx)
-                })
+            native_icon_button("project-search-indicator", "magnifyingglass")
+                .tooltip("Project Search")
                 .on_click(cx.listener(|_this, _, window, cx| {
                     window.dispatch_action(Box::new(workspace::DeploySearch::default()), cx);
                 })),

@@ -1,8 +1,8 @@
 use gpui::{
-    ClickEvent, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, MouseDownEvent, Render,
-    svg,
+    ClickEvent, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, MouseDownEvent,
+    NativeButtonStyle, NativeButtonTint, Render, native_button, native_icon_button, svg,
 };
-use ui::{TintColor, prelude::*};
+use ui::prelude::*;
 use workspace::{ModalView, Workspace};
 
 use crate::git_panel::GitPanel;
@@ -110,25 +110,22 @@ impl Render for GitOnboardingModal {
                     .child(Headline::new("Native Git Support").size(HeadlineSize::Large)),
             )
             .child(h_flex().absolute().top_2().right_2().child(
-                IconButton::new("cancel", IconName::Close).on_click(cx.listener(
-                    |_, _: &ClickEvent, _window, cx| {
+                native_icon_button("cancel", "xmark").on_click(cx.listener(
+                    |_, _, _window, cx| {
                         git_onboarding_event!("Cancelled", trigger = "X click");
                         cx.emit(DismissEvent);
                     },
                 )),
             ));
 
-        let open_panel_button = Button::new("open-panel", "Get Started with the Git Panel")
-            .icon_size(IconSize::Indicator)
-            .style(ButtonStyle::Tinted(TintColor::Accent))
-            .full_width()
+        let open_panel_button = native_button("open-panel", "Get Started with the Git Panel")
+            .button_style(NativeButtonStyle::Filled)
+            .tint(NativeButtonTint::Accent)
+            .w_full()
             .on_click(cx.listener(Self::open_panel));
 
-        let blog_post_button = Button::new("view-blog", "Check out the Blog Post")
-            .icon(IconName::ArrowUpRight)
-            .icon_size(IconSize::Indicator)
-            .icon_color(Color::Muted)
-            .full_width()
+        let blog_post_button = native_button("view-blog", "Check out the Blog Post")
+            .w_full()
             .on_click(cx.listener(Self::view_blog));
 
         let copy = "First-class support for staging, committing, pulling, pushing, viewing diffs, and more. All without leaving Zed.";

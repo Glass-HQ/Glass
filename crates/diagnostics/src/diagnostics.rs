@@ -18,8 +18,8 @@ use editor::{
 };
 use gpui::{
     AnyElement, App, AsyncApp, Context, Entity, EventEmitter, FocusHandle, FocusOutEvent,
-    Focusable, Global, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
-    Styled, Subscription, Task, WeakEntity, Window, actions, div,
+    Focusable, Global, InteractiveElement, IntoElement, ParentElement, Render, SharedString, Styled,
+    Subscription, Task, WeakEntity, Window, actions, div, native_button,
 };
 use itertools::Itertools as _;
 use language::{
@@ -128,7 +128,7 @@ impl Render for ProjectDiagnosticsEditor {
                             self.summary.warning_count, plural_suffix
                         );
                         this.child(
-                            Button::new("diagnostics-show-warning-label", label).on_click(
+                            native_button("diagnostics-show-warning-label", label).on_click(
                                 cx.listener(|this, _, window, cx| {
                                     this.toggle_warnings(&Default::default(), window, cx);
                                     cx.notify();

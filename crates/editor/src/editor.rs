@@ -110,8 +110,8 @@ use gpui::{
     MouseButton, MouseDownEvent, MouseMoveEvent, PaintQuad, ParentElement, Pixels, PressureStage,
     Render, ScrollHandle, SharedString, SharedUri, Size, Stateful, Styled, Subscription, Task,
     TextRun, TextStyle, TextStyleRefinement, UTF16Selection, UnderlineStyle,
-    UniformListScrollHandle, WeakEntity, WeakFocusHandle, Window, div, point, prelude::*,
-    pulsating_between, px, relative, size,
+    UniformListScrollHandle, WeakEntity, WeakFocusHandle, Window, div, native_button,
+    native_icon_button, point, prelude::*, pulsating_between, px, relative, size,
 };
 use hover_links::{HoverLink, HoveredLinkState, find_file};
 use hover_popover::{HoverState, hide_hover};
@@ -198,8 +198,8 @@ use theme::{
     observe_buffer_font_size_adjustment,
 };
 use ui::{
-    Avatar, ButtonSize, ButtonStyle, ContextMenu, Disclosure, IconButton, IconButtonShape,
-    IconName, IconSize, Indicator, Key, Tooltip, h_flex, prelude::*, scrollbars::ScrollbarAutoHide,
+    Avatar, ButtonStyle, ContextMenu, Disclosure, IconButton, IconName, IconSize, Indicator, Key,
+    Tooltip, h_flex, prelude::*, scrollbars::ScrollbarAutoHide,
 };
 use util::{RangeExt, ResultExt, TryFutureExt, maybe, post_inc};
 use workspace::{
@@ -21898,20 +21898,16 @@ impl Editor {
                             .flex_shrink_0()
                             .gap_1()
                             .child(
-                                IconButton::new("diff-review-close", IconName::Close)
-                                    .icon_color(ui::Color::Muted)
-                                    .icon_size(action_icon_size)
-                                    .tooltip(Tooltip::text("Close"))
+                                native_icon_button("diff-review-close", "xmark")
+                                    .tooltip("Close")
                                     .on_click(|_, window, cx| {
                                         window
                                             .dispatch_action(Box::new(crate::actions::Cancel), cx);
                                     }),
                             )
                             .child(
-                                IconButton::new("diff-review-add", IconName::Return)
-                                    .icon_color(ui::Color::Muted)
-                                    .icon_size(action_icon_size)
-                                    .tooltip(Tooltip::text("Add comment"))
+                                native_icon_button("diff-review-add", "return")
+                                    .tooltip("Add comment")
                                     .on_click(|_, window, cx| {
                                         window.dispatch_action(
                                             Box::new(crate::actions::SubmitDiffReviewComment),
@@ -22008,7 +22004,7 @@ impl Editor {
         inline_editor: Option<Entity<Editor>>,
         user_avatar_uri: Option<SharedUri>,
         avatar_size: Pixels,
-        action_icon_size: IconSize,
+        _action_icon_size: IconSize,
         colors: &theme::ThemeColors,
     ) -> impl IntoElement {
         let comment_id = comment.id;
@@ -22065,13 +22061,13 @@ impl Editor {
                 h_flex()
                     .gap_1()
                     .child(
-                        IconButton::new(
-                            format!("diff-review-cancel-edit-{comment_id}"),
-                            IconName::Close,
+                        native_icon_button(
+                            SharedString::from(format!(
+                                "diff-review-cancel-edit-{comment_id}"
+                            )),
+                            "xmark",
                         )
-                        .icon_color(ui::Color::Muted)
-                        .icon_size(action_icon_size)
-                        .tooltip(Tooltip::text("Cancel"))
+                        .tooltip("Cancel")
                         .on_click(move |_, window, cx| {
                             window.dispatch_action(
                                 Box::new(crate::actions::CancelEditReviewComment {
@@ -22082,13 +22078,13 @@ impl Editor {
                         }),
                     )
                     .child(
-                        IconButton::new(
-                            format!("diff-review-confirm-edit-{comment_id}"),
-                            IconName::Return,
+                        native_icon_button(
+                            SharedString::from(format!(
+                                "diff-review-confirm-edit-{comment_id}"
+                            )),
+                            "return",
                         )
-                        .icon_color(ui::Color::Muted)
-                        .icon_size(action_icon_size)
-                        .tooltip(Tooltip::text("Confirm"))
+                        .tooltip("Confirm")
                         .on_click(move |_, window, cx| {
                             window.dispatch_action(
                                 Box::new(crate::actions::ConfirmEditReviewComment {
@@ -27971,10 +27967,10 @@ impl Render for MissingEditPredictionKeybindingTooltip {
                         .gap_1()
                         .items_end()
                         .w_full()
-                        .child(Button::new("open-keymap", "Assign Keybinding").size(ButtonSize::Compact).on_click(|_ev, window, cx| {
+                        .child(native_button("open-keymap", "Assign Keybinding").on_click(|_ev, window, cx| {
                             window.dispatch_action(zed_actions::OpenKeymapFile.boxed_clone(), cx)
                         }))
-                        .child(Button::new("see-docs", "See Docs").size(ButtonSize::Compact).on_click(|_ev, _window, cx| {
+                        .child(native_button("see-docs", "See Docs").on_click(|_ev, _window, cx| {
                             cx.open_url("https://zed.dev/docs/completions#edit-predictions-missing-keybinding");
                         })),
                 )
@@ -28021,19 +28017,7 @@ fn render_diff_hunk_controls(
         .block_mouse_except_scroll()
         .shadow_md()
         .child(if status.has_secondary_hunk() {
-            Button::new(("stage", row as u64), "Stage")
-                .alpha(if status.is_pending() { 0.66 } else { 1.0 })
-                .tooltip({
-                    let focus_handle = editor.focus_handle(cx);
-                    move |_window, cx| {
-                        Tooltip::for_action_in(
-                            "Stage Hunk",
-                            &::git::ToggleStaged,
-                            &focus_handle,
-                            cx,
-                        )
-                    }
-                })
+            native_button(SharedString::from(format!("stage-{row}")), "Stage")
                 .on_click({
                     let editor = editor.clone();
                     move |_event, _window, cx| {
@@ -28047,19 +28031,7 @@ fn render_diff_hunk_controls(
                     }
                 })
         } else {
-            Button::new(("unstage", row as u64), "Unstage")
-                .alpha(if status.is_pending() { 0.66 } else { 1.0 })
-                .tooltip({
-                    let focus_handle = editor.focus_handle(cx);
-                    move |_window, cx| {
-                        Tooltip::for_action_in(
-                            "Unstage Hunk",
-                            &::git::ToggleStaged,
-                            &focus_handle,
-                            cx,
-                        )
-                    }
-                })
+            native_button(SharedString::from(format!("unstage-{row}")), "Unstage")
                 .on_click({
                     let editor = editor.clone();
                     move |_event, _window, cx| {
@@ -28074,13 +28046,7 @@ fn render_diff_hunk_controls(
                 })
         })
         .child(
-            Button::new(("restore", row as u64), "Restore")
-                .tooltip({
-                    let focus_handle = editor.focus_handle(cx);
-                    move |_window, cx| {
-                        Tooltip::for_action_in("Restore Hunk", &::git::Restore, &focus_handle, cx)
-                    }
-                })
+            native_button(SharedString::from(format!("restore-{row}")), "Restore")
                 .on_click({
                     let editor = editor.clone();
                     move |_event, window, cx| {
@@ -28097,69 +28063,54 @@ fn render_diff_hunk_controls(
             !editor.read(cx).buffer().read(cx).all_diff_hunks_expanded(),
             |el| {
                 el.child(
-                    IconButton::new(("next-hunk", row as u64), IconName::ArrowDown)
-                        .shape(IconButtonShape::Square)
-                        .icon_size(IconSize::Small)
-                        // .disabled(!has_multiple_hunks)
-                        .tooltip({
-                            let focus_handle = editor.focus_handle(cx);
-                            move |_window, cx| {
-                                Tooltip::for_action_in("Next Hunk", &GoToHunk, &focus_handle, cx)
-                            }
-                        })
-                        .on_click({
-                            let editor = editor.clone();
-                            move |_event, window, cx| {
-                                editor.update(cx, |editor, cx| {
-                                    let snapshot = editor.snapshot(window, cx);
-                                    let position =
-                                        hunk_range.end.to_point(&snapshot.buffer_snapshot());
-                                    editor.go_to_hunk_before_or_after_position(
-                                        &snapshot,
-                                        position,
-                                        Direction::Next,
-                                        window,
-                                        cx,
-                                    );
-                                    editor.expand_selected_diff_hunks(cx);
-                                });
-                            }
-                        }),
+                    native_icon_button(
+                        SharedString::from(format!("next-hunk-{row}")),
+                        "chevron.down",
+                    )
+                    .tooltip("Next Hunk")
+                    .on_click({
+                        let editor = editor.clone();
+                        move |_event, window, cx| {
+                            editor.update(cx, |editor, cx| {
+                                let snapshot = editor.snapshot(window, cx);
+                                let position =
+                                    hunk_range.end.to_point(&snapshot.buffer_snapshot());
+                                editor.go_to_hunk_before_or_after_position(
+                                    &snapshot,
+                                    position,
+                                    Direction::Next,
+                                    window,
+                                    cx,
+                                );
+                                editor.expand_selected_diff_hunks(cx);
+                            });
+                        }
+                    }),
                 )
                 .child(
-                    IconButton::new(("prev-hunk", row as u64), IconName::ArrowUp)
-                        .shape(IconButtonShape::Square)
-                        .icon_size(IconSize::Small)
-                        // .disabled(!has_multiple_hunks)
-                        .tooltip({
-                            let focus_handle = editor.focus_handle(cx);
-                            move |_window, cx| {
-                                Tooltip::for_action_in(
-                                    "Previous Hunk",
-                                    &GoToPreviousHunk,
-                                    &focus_handle,
+                    native_icon_button(
+                        SharedString::from(format!("prev-hunk-{row}")),
+                        "chevron.up",
+                    )
+                    .tooltip("Previous Hunk")
+                    .on_click({
+                        let editor = editor.clone();
+                        move |_event, window, cx| {
+                            editor.update(cx, |editor, cx| {
+                                let snapshot = editor.snapshot(window, cx);
+                                let point =
+                                    hunk_range.start.to_point(&snapshot.buffer_snapshot());
+                                editor.go_to_hunk_before_or_after_position(
+                                    &snapshot,
+                                    point,
+                                    Direction::Prev,
+                                    window,
                                     cx,
-                                )
-                            }
-                        })
-                        .on_click({
-                            let editor = editor.clone();
-                            move |_event, window, cx| {
-                                editor.update(cx, |editor, cx| {
-                                    let snapshot = editor.snapshot(window, cx);
-                                    let point =
-                                        hunk_range.start.to_point(&snapshot.buffer_snapshot());
-                                    editor.go_to_hunk_before_or_after_position(
-                                        &snapshot,
-                                        point,
-                                        Direction::Prev,
-                                        window,
-                                        cx,
-                                    );
-                                    editor.expand_selected_diff_hunks(cx);
-                                });
-                            }
-                        }),
+                                );
+                                editor.expand_selected_diff_hunks(cx);
+                            });
+                        }
+                    }),
                 )
             },
         )
