@@ -93,12 +93,11 @@ impl Omnibox {
     pub fn set_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.navigation_started = false;
         self.current_page_url = url.to_string();
-        if !self.is_open {
-            self.suppress_search = true;
-            self.url_editor.update(cx, |editor, cx| {
-                editor.set_text(url.to_string(), window, cx);
-            });
-        }
+        self.close_dropdown(cx);
+        self.suppress_search = true;
+        self.url_editor.update(cx, |editor, cx| {
+            editor.set_text(url.to_string(), window, cx);
+        });
     }
 
     pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -150,7 +149,7 @@ impl Omnibox {
     fn schedule_search(&mut self, cx: &mut Context<Self>) {
         let query = self.url_editor.read(cx).text(cx);
 
-        if query.is_empty() {
+        if query.is_empty() || query == self.current_page_url {
             self.suggestions.clear();
             self.is_open = false;
             self.pending_search = None;
@@ -165,12 +164,14 @@ impl Omnibox {
                 .timer(Duration::from_millis(100))
                 .await;
 
-            let query_for_search = this
-                .read_with(cx, |this, cx| this.url_editor.read(cx).text(cx))
+            let (query_for_search, current_url) = this
+                .read_with(cx, |this, cx| {
+                    (this.url_editor.read(cx).text(cx), this.current_page_url.clone())
+                })
                 .ok()
                 .unwrap_or_default();
 
-            if query_for_search.is_empty() {
+            if query_for_search.is_empty() || query_for_search == current_url {
                 let _ = this.update(cx, |this, cx| {
                     this.suggestions.clear();
                     this.is_open = false;
@@ -199,22 +200,19 @@ impl Omnibox {
     fn build_suggestions(&mut self, query: String, history_matches: Vec<HistoryMatch>) {
         self.suggestions.clear();
 
-        // If query looks like a URL, prepend a RawUrl suggestion
+        self.suggestions
+            .push(OmniboxSuggestion::SearchQuery(query.clone()));
+
         if looks_like_url(&query) {
-            self.suggestions
-                .push(OmniboxSuggestion::RawUrl(query.clone()));
+            self.suggestions.push(OmniboxSuggestion::RawUrl(query));
         }
 
-        // History matches
         for m in history_matches {
             self.suggestions.push(OmniboxSuggestion::HistoryItem {
                 url: m.url,
                 title: m.title,
             });
         }
-
-        // Always append a search query suggestion as the last item
-        self.suggestions.push(OmniboxSuggestion::SearchQuery(query));
 
         self.selected_index = 0;
         self.is_open = true;

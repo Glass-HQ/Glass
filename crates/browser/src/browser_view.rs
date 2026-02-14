@@ -15,8 +15,8 @@ use crate::toolbar::BrowserToolbar;
 use gpui::{
     App, Bounds, Context, Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     InteractiveElement, IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render,
-    SharedUri, Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, img,
-    native_icon_button, point, prelude::*, surface,
+    ScrollDelta, SharedUri, Styled, Subscription, Task, TouchPhase, Window, actions, anchored,
+    canvas, deferred, div, img, native_icon_button, point, prelude::*, surface,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -53,6 +53,51 @@ actions!(
     ]
 );
 
+const SWIPE_NAV_THRESHOLD: f32 = 150.0;
+const SWIPE_AXIS_LOCK_THRESHOLD: f32 = 25.0;
+const SWIPE_INDICATOR_SIZE: f32 = 36.0;
+
+#[derive(Default)]
+struct SwipeNavigationState {
+    accumulated_x: f32,
+    accumulated_y: f32,
+    phase: SwipePhase,
+}
+
+#[derive(Default, Clone, Copy, PartialEq)]
+enum SwipePhase {
+    #[default]
+    Idle,
+    Undecided,
+    Horizontal,
+    Vertical,
+    Fired,
+}
+
+impl SwipeNavigationState {
+    fn reset(&mut self) {
+        self.accumulated_x = 0.0;
+        self.accumulated_y = 0.0;
+        self.phase = SwipePhase::Idle;
+    }
+
+    fn progress(&self) -> f32 {
+        (self.accumulated_x.abs() / SWIPE_NAV_THRESHOLD).clamp(0.0, 1.0)
+    }
+
+    fn is_active(&self) -> bool {
+        self.phase == SwipePhase::Horizontal || self.phase == SwipePhase::Fired
+    }
+
+    fn is_swiping_back(&self) -> bool {
+        self.is_active() && self.accumulated_x > 0.0
+    }
+
+    fn threshold_crossed(&self) -> bool {
+        self.accumulated_x.abs() >= SWIPE_NAV_THRESHOLD
+    }
+}
+
 struct BrowserContextMenu {
     menu: Entity<ui::ContextMenu>,
     position: Point<Pixels>,
@@ -78,6 +123,8 @@ pub struct BrowserView {
     pending_new_tab_urls: Vec<String>,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
+    swipe_state: SwipeNavigationState,
+    _swipe_dismiss_task: Option<Task<()>>,
     _message_pump_task: Option<Task<()>>,
     _schedule_save: Option<Task<()>>,
     _subscriptions: Vec<Subscription>,
@@ -107,6 +154,8 @@ impl BrowserView {
             pending_new_tab_urls: Vec::new(),
             context_menu: None,
             pending_context_menu: None,
+            swipe_state: SwipeNavigationState::default(),
+            _swipe_dismiss_task: None,
             _message_pump_task: None,
             _schedule_save: None,
             _subscriptions: vec![quit_subscription, bookmark_subscription],
@@ -318,6 +367,51 @@ impl BrowserView {
 
         self.sync_bookmark_bar_visibility(cx);
         cx.notify();
+    }
+
+    // After closing a tab, ensure the newly active tab has a browser created and is visible.
+    // This mirrors the logic in `switch_to_tab` but doesn't need a Window reference.
+    fn activate_tab_for_close(&mut self, cx: &mut Context<Self>) {
+        let Some(new_tab) = self.active_tab().cloned() else {
+            return;
+        };
+
+        if new_tab.read(cx).is_new_tab_page() {
+            return;
+        }
+
+        if new_tab.read(cx).has_pending_url() {
+            let url = new_tab.read(cx).url().to_string();
+            self.create_browser_and_navigate(&new_tab, &url, cx);
+            new_tab.update(cx, |tab, _| {
+                tab.take_pending_url();
+                tab.set_hidden(false);
+                tab.set_focus(true);
+            });
+        } else {
+            let viewport = self.last_viewport;
+            new_tab.update(cx, |tab, _| {
+                if tab.current_frame().is_none() {
+                    if let Some((width, height, scale_key)) = viewport {
+                        if width > 0 && height > 0 {
+                            let scale_factor = scale_key as f32 / 1000.0;
+                            tab.set_scale_factor(scale_factor);
+                            tab.set_size(width, height);
+                            let url = tab.url().to_string();
+                            if let Err(e) = tab.create_browser(&url) {
+                                log::error!(
+                                    "[browser] Failed to create browser after tab close: {}",
+                                    e
+                                );
+                                return;
+                            }
+                        }
+                    }
+                }
+                tab.set_hidden(false);
+                tab.set_focus(true);
+            });
+        }
     }
 
     fn current_dimensions(&self, window: &mut Window) -> (u32, u32, f32) {
@@ -820,6 +914,82 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if let ScrollDelta::Pixels(delta) = event.delta {
+            let delta_x = f32::from(delta.x);
+            let delta_y = f32::from(delta.y);
+
+            match event.touch_phase {
+                TouchPhase::Started => {
+                    self._swipe_dismiss_task = None;
+                    self.swipe_state.reset();
+                    self.swipe_state.phase = SwipePhase::Undecided;
+                }
+                TouchPhase::Moved if self.swipe_state.phase == SwipePhase::Undecided => {
+                    self.swipe_state.accumulated_x += delta_x;
+                    self.swipe_state.accumulated_y += delta_y;
+
+                    let abs_x = self.swipe_state.accumulated_x.abs();
+                    let abs_y = self.swipe_state.accumulated_y.abs();
+                    let total = abs_x + abs_y;
+
+                    if total >= SWIPE_AXIS_LOCK_THRESHOLD {
+                        if abs_x > abs_y * 2.0 {
+                            self.swipe_state.phase = SwipePhase::Horizontal;
+                            cx.notify();
+                            return;
+                        } else {
+                            self.swipe_state.phase = SwipePhase::Vertical;
+                            // Fall through to forward this event to CEF
+                        }
+                    } else {
+                        // Still undecided, buffer the event
+                        return;
+                    }
+                }
+                TouchPhase::Moved if self.swipe_state.phase == SwipePhase::Horizontal => {
+                    self.swipe_state.accumulated_x += delta_x;
+                    cx.notify();
+                    return;
+                }
+                TouchPhase::Ended
+                    if self.swipe_state.phase == SwipePhase::Horizontal =>
+                {
+                    if self.swipe_state.threshold_crossed() {
+                        if let Some(tab) = self.active_tab().cloned() {
+                            if self.swipe_state.is_swiping_back() {
+                                tab.update(cx, |tab, _| tab.go_back());
+                            } else {
+                                tab.update(cx, |tab, _| tab.go_forward());
+                            }
+                        }
+                        self.swipe_state.phase = SwipePhase::Fired;
+                        cx.notify();
+                        self._swipe_dismiss_task = Some(cx.spawn(async move |this, cx| {
+                            cx.background_executor()
+                                .timer(Duration::from_millis(300))
+                                .await;
+                            this
+                                .update(cx, |this, cx| {
+                                    this.swipe_state.reset();
+                                    cx.notify();
+                                })
+                                .ok();
+                        }));
+                    } else {
+                        self.swipe_state.reset();
+                        cx.notify();
+                    }
+                    return;
+                }
+                TouchPhase::Ended => {
+                    if self.swipe_state.phase == SwipePhase::Undecided {
+                        self.swipe_state.reset();
+                    }
+                }
+                _ => {}
+            }
+        }
+
         if let Some(tab) = self.active_tab() {
             let offset = point(self.content_bounds.origin.x, self.content_bounds.origin.y);
             input::handle_scroll_wheel(&tab.read(cx), event, offset);
@@ -967,13 +1137,7 @@ impl BrowserView {
             self.active_tab_index = closed_index;
         }
 
-        // Unhide and focus the new active tab
-        if let Some(tab) = self.active_tab() {
-            tab.update(cx, |tab, _| {
-                tab.set_hidden(false);
-                tab.set_focus(true);
-            });
-        }
+        self.activate_tab_for_close(cx);
 
         self.update_toolbar_active_tab(window, cx);
         self.schedule_save(cx);
@@ -1084,8 +1248,9 @@ impl BrowserView {
         }
     }
 
-    fn close_tab_at(&mut self, index: usize, _window: &mut Window, cx: &mut Context<Self>) {
+    fn close_tab_at(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         self.close_tab_at_inner(index, cx);
+        self.update_toolbar_active_tab(window, cx);
     }
 
     fn close_tab_at_inner(&mut self, index: usize, cx: &mut Context<Self>) {
@@ -1123,13 +1288,7 @@ impl BrowserView {
             if self.active_tab_index >= self.tabs.len() {
                 self.active_tab_index = self.tabs.len() - 1;
             }
-            // Unhide and focus the newly active tab
-            if let Some(tab) = self.active_tab() {
-                tab.update(cx, |tab, _| {
-                    tab.set_hidden(false);
-                    tab.set_focus(true);
-                });
-            }
+            self.activate_tab_for_close(cx);
         }
 
         self.sync_bookmark_bar_visibility(cx);
@@ -1204,12 +1363,7 @@ impl BrowserView {
         } else {
             self.active_tab_index = 0;
         }
-        if let Some(tab) = self.active_tab() {
-            tab.update(cx, |tab, _| {
-                tab.set_hidden(false);
-                tab.set_focus(true);
-            });
-        }
+        self.activate_tab_for_close(cx);
         self.sync_bookmark_bar_visibility(cx);
         self.schedule_save(cx);
         cx.notify();
@@ -1472,11 +1626,83 @@ impl BrowserView {
             .with_priority(1)
         });
 
+        let swipe_indicator = if self.swipe_state.is_active() {
+            let progress = self.swipe_state.progress();
+            let fired = self.swipe_state.phase == SwipePhase::Fired;
+            let swiping_back = self.swipe_state.is_swiping_back();
+            let can_navigate = if swiping_back {
+                self.active_tab()
+                    .map(|t| t.read(cx).can_go_back())
+                    .unwrap_or(false)
+            } else {
+                self.active_tab()
+                    .map(|t| t.read(cx).can_go_forward())
+                    .unwrap_or(false)
+            };
+
+            let icon = if swiping_back {
+                IconName::ArrowLeft
+            } else {
+                IconName::ArrowRight
+            };
+
+            let committed = can_navigate && (self.swipe_state.threshold_crossed() || fired);
+            let indicator_size = px(SWIPE_INDICATOR_SIZE);
+
+            // Slide in from the edge: at progress=0 fully hidden, at progress=1 fully visible.
+            // offset goes from -indicator_size (hidden) to a small inset (visible).
+            let visible_inset = px(8.);
+            let slide_offset = if fired {
+                visible_inset
+            } else {
+                let ease = progress * progress * (3.0 - 2.0 * progress);
+                px(-SWIPE_INDICATOR_SIZE) + (px(SWIPE_INDICATOR_SIZE) + visible_inset) * ease
+            };
+
+            let opacity = if fired { 0.6 } else { progress * 0.9 };
+
+            Some(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .flex()
+                    .items_center()
+                    .when(swiping_back, |this| this.left(slide_offset))
+                    .when(!swiping_back, |this| this.right(slide_offset))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .w(indicator_size)
+                            .h(indicator_size)
+                            .rounded_full()
+                            .bg(theme.colors().element_background)
+                            .border_1()
+                            .border_color(theme.colors().border)
+                            .opacity(opacity)
+                            .child(
+                                Icon::new(icon)
+                                    .size(IconSize::Small)
+                                    .color(if committed {
+                                        ui::Color::Default
+                                    } else {
+                                        ui::Color::Muted
+                                    }),
+                            ),
+                    ),
+            )
+        } else {
+            None
+        };
+
         div()
             .id("browser-content")
             .relative()
             .flex_1()
             .w_full()
+            .overflow_hidden()
             .bg(theme.colors().editor_background)
             .child(bounds_tracker)
             .on_mouse_down(MouseButton::Left, cx.listener(Self::handle_mouse_down))
@@ -1505,6 +1731,7 @@ impl BrowserView {
                 )
             })
             .when_some(context_menu_overlay, |this, overlay| this.child(overlay))
+            .when_some(swipe_indicator, |this, indicator| this.child(indicator))
             .into_any_element()
     }
 }
