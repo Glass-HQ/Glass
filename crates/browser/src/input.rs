@@ -70,10 +70,6 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
 /// Deferred key down handler - called outside the GPUI event handler context
 /// to avoid re-entrant borrow panics when CEF triggers macOS menu checking.
 pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is_held: bool) {
-    log::info!("[browser::input] handle_key_down_deferred(key={}, shift={}, ctrl={}, alt={}, cmd={})",
-        keystroke.key, keystroke.modifiers.shift, keystroke.modifiers.control,
-        keystroke.modifiers.alt, keystroke.modifiers.platform);
-
     let cef_event = convert_key_event(keystroke, true);
     browser.send_key_event(&cef_event);
 
@@ -116,7 +112,6 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     };
 
     if let Some(char_code) = char_to_send {
-        log::info!("[browser::input] handle_key_down_deferred: sending CHAR event char_code={}", char_code);
         let char_event = create_char_event(char_code, &keystroke.modifiers);
         browser.send_key_event(&char_event);
     }
@@ -124,7 +119,6 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
 
 /// Deferred key up handler - called outside the GPUI event handler context.
 pub fn handle_key_up_deferred(browser: &BrowserTab, keystroke: &Keystroke) {
-    log::info!("[browser::input] handle_key_up_deferred(key={})", keystroke.key);
     let cef_event = convert_key_event(keystroke, false);
     browser.send_key_event(&cef_event);
 }
@@ -148,12 +142,29 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         KeyEventType::KEYUP
     };
 
+    // CEF on macOS needs character info to create proper NSKeyDown/NSKeyUp events.
+    // Without it, CEF falls back to NSFlagsChanged events which produce wrong JS
+    // events (keyup becomes keydown, key shows as "Unidentified").
     let character = match keystroke.key.as_str() {
         "enter" => 0x0D,
         "backspace" => 0x08,
         "tab" => 0x09,
         "escape" => 0x1B,
-        _ => 0,
+        "space" => ' ' as u16,
+        "delete" => 0x7F,
+        _ => {
+            if keystroke.key.len() == 1 {
+                keystroke
+                    .key
+                    .chars()
+                    .next()
+                    .filter(|c| c.is_ascii_graphic())
+                    .map(|c| c as u16)
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+        }
     };
 
     KeyEvent {

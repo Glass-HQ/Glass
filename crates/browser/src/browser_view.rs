@@ -16,11 +16,11 @@ use gpui::{
     App, Bounds, Context, Corner, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable,
     InteractiveElement, IntoElement, MouseButton, ObjectFit, ParentElement, Pixels, Point, Render,
     SharedUri, Styled, Subscription, Task, Window, actions, anchored, canvas, deferred, div, img,
-    point, prelude::*, surface,
+    native_icon_button, point, prelude::*, surface,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
-use ui::{Icon, IconButton, IconName, IconSize, Tooltip, prelude::*};
+use ui::{Icon, IconName, IconSize, prelude::*};
 use util::ResultExt as _;
 use workspace_modes::{ModeId, ModeViewRegistry};
 
@@ -347,7 +347,6 @@ impl BrowserView {
             old_tab.update(cx, |tab, _| {
                 tab.set_focus(false);
                 tab.set_hidden(true);
-                tab.set_audio_muted(true);
             });
         }
 
@@ -365,6 +364,8 @@ impl BrowserView {
                     self.create_browser_and_navigate(&new_tab, &url, cx);
                     new_tab.update(cx, |tab, _| {
                         tab.take_pending_url();
+                        tab.set_hidden(false);
+                        tab.set_focus(true);
                     });
                 } else {
                     let (width, height, scale_factor) = self.current_dimensions(window);
@@ -379,7 +380,6 @@ impl BrowserView {
                             }
                         }
                         tab.set_hidden(false);
-                        tab.set_audio_muted(false);
                         tab.set_focus(true);
                     });
                 }
@@ -832,11 +832,6 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        log::info!(
-            "[browser::view] handle_key_down called (key={}, is_held={})",
-            event.keystroke.key,
-            event.is_held
-        );
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_focus(true);
@@ -860,10 +855,6 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        log::info!(
-            "[browser::view] handle_key_up called (key={})",
-            event.keystroke.key
-        );
         if let Some(tab) = self.active_tab() {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
@@ -980,7 +971,6 @@ impl BrowserView {
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_hidden(false);
-                tab.set_audio_muted(false);
                 tab.set_focus(true);
             });
         }
@@ -1137,7 +1127,6 @@ impl BrowserView {
             if let Some(tab) = self.active_tab() {
                 tab.update(cx, |tab, _| {
                     tab.set_hidden(false);
-                    tab.set_audio_muted(false);
                     tab.set_focus(true);
                 });
             }
@@ -1218,7 +1207,6 @@ impl BrowserView {
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_hidden(false);
-                tab.set_audio_muted(false);
                 tab.set_focus(true);
             });
         }
@@ -1364,12 +1352,15 @@ impl BrowserView {
                                 .child(display_title),
                         )
                         .child(
-                            IconButton::new(("close-tab", index), IconName::Close)
-                                .icon_size(IconSize::XSmall)
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    this.close_tab_at(index, window, cx);
-                                }))
-                                .tooltip(Tooltip::text("Close Tab")),
+                            native_icon_button(
+                                SharedString::from(format!("close-tab-{index}")),
+                                "xmark",
+                            )
+                            .size(px(16.))
+                            .on_click(cx.listener(move |this, _, window, cx| {
+                                this.close_tab_at(index, window, cx);
+                            }))
+                            .tooltip("Close Tab"),
                         )
                         .into_any_element()
                 };
@@ -1425,14 +1416,14 @@ impl BrowserView {
                     })
             }))
             .child(
-                IconButton::new("new-tab-button", IconName::Plus)
-                    .icon_size(IconSize::XSmall)
+                native_icon_button("new-tab-button", "plus")
+                    .size(px(20.))
                     .on_click(cx.listener(|this, _, window, cx| {
                         this.add_tab(cx);
                         this.update_toolbar_active_tab(window, cx);
                         cx.notify();
                     }))
-                    .tooltip(Tooltip::text("New Tab")),
+                    .tooltip("New Tab"),
             )
     }
 

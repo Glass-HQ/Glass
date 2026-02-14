@@ -49,12 +49,7 @@ wrap_keyboard_handler! {
             _os_event: *mut u8,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            let is_manual = MANUAL_KEY_EVENT.load(Ordering::Relaxed);
-            let event_type = _event.map(|e| format!("{:?}", e.type_)).unwrap_or_default();
-            let wkc = _event.map(|e| e.windows_key_code).unwrap_or(0);
-            log::info!("[browser::keyboard] on_pre_key_event(manual={}, type={}, wkc={}, suppress={})",
-                is_manual, event_type, wkc, !is_manual);
-            if is_manual {
+            if MANUAL_KEY_EVENT.load(Ordering::Relaxed) {
                 0
             } else {
                 1

@@ -353,20 +353,10 @@ impl BrowserTab {
     }
 
     pub fn send_key_event(&self, event: &cef::KeyEvent) {
-        log::info!("[browser::tab] send_key_event(type={:?}, wkc={}, native={}, char={})",
-            event.type_, event.windows_key_code, event.native_key_code, event.character);
-        let needs_flag = matches!(
-            event.type_,
-            cef::KeyEventType::RAWKEYDOWN | cef::KeyEventType::CHAR
-        );
         self.with_host(|host| {
-            if needs_flag {
-                MANUAL_KEY_EVENT.store(true, Ordering::Relaxed);
-            }
+            MANUAL_KEY_EVENT.store(true, Ordering::Relaxed);
             host.send_key_event(Some(event));
-            if needs_flag {
-                MANUAL_KEY_EVENT.store(false, Ordering::Relaxed);
-            }
+            MANUAL_KEY_EVENT.store(false, Ordering::Relaxed);
         });
     }
 

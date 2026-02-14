@@ -5,7 +5,7 @@ use gpui::{
     App, Context, Entity, FocusHandle, Focusable, IntoElement, Render, Subscription, Window,
     native_icon_button,
 };
-use ui::{IconButton, IconName, Tooltip, h_flex, prelude::*};
+use ui::{h_flex, prelude::*};
 
 pub struct BrowserToolbar {
     tab: Entity<BrowserTab>,
@@ -172,13 +172,13 @@ impl Render for BrowserToolbar {
                     .on_click(cx.listener(Self::go_forward)),
             )
             .child(if is_loading {
-                IconButton::new("stop", IconName::XCircle)
+                native_icon_button("stop", "xmark.circle")
                     .on_click(cx.listener(Self::stop))
-                    .tooltip(Tooltip::text("Stop"))
+                    .tooltip("Stop")
             } else {
-                IconButton::new("reload", IconName::RotateCw)
+                native_icon_button("reload", "arrow.clockwise")
                     .on_click(cx.listener(Self::reload))
-                    .tooltip(Tooltip::text("Reload"))
+                    .tooltip("Reload")
             })
             .child(self.omnibox.clone())
     }
