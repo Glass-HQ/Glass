@@ -11,8 +11,8 @@ use file_finder::OpenPathDelegate;
 use futures::{FutureExt, channel::oneshot, future::Shared, select};
 use gpui::{
     AnyElement, App, ClickEvent, ClipboardItem, Context, DismissEvent, Entity, EventEmitter,
-    FocusHandle, Focusable, PromptLevel, ScrollHandle, Subscription, Task, WeakEntity, Window,
-    canvas,
+    FocusHandle, Focusable, NativeButtonStyle, PromptLevel, ScrollHandle, Subscription, Task,
+    WeakEntity, Window, canvas, native_button, native_icon_button,
 };
 use language::Point;
 use log::info;
@@ -39,8 +39,8 @@ use std::{
     },
 };
 use ui::{
-    CommonAnimationExt, IconButtonShape, KeyBinding, List, ListItem, ListSeparator, Modal,
-    ModalHeader, Navigable, NavigableEntry, Section, Tooltip, WithScrollbar, prelude::*,
+    CommonAnimationExt, KeyBinding, List, ListItem, ListSeparator, Modal, ModalHeader, Navigable,
+    NavigableEntry, Section, Tooltip, WithScrollbar, prelude::*,
 };
 use util::{
     ResultExt,
@@ -1427,11 +1427,8 @@ impl RemoteServerProjects {
                                 .child({
                                     let project = project.clone();
                                     // Right-margin to offset it from the Scrollbar
-                                    IconButton::new("remove-remote-project", IconName::Trash)
-                                        .icon_size(IconSize::Small)
-                                        .shape(IconButtonShape::Square)
-                                        .size(ButtonSize::Large)
-                                        .tooltip(Tooltip::text("Delete Remote Project"))
+                                    native_icon_button("remove-remote-project", "trash")
+                                        .tooltip("Delete Remote Project")
                                         .on_click(cx.listener(move |this, _, _, cx| {
                                             this.delete_remote_project(server_ix, &project, cx)
                                         }))
@@ -1943,10 +1940,8 @@ impl RemoteServerProjects {
                                         .size(LabelSize::Small),
                                     )
                                     .child(
-                                        Button::new("learn-more", "Learn More")
-                                            .label_size(LabelSize::Small)
-                                            .icon(IconName::ArrowUpRight)
-                                            .icon_size(IconSize::XSmall)
+                                        native_button("learn-more", "Learn More")
+                                            .button_style(NativeButtonStyle::Inline)
                                             .on_click(|_, _, cx| {
                                                 cx.open_url(
                                                     "https://zed.dev/docs/remote-development",

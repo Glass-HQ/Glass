@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow};
 use collections::{BTreeMap, HashMap};
 use futures::Stream;
 use futures::{FutureExt, StreamExt, future::BoxFuture};
-use gpui::{AnyView, App, AsyncApp, Context, Entity, SharedString, Task, Window};
+use gpui::{
+    AnyView, App, AsyncApp, Context, Entity, NativeButtonStyle, SharedString, Task, Window,
+    native_button,
+};
 use http_client::HttpClient;
 use language_model::{
     ApiKeyState, AuthenticateError, EnvVar, IconOrSvg, LanguageModel, LanguageModelCompletionError,
@@ -1334,10 +1337,8 @@ impl Render for ConfigurationView {
                     .child(Label::new("Zed also supports OpenAI-compatible models.")),
             )
             .child(
-                Button::new("docs", "Learn More")
-                    .icon(IconName::ArrowUpRight)
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted)
+                native_button("docs", "Learn More")
+                    .button_style(NativeButtonStyle::Inline)
                     .on_click(move |_, _window, cx| {
                         cx.open_url("https://zed.dev/docs/ai/llm-providers#openai-api-compatible")
                     }),

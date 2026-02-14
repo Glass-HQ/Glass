@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow};
 use collections::HashMap;
 use futures::Stream;
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::BoxStream};
-use gpui::{AnyView, App, AsyncApp, Context, Entity, Subscription, Task};
+use gpui::{
+    AnyView, App, AsyncApp, Context, Entity, NativeButtonStyle, NativeButtonTint, Subscription,
+    Task, native_button,
+};
 use http_client::HttpClient;
 use language_model::{
     AuthenticateError, LanguageModelCompletionError, LanguageModelCompletionEvent,
@@ -704,11 +707,8 @@ impl Render for ConfigurationView {
                                 .map(|this| {
                                     if is_authenticated {
                                         this.child(
-                                            Button::new("lmstudio-site", "LM Studio")
-                                                .style(ButtonStyle::Subtle)
-                                                .icon(IconName::ArrowUpRight)
-                                                .icon_size(IconSize::Small)
-                                                .icon_color(Color::Muted)
+                                            native_button("lmstudio-site", "LM Studio")
+                                                .button_style(NativeButtonStyle::Inline)
                                                 .on_click(move |_, _window, cx| {
                                                     cx.open_url(LMSTUDIO_SITE)
                                                 })
@@ -716,14 +716,11 @@ impl Render for ConfigurationView {
                                         )
                                     } else {
                                         this.child(
-                                            Button::new(
+                                            native_button(
                                                 "download_lmstudio_button",
                                                 "Download LM Studio",
                                             )
-                                            .style(ButtonStyle::Subtle)
-                                            .icon(IconName::ArrowUpRight)
-                                            .icon_size(IconSize::Small)
-                                            .icon_color(Color::Muted)
+                                            .button_style(NativeButtonStyle::Inline)
                                             .on_click(move |_, _window, cx| {
                                                 cx.open_url(LMSTUDIO_DOWNLOAD_URL)
                                             })
@@ -732,11 +729,8 @@ impl Render for ConfigurationView {
                                     }
                                 })
                                 .child(
-                                    Button::new("view-models", "Model Catalog")
-                                        .style(ButtonStyle::Subtle)
-                                        .icon(IconName::ArrowUpRight)
-                                        .icon_size(IconSize::Small)
-                                        .icon_color(Color::Muted)
+                                    native_button("view-models", "Model Catalog")
+                                        .button_style(NativeButtonStyle::Inline)
                                         .on_click(move |_, _window, cx| {
                                             cx.open_url(LMSTUDIO_CATALOG_URL)
                                         }),
@@ -758,10 +752,9 @@ impl Render for ConfigurationView {
                                 )
                             } else {
                                 this.child(
-                                    Button::new("retry_lmstudio_models", "Connect")
-                                        .icon_position(IconPosition::Start)
-                                        .icon_size(IconSize::XSmall)
-                                        .icon(IconName::PlayFilled)
+                                    native_button("retry_lmstudio_models", "Connect")
+                                        .button_style(NativeButtonStyle::Filled)
+                                        .tint(NativeButtonTint::Accent)
                                         .on_click(cx.listener(move |this, _, _window, cx| {
                                             this.retry_connection(cx)
                                         })),

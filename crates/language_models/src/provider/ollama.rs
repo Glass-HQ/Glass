@@ -2,7 +2,10 @@ use anyhow::{Result, anyhow};
 use fs::Fs;
 use futures::{FutureExt, StreamExt, future::BoxFuture, stream::BoxStream};
 use futures::{Stream, TryFutureExt, stream};
-use gpui::{AnyView, App, AsyncApp, Context, CursorStyle, Entity, Task};
+use gpui::{
+    AnyView, App, AsyncApp, Context, CursorStyle, Entity, NativeButtonStyle, NativeButtonTint,
+    Task, native_button, native_icon_button,
+};
 use http_client::HttpClient;
 use language_model::{
     ApiKeyState, AuthenticateError, EnvVar, IconOrSvg, LanguageModel, LanguageModelCompletionError,
@@ -22,10 +25,7 @@ use std::pin::Pin;
 use std::sync::LazyLock;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::{collections::HashMap, sync::Arc};
-use ui::{
-    ButtonLike, ButtonLink, ConfiguredApiCard, ElevationIndex, List, ListBulletItem, Tooltip,
-    prelude::*,
-};
+use ui::{ButtonLike, ButtonLink, ConfiguredApiCard, List, ListBulletItem, prelude::*};
 use ui_input::InputField;
 
 use crate::AllLanguageModelSettings;
@@ -793,12 +793,8 @@ impl ConfigurationView {
                         .child(v_flex().gap_1().child(Label::new(api_url))),
                 )
                 .child(
-                    Button::new("reset-api-url", "Reset API URL")
-                        .label_size(LabelSize::Small)
-                        .icon(IconName::Undo)
-                        .icon_size(IconSize::Small)
-                        .icon_position(IconPosition::Start)
-                        .layer(ElevationIndex::ModalSurface)
+                    native_button("reset-api-url", "Reset API URL")
+                        .button_style(NativeButtonStyle::Inline)
                         .on_click(
                             cx.listener(|this, _, window, cx| this.reset_api_url(window, cx)),
                         ),
@@ -836,21 +832,15 @@ impl Render for ConfigurationView {
                             .map(|this| {
                                 if is_authenticated {
                                     this.child(
-                                        Button::new("ollama-site", "Ollama")
-                                            .style(ButtonStyle::Subtle)
-                                            .icon(IconName::ArrowUpRight)
-                                            .icon_size(IconSize::XSmall)
-                                            .icon_color(Color::Muted)
+                                        native_button("ollama-site", "Ollama")
+                                            .button_style(NativeButtonStyle::Inline)
                                             .on_click(move |_, _, cx| cx.open_url(OLLAMA_SITE))
                                             .into_any_element(),
                                     )
                                 } else {
                                     this.child(
-                                        Button::new("download_ollama_button", "Download Ollama")
-                                            .style(ButtonStyle::Subtle)
-                                            .icon(IconName::ArrowUpRight)
-                                            .icon_size(IconSize::XSmall)
-                                            .icon_color(Color::Muted)
+                                        native_button("download_ollama_button", "Download Ollama")
+                                            .button_style(NativeButtonStyle::Inline)
                                             .on_click(move |_, _, cx| {
                                                 cx.open_url(OLLAMA_DOWNLOAD_URL)
                                             })
@@ -859,11 +849,8 @@ impl Render for ConfigurationView {
                                 }
                             })
                             .child(
-                                Button::new("view-models", "View All Models")
-                                    .style(ButtonStyle::Subtle)
-                                    .icon(IconName::ArrowUpRight)
-                                    .icon_size(IconSize::XSmall)
-                                    .icon_color(Color::Muted)
+                                native_button("view-models", "View All Models")
+                                    .button_style(NativeButtonStyle::Inline)
                                     .on_click(move |_, _, cx| cx.open_url(OLLAMA_LIBRARY_URL)),
                             ),
                     )
@@ -881,8 +868,8 @@ impl Render for ConfigurationView {
                                             .into_any_element(),
                                     )
                                     .child(
-                                        IconButton::new("refresh-models", IconName::RotateCcw)
-                                            .tooltip(Tooltip::text("Refresh Models"))
+                                        native_icon_button("refresh-models", "arrow.clockwise")
+                                            .tooltip("Refresh Models")
                                             .on_click(cx.listener(|this, _, window, cx| {
                                                 this.state.update(cx, |state, _| {
                                                     state.fetched_models.clear();
@@ -893,10 +880,9 @@ impl Render for ConfigurationView {
                             )
                         } else {
                             this.child(
-                                Button::new("retry_ollama_models", "Connect")
-                                    .icon_position(IconPosition::Start)
-                                    .icon_size(IconSize::XSmall)
-                                    .icon(IconName::PlayOutlined)
+                                native_button("retry_ollama_models", "Connect")
+                                    .button_style(NativeButtonStyle::Filled)
+                                    .tint(NativeButtonTint::Accent)
                                     .on_click(cx.listener(move |this, _, window, cx| {
                                         this.retry_connection(window, cx)
                                     })),

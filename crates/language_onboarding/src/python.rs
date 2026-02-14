@@ -1,6 +1,8 @@
 use db::kvp::Dismissable;
 use editor::Editor;
-use gpui::{Context, EventEmitter, Subscription};
+use gpui::{
+    Context, EventEmitter, NativeButtonStyle, Subscription, native_button, native_icon_button,
+};
 use ui::{Banner, FluentBuilder as _, prelude::*};
 use workspace::{ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace};
 
@@ -55,22 +57,19 @@ impl Render for BasedPyrightBanner {
                             h_flex()
                                 .gap_0p5()
                                 .child(
-                                    Button::new("learn-more", "Learn More")
-                                        .icon(IconName::ArrowUpRight)
-                                        .label_size(LabelSize::Small)
-                                        .icon_size(IconSize::XSmall)
-                                        .icon_color(Color::Muted)
+                                    native_button("learn-more", "Learn More")
+                                        .button_style(NativeButtonStyle::Inline)
                                         .on_click(|_, _, cx| {
                                             cx.open_url("https://zed.dev/docs/languages/python")
                                         }),
                                 )
-                                .child(IconButton::new("dismiss", IconName::Close).icon_size(IconSize::Small).on_click(
-                                    cx.listener(|this, _, _, cx| {
+                                .child(native_icon_button("dismiss", "xmark").on_click(cx.listener(
+                                    |this, _, _, cx| {
                                         this.dismissed = true;
                                         Self::set_dismissed(true, cx);
                                         cx.notify();
-                                    }),
-                                ))
+                                    },
+                                )))
                         )
                         .into_any_element(),
                 )

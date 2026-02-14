@@ -1,7 +1,8 @@
 use gpui::{
-    ClickEvent, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, MouseDownEvent, Render,
+    ClickEvent, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, MouseDownEvent,
+    NativeButtonStyle, NativeButtonTint, Render, native_button, native_icon_button,
 };
-use ui::{TintColor, Vector, VectorName, prelude::*};
+use ui::{Vector, VectorName, prelude::*};
 use workspace::{ModalView, Workspace};
 
 use crate::DebugPanel;
@@ -131,7 +132,7 @@ impl Render for DebuggerOnboardingModal {
                     .child(Headline::new("Zed's Debugger").size(HeadlineSize::Large)),
             )
             .child(h_flex().absolute().top_2().right_2().child(
-                IconButton::new("cancel", IconName::Close).on_click(cx.listener(
+                native_icon_button("cancel", "xmark").on_click(cx.listener(
                     |_, _: &ClickEvent, _window, cx| {
                         debugger_onboarding_event!("Cancelled", trigger = "X click");
                         cx.emit(DismissEvent);
@@ -139,17 +140,15 @@ impl Render for DebuggerOnboardingModal {
                 )),
             ));
 
-        let open_panel_button = Button::new("open-panel", "Get Started with the Debugger")
-            .icon_size(IconSize::Indicator)
-            .style(ButtonStyle::Tinted(TintColor::Accent))
-            .full_width()
+        let open_panel_button = native_button("open-panel", "Get Started with the Debugger")
+            .button_style(NativeButtonStyle::Filled)
+            .tint(NativeButtonTint::Accent)
+            .w_full()
             .on_click(cx.listener(Self::open_panel));
 
-        let blog_post_button = Button::new("view-blog", "Check out the Blog Post")
-            .icon(IconName::ArrowUpRight)
-            .icon_size(IconSize::Indicator)
-            .icon_color(Color::Muted)
-            .full_width()
+        let blog_post_button = native_button("view-blog", "Check out the Blog Post")
+            .button_style(NativeButtonStyle::Inline)
+            .w_full()
             .on_click(cx.listener(Self::view_blog));
 
         let copy = "It's finally here: Native support for debugging across multiple programming languages.";

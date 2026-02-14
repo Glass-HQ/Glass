@@ -8,7 +8,10 @@ use workspace::notifications::NotifyTaskExt;
 
 use std::sync::Arc;
 
-use gpui::{Entity, EventEmitter, Global, Task, TextStyle, TextStyleRefinement};
+use gpui::{
+    Entity, EventEmitter, Global, NativeButtonStyle, Task, TextStyle, TextStyleRefinement,
+    native_button,
+};
 use markdown::{Markdown, MarkdownElement, MarkdownStyle};
 use theme::ThemeSettings;
 use ui::prelude::*;
@@ -235,8 +238,9 @@ impl Render for MigrationBanner {
                     ),
             )
             .child(
-                Button::new("backup-and-migrate", "Backup and Update").on_click(
-                    move |_, window, cx| {
+                native_button("backup-and-migrate", "Backup and Update")
+                    .button_style(NativeButtonStyle::Filled)
+                    .on_click(move |_, window, cx| {
                         let fs = <dyn Fs>::global(cx);
                         match migration_type {
                             Some(MigrationType::Keymap) => {
@@ -249,8 +253,7 @@ impl Render for MigrationBanner {
                             }
                             None => unreachable!(),
                         }
-                    },
-                ),
+                    }),
             )
             .into_any_element()
     }

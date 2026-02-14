@@ -157,11 +157,16 @@ impl<M: ManagedView> Element for RightClickMenu<M> {
                     .as_mut()
                     .map(|child_element| child_element.request_layout(window, cx));
 
-                let layout_id = window.request_layout(
-                    gpui::Style::default(),
-                    menu_layout_id.into_iter().chain(child_layout_id),
-                    cx,
-                );
+                let layout_id = if menu_layout_id.is_none() {
+                    child_layout_id
+                        .unwrap_or_else(|| window.request_layout(gpui::Style::default(), None, cx))
+                } else {
+                    window.request_layout(
+                        gpui::Style::default(),
+                        menu_layout_id.into_iter().chain(child_layout_id),
+                        cx,
+                    )
+                };
 
                 (
                     layout_id,
