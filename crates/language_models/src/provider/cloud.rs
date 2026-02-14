@@ -14,7 +14,10 @@ use futures::{
     AsyncBufReadExt, FutureExt, Stream, StreamExt, future::BoxFuture, stream::BoxStream,
 };
 use google_ai::GoogleModelMode;
-use gpui::{AnyElement, AnyView, App, AsyncApp, Context, Entity, Subscription, Task};
+use gpui::{
+    AnyElement, AnyView, App, AsyncApp, Context, Entity, NativeButtonStyle, NativeButtonTint,
+    Subscription, Task, native_button,
+};
 use http_client::http::{HeaderMap, HeaderValue};
 use http_client::{AsyncBody, HttpClient, HttpRequestExt, Method, Response, StatusCode};
 use language_model::{
@@ -37,7 +40,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
-use ui::{TintColor, prelude::*};
+use ui::prelude::*;
 use util::{ResultExt as _, maybe};
 
 use crate::provider::anthropic::{
@@ -1038,21 +1041,24 @@ impl RenderOnce for ZedAiConfiguration {
         };
 
         let manage_subscription_buttons = if is_pro {
-            Button::new("manage_settings", "Manage Subscription")
-                .full_width()
-                .style(ButtonStyle::Tinted(TintColor::Accent))
+            native_button("manage_settings", "Manage Subscription")
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
+                .w_full()
                 .on_click(|_, _, cx| cx.open_url(&zed_urls::account_url(cx)))
                 .into_any_element()
         } else if self.plan.is_none() || self.eligible_for_trial {
-            Button::new("start_trial", "Start 14-day Free Pro Trial")
-                .full_width()
-                .style(ui::ButtonStyle::Tinted(ui::TintColor::Accent))
+            native_button("start_trial", "Start 14-day Free Pro Trial")
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
+                .w_full()
                 .on_click(|_, _, cx| cx.open_url(&zed_urls::start_trial_url(cx)))
                 .into_any_element()
         } else {
-            Button::new("upgrade", "Upgrade to Pro")
-                .full_width()
-                .style(ui::ButtonStyle::Tinted(ui::TintColor::Accent))
+            native_button("upgrade", "Upgrade to Pro")
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
+                .w_full()
                 .on_click(|_, _, cx| cx.open_url(&zed_urls::upgrade_to_zed_pro_url(cx)))
                 .into_any_element()
         };
@@ -1062,12 +1068,10 @@ impl RenderOnce for ZedAiConfiguration {
                 .gap_2()
                 .child(Label::new("Sign in to have access to Zed's complete agentic experience with hosted models."))
                 .child(
-                    Button::new("sign_in", "Sign In to use Zed AI")
-                        .icon_color(Color::Muted)
-                        .icon(IconName::Github)
-                        .icon_size(IconSize::Small)
-                        .icon_position(IconPosition::Start)
-                        .full_width()
+                    native_button("sign_in", "Sign In to use Zed AI")
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Accent)
+                        .w_full()
                         .on_click({
                             let callback = self.sign_in_callback.clone();
                             move |_, window, cx| (callback)(window, cx)
@@ -1078,9 +1082,10 @@ impl RenderOnce for ZedAiConfiguration {
         v_flex().gap_2().w_full().map(|this| {
             if self.account_too_young {
                 this.child(YoungAccountBanner).child(
-                    Button::new("upgrade", "Upgrade to Pro")
-                        .style(ui::ButtonStyle::Tinted(ui::TintColor::Accent))
-                        .full_width()
+                    native_button("upgrade", "Upgrade to Pro")
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Accent)
+                        .w_full()
                         .on_click(|_, _, cx| cx.open_url(&zed_urls::upgrade_to_zed_pro_url(cx))),
                 )
             } else {

@@ -3,8 +3,8 @@ mod icon_theme_selector;
 use fs::Fs;
 use fuzzy::{StringMatch, StringMatchCandidate, match_strings};
 use gpui::{
-    App, Context, DismissEvent, Entity, EventEmitter, Focusable, Render, UpdateGlobal, WeakEntity,
-    Window, actions,
+    App, Context, DismissEvent, Entity, EventEmitter, Focusable, NativeButtonStyle,
+    NativeButtonTint, Render, UpdateGlobal, WeakEntity, Window, actions, native_button,
 };
 use picker::{Picker, PickerDelegate};
 use settings::{Settings, SettingsStore, update_settings_file};
@@ -496,27 +496,27 @@ impl PickerDelegate for ThemeSelectorDelegate {
                 .border_t_1()
                 .border_color(cx.theme().colors().border_variant)
                 .child(
-                    Button::new("docs", "View Theme Docs")
-                        .icon(IconName::ArrowUpRight)
-                        .icon_position(IconPosition::End)
-                        .icon_size(IconSize::Small)
-                        .icon_color(Color::Muted)
+                    native_button("docs", "View Theme Docs")
+                        .button_style(NativeButtonStyle::Inline)
                         .on_click(cx.listener(|_, _, _, cx| {
                             cx.open_url("https://zed.dev/docs/themes");
                         })),
                 )
                 .child(
-                    Button::new("more-themes", "Install Themes").on_click(cx.listener({
-                        move |_, _, window, cx| {
-                            window.dispatch_action(
-                                Box::new(Extensions {
-                                    category_filter: Some(ExtensionCategoryFilter::Themes),
-                                    id: None,
-                                }),
-                                cx,
-                            );
-                        }
-                    })),
+                    native_button("more-themes", "Install Themes")
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Accent)
+                        .on_click(cx.listener({
+                            move |_, _, window, cx| {
+                                window.dispatch_action(
+                                    Box::new(Extensions {
+                                        category_filter: Some(ExtensionCategoryFilter::Themes),
+                                        id: None,
+                                    }),
+                                    cx,
+                                );
+                            }
+                        })),
                 )
                 .into_any_element(),
         )

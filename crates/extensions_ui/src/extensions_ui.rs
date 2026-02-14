@@ -1396,10 +1396,8 @@ impl ExtensionsPage {
         docs_url: SharedString,
         _cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        let docs_url_button = Button::new("open_docs", "View Documentation")
-            .icon(IconName::ArrowUpRight)
-            .icon_size(IconSize::Small)
-            .icon_position(IconPosition::End)
+        let docs_url_button = native_button("open_docs", "View Documentation")
+            .button_style(NativeButtonStyle::Rounded)
             .on_click({
                 move |_event, _window, cx| {
                     telemetry::event!(
@@ -1587,14 +1585,15 @@ impl Render for ExtensionsPage {
                     .border_color(cx.theme().colors().border_variant)
                     .overflow_x_scroll()
                     .child(
-                        Button::new("filter-all-categories", "All")
+                        native_button("filter-all-categories", "All")
+                            .button_style(if self.provides_filter.is_none() {
+                                NativeButtonStyle::Filled
+                            } else {
+                                NativeButtonStyle::Inline
+                            })
                             .when(self.provides_filter.is_none(), |button| {
-                                button.style(ButtonStyle::Filled)
+                                button.tint(NativeButtonTint::Accent)
                             })
-                            .when(self.provides_filter.is_some(), |button| {
-                                button.style(ButtonStyle::Subtle)
-                            })
-                            .toggle_state(self.provides_filter.is_none())
                             .on_click(cx.listener(|this, _event, _, cx| {
                                 this.change_provides_filter(None, cx);
                             })),
@@ -1610,13 +1609,15 @@ impl Render for ExtensionsPage {
                         let button_id = SharedString::from(format!("filter-category-{}", label));
 
                         Some(
-                            Button::new(button_id, label)
-                                .style(if self.provides_filter == Some(provides) {
-                                    ButtonStyle::Filled
+                            native_button(button_id, label)
+                                .button_style(if self.provides_filter == Some(provides) {
+                                    NativeButtonStyle::Filled
                                 } else {
-                                    ButtonStyle::Subtle
+                                    NativeButtonStyle::Inline
                                 })
-                                .toggle_state(self.provides_filter == Some(provides))
+                                .when(self.provides_filter == Some(provides), |button| {
+                                    button.tint(NativeButtonTint::Accent)
+                                })
                                 .on_click({
                                     cx.listener(move |this, _event, _, cx| {
                                         this.change_provides_filter(Some(provides), cx);

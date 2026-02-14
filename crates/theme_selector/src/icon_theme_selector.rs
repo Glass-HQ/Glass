@@ -1,8 +1,8 @@
 use fs::Fs;
 use fuzzy::{StringMatch, StringMatchCandidate, match_strings};
 use gpui::{
-    App, Context, DismissEvent, Entity, EventEmitter, Focusable, Render, UpdateGlobal, WeakEntity,
-    Window,
+    App, Context, DismissEvent, Entity, EventEmitter, Focusable, NativeButtonStyle,
+    NativeButtonTint, Render, UpdateGlobal, WeakEntity, Window, native_button,
 };
 use picker::{Picker, PickerDelegate};
 use settings::{Settings as _, SettingsStore, update_settings_file};
@@ -310,18 +310,17 @@ impl PickerDelegate for IconThemeSelectorDelegate {
                 .border_t_1()
                 .border_color(cx.theme().colors().border_variant)
                 .child(
-                    Button::new("docs", "View Icon Theme Docs")
-                        .icon(IconName::ArrowUpRight)
-                        .icon_position(IconPosition::End)
-                        .icon_size(IconSize::Small)
-                        .icon_color(Color::Muted)
+                    native_button("docs", "View Icon Theme Docs")
+                        .button_style(NativeButtonStyle::Inline)
                         .on_click(|_event, _window, cx| {
                             cx.open_url("https://zed.dev/docs/icon-themes");
                         }),
                 )
                 .child(
-                    Button::new("more-icon-themes", "Install Icon Themes").on_click(
-                        move |_event, window, cx| {
+                    native_button("more-icon-themes", "Install Icon Themes")
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Accent)
+                        .on_click(move |_event, window, cx| {
                             window.dispatch_action(
                                 Box::new(Extensions {
                                     category_filter: Some(ExtensionCategoryFilter::IconThemes),
@@ -329,8 +328,7 @@ impl PickerDelegate for IconThemeSelectorDelegate {
                                 }),
                                 cx,
                             );
-                        },
-                    ),
+                        }),
                 )
                 .into_any_element(),
         )
