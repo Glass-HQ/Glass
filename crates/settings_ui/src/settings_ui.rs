@@ -862,15 +862,17 @@ impl SettingsPageItem {
                         settings_window,
                         setting_item,
                         file.clone(),
-                        Button::new("error-warning", warning)
-                            .style(ButtonStyle::Outlined)
-                            .size(ButtonSize::Medium)
-                            .icon(Some(IconName::Debug))
-                            .icon_position(IconPosition::Start)
-                            .icon_color(Color::Error)
-                            .tab_index(0_isize)
-                            .tooltip(Tooltip::text(setting_item.field.type_name()))
-                            .into_any_element(),
+                        native_button(
+                            "error-warning",
+                            SharedString::from(format!(
+                                "{warning}: {}",
+                                setting_item.field.type_name()
+                            )),
+                        )
+                        .button_style(NativeButtonStyle::Inline)
+                        .tint(NativeButtonTint::Warning)
+                        .disabled(true)
+                        .into_any_element(),
                         sub_field,
                         cx,
                     ),
@@ -928,17 +930,11 @@ impl SettingsPageItem {
                                 ),
                         )
                         .child(
-                            Button::new(
-                                ("sub-page".into(), sub_page_link.title.clone()),
+                            native_button(
+                                SharedString::from(format!("sub-page-{}", sub_page_link.title)),
                                 "Configure",
                             )
-                            .icon(IconName::ChevronRight)
-                            .tab_index(0_isize)
-                            .icon_position(IconPosition::End)
-                            .icon_color(Color::Muted)
-                            .icon_size(IconSize::Small)
-                            .style(ButtonStyle::OutlinedGhost)
-                            .size(ButtonSize::Medium)
+                            .button_style(NativeButtonStyle::Inline)
                             .on_click({
                                 let sub_page_link = sub_page_link.clone();
                                 cx.listener(move |this, _, window, cx| {
@@ -1059,17 +1055,11 @@ impl SettingsPageItem {
                                 ),
                         )
                         .child(
-                            Button::new(
-                                ("action-link".into(), action_link.title.clone()),
+                            native_button(
+                                SharedString::from(format!("action-link-{}", action_link.title)),
                                 action_link.button_text.clone(),
                             )
-                            .icon(IconName::ArrowUpRight)
-                            .tab_index(0_isize)
-                            .icon_position(IconPosition::End)
-                            .icon_color(Color::Muted)
-                            .icon_size(IconSize::Small)
-                            .style(ButtonStyle::OutlinedGhost)
-                            .size(ButtonSize::Medium)
+                            .button_style(NativeButtonStyle::Inline)
                             .on_click({
                                 let on_click = action_link.on_click.clone();
                                 cx.listener(move |this, _, window, cx| {
@@ -3939,15 +3929,8 @@ where
     .into_any_element()
 }
 
-fn render_picker_trigger_button(id: SharedString, label: SharedString) -> Button {
-    Button::new(id, label)
-        .tab_index(0_isize)
-        .style(ButtonStyle::Outlined)
-        .size(ButtonSize::Medium)
-        .icon(IconName::ChevronUpDown)
-        .icon_color(Color::Muted)
-        .icon_size(IconSize::Small)
-        .icon_position(IconPosition::End)
+fn render_picker_trigger_button(id: SharedString, label: SharedString) -> gpui::NativeButton {
+    native_button(id, label).button_style(NativeButtonStyle::Rounded)
 }
 
 fn render_font_picker(

@@ -1,3 +1,5 @@
+use gpui::{NativeButton, NativeIconButton};
+
 /// A trait for elements that can be toggled.
 ///
 /// Implement this for elements that are visually distinct
@@ -5,6 +7,18 @@
 pub trait Toggleable {
     /// Sets whether the element is selected.
     fn toggle_state(self, selected: bool) -> Self;
+}
+
+impl Toggleable for NativeButton {
+    fn toggle_state(self, _selected: bool) -> Self {
+        self
+    }
+}
+
+impl Toggleable for NativeIconButton {
+    fn toggle_state(self, _selected: bool) -> Self {
+        self
+    }
 }
 
 /// Represents the selection status of an element.

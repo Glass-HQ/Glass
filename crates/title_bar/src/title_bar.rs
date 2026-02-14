@@ -24,9 +24,9 @@ use client::{Client, UserStore, zed_urls};
 use cloud_llm_client::{Plan, PlanV2};
 use gpui::{
     Action, AnyElement, App, Context, Corner, Element, Entity, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, MouseButton, NativeButton, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Subscription, WeakEntity, Window, actions, div,
-    native_button,
+    InteractiveElement, IntoElement, MouseButton, NativeButton, NativeButtonStyle,
+    NativeButtonTint, ParentElement, Render, StatefulInteractiveElement, Styled, Subscription,
+    WeakEntity, Window, actions, div, native_button, native_icon_button,
 };
 use onboarding_banner::OnboardingBanner;
 use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorktrees};
@@ -43,8 +43,7 @@ use ui::{
 };
 use util::ResultExt;
 use workspace::{
-    Pane, SwitchProject, TitleBarItemViewHandle, ToggleWorktreeSecurity, Workspace,
-    notifications::NotifyResultExt,
+    Pane, SwitchProject, TitleBarItemViewHandle, Workspace, notifications::NotifyResultExt,
 };
 use workspace_modes::{
     ModeId, ModeSwitcher, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
@@ -631,22 +630,9 @@ impl TitleBar {
             return None;
         }
 
-        let button = Button::new("restricted_mode_trigger", "Restricted Mode")
-            .style(ButtonStyle::Tinted(TintColor::Warning))
-            .label_size(LabelSize::Small)
-            .color(Color::Warning)
-            .icon(IconName::Warning)
-            .icon_color(Color::Warning)
-            .icon_size(IconSize::Small)
-            .icon_position(IconPosition::Start)
-            .tooltip(|_, cx| {
-                Tooltip::with_meta(
-                    "You're in Restricted Mode",
-                    Some(&ToggleWorktreeSecurity),
-                    "Mark this project as trusted and unlock all features",
-                    cx,
-                )
-            })
+        let button = native_button("restricted_mode_trigger", "Restricted Mode")
+            .button_style(NativeButtonStyle::Filled)
+            .tint(NativeButtonTint::Warning)
             .on_click({
                 cx.listener(move |this, _, window, cx| {
                     this.workspace
@@ -680,24 +666,9 @@ impl TitleBar {
 
         let host = self.project.read(cx).host()?;
         let host_user = self.user_store.read(cx).get_cached_user(host.user_id)?;
-        let participant_index = self
-            .user_store
-            .read(cx)
-            .participant_indices()
-            .get(&host_user.id)?;
-
         Some(
-            Button::new("project_owner_trigger", host_user.github_login.clone())
-                .color(Color::Player(participant_index.0))
-                .label_size(LabelSize::Small)
-                .tooltip(move |_, cx| {
-                    let tooltip_title = format!(
-                        "{} is sharing this project. Click to follow.",
-                        host_user.github_login
-                    );
-
-                    Tooltip::with_meta(tooltip_title, None, "Click to Follow", cx)
-                })
+            native_button("project_owner_trigger", host_user.github_login.clone())
+                .button_style(NativeButtonStyle::Inline)
                 .on_click({
                     let host_peer_id = host.peer_id;
                     cx.listener(move |this, _, window, cx| {
@@ -791,21 +762,13 @@ impl TitleBar {
                     cx,
                 ))
             })
-            .trigger_with_tooltip(
-                Button::new("project_name_trigger", name)
-                    .label_size(LabelSize::Small)
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                    .when(!is_project_selected, |s| s.color(Color::Muted)),
-                move |_window, cx| {
-                    Tooltip::for_action(
-                        "Recent Projects",
-                        &zed_actions::OpenRecent {
-                            create_new_window: false,
-                        },
-                        cx,
-                    )
+            .trigger(native_button("project_name_trigger", name).button_style(
+                if is_project_selected {
+                    NativeButtonStyle::Rounded
+                } else {
+                    NativeButtonStyle::Inline
                 },
-            )
+            ))
             .anchor(gpui::Corner::TopLeft)
     }
 
@@ -820,11 +783,6 @@ impl TitleBar {
         let initial_active_worktree_id = self
             .effective_active_worktree(cx)
             .map(|wt| wt.read(cx).id());
-
-        let focus_handle = workspace
-            .upgrade()
-            .map(|w| w.read(cx).focus_handle(cx))
-            .unwrap_or_else(|| cx.focus_handle());
 
         PopoverMenu::new("project-dropdown-menu")
             .with_handle(self.project_dropdown_handle.clone())
@@ -842,19 +800,13 @@ impl TitleBar {
                     )
                 }))
             })
-            .trigger_with_tooltip(
-                Button::new("project_name_trigger", name)
-                    .label_size(LabelSize::Small)
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                    .icon(IconName::ChevronDown)
-                    .icon_position(IconPosition::End)
-                    .icon_size(IconSize::XSmall)
-                    .icon_color(Color::Muted)
-                    .when(!is_project_selected, |s| s.color(Color::Muted)),
-                move |_, cx| {
-                    Tooltip::for_action_in("Switch Project", &SwitchProject, &focus_handle, cx)
+            .trigger(native_button("project_name_trigger", name).button_style(
+                if is_project_selected {
+                    NativeButtonStyle::Rounded
+                } else {
+                    NativeButtonStyle::Inline
                 },
-            )
+            ))
             .anchor(gpui::Corner::TopLeft)
     }
 
@@ -863,10 +815,9 @@ impl TitleBar {
         let repository = self.get_repository_for_worktree(&effective_worktree, cx)?;
         let workspace = self.workspace.upgrade()?;
 
-        let (branch_name, icon_info) = {
+        let branch_name = {
             let repo = repository.read(cx);
-            let branch_name = repo
-                .branch
+            repo.branch
                 .as_ref()
                 .map(|branch| branch.name())
                 .map(|name| util::truncate_and_trailoff(name, MAX_BRANCH_NAME_LENGTH))
@@ -878,27 +829,10 @@ impl TitleBar {
                             .take(MAX_SHORT_SHA_LENGTH)
                             .collect::<String>()
                     })
-                });
-
-            let status = repo.status_summary();
-            let tracked = status.index + status.worktree;
-            let icon_info = if status.conflict > 0 {
-                (IconName::Warning, Color::VersionControlConflict)
-            } else if tracked.modified > 0 {
-                (IconName::SquareDot, Color::VersionControlModified)
-            } else if tracked.added > 0 || status.untracked > 0 {
-                (IconName::SquarePlus, Color::VersionControlAdded)
-            } else if tracked.deleted > 0 {
-                (IconName::SquareMinus, Color::VersionControlDeleted)
-            } else {
-                (IconName::GitBranch, Color::Muted)
-            };
-
-            (branch_name, icon_info)
+                })
         };
 
-        let settings = TitleBarSettings::get_global(cx);
-
+        let show_branch_icon = TitleBarSettings::get_global(cx).show_branch_icon;
         let effective_repository = Some(repository);
 
         Some(
@@ -913,27 +847,14 @@ impl TitleBar {
                         cx,
                     ))
                 })
-                .trigger_with_tooltip(
-                    Button::new("project_branch_trigger", branch_name?)
-                        .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                        .label_size(LabelSize::Small)
-                        .color(Color::Muted)
-                        .when(settings.show_branch_icon, |branch_button| {
-                            let (icon, icon_color) = icon_info;
-                            branch_button
-                                .icon(icon)
-                                .icon_position(IconPosition::Start)
-                                .icon_color(icon_color)
-                                .icon_size(IconSize::Indicator)
-                        }),
-                    move |_window, cx| {
-                        Tooltip::with_meta(
-                            "Recent Branches",
-                            Some(&zed_actions::git::Branch),
-                            "Local branches only",
-                            cx,
-                        )
-                    },
+                .trigger(
+                    native_button("project_branch_trigger", branch_name?).button_style(
+                        if show_branch_icon {
+                            NativeButtonStyle::Rounded
+                        } else {
+                            NativeButtonStyle::Inline
+                        },
+                    ),
                 )
                 .anchor(gpui::Corner::TopLeft),
         )
@@ -1105,11 +1026,7 @@ impl TitleBar {
                         Tooltip::text("Toggle User Menu"),
                     )
                 } else {
-                    this.trigger_with_tooltip(
-                        IconButton::new("user-menu", IconName::ChevronDown)
-                            .icon_size(IconSize::Small),
-                        Tooltip::text("Toggle User Menu"),
-                    )
+                    this.trigger(native_icon_button("user-menu", "chevron.down"))
                 }
             })
             .anchor(gpui::Corner::TopRight)

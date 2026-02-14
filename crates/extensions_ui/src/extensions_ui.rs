@@ -13,7 +13,7 @@ use editor::{Editor, EditorElement, EditorStyle};
 use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
-    Action, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
+    Action, AnyElement, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
     InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedStyle,
     ParentElement, Point, Render, SegmentSelectEvent, Styled, Task, TextStyle,
     UniformListScrollHandle, WeakEntity, Window, actions, native_button, native_toggle_group,
@@ -285,9 +285,9 @@ fn keywords_by_feature() -> &'static BTreeMap<Feature, Vec<&'static str>> {
 }
 
 struct ExtensionCardButtons {
-    install_or_uninstall: Button,
-    upgrade: Option<Button>,
-    configure: Option<Button>,
+    install_or_uninstall: AnyElement,
+    upgrade: Option<AnyElement>,
+    configure: Option<AnyElement>,
 }
 
 pub struct ExtensionsPage {
@@ -988,10 +988,14 @@ impl ExtensionsPage {
             // If we have a dev extension for the given extension, just treat it as uninstalled.
             // The button here is a placeholder, as it won't be interactable anyways.
             return ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("install-placeholder-{}", extension.id)),
                     "Install",
-                ),
+                )
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
+                .disabled(true)
+                .into_any_element(),
                 configure: None,
                 upgrade: None,
             };
@@ -1004,15 +1008,12 @@ impl ExtensionsPage {
 
         match status.clone() {
             ExtensionStatus::NotInstalled => ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("install-{}", extension.id)),
                     "Install",
                 )
-                .style(ButtonStyle::Tinted(ui::TintColor::Accent))
-                .icon(IconName::Download)
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Muted)
-                .icon_position(IconPosition::Start)
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
                 .on_click({
                     let extension_id = extension.id.clone();
                     move |_, _, cx| {
@@ -1021,48 +1022,57 @@ impl ExtensionsPage {
                             store.install_latest_extension(extension_id.clone(), cx)
                         });
                     }
-                }),
+                })
+                .into_any_element(),
                 configure: None,
                 upgrade: None,
             },
             ExtensionStatus::Installing => ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("install-{}", extension.id)),
                     "Install",
                 )
-                .style(ButtonStyle::Tinted(ui::TintColor::Accent))
-                .icon(IconName::Download)
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Muted)
-                .icon_position(IconPosition::Start)
-                .disabled(true),
+                .button_style(NativeButtonStyle::Filled)
+                .tint(NativeButtonTint::Accent)
+                .disabled(true)
+                .into_any_element(),
                 configure: None,
                 upgrade: None,
             },
             ExtensionStatus::Upgrading => ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("uninstall-{}", extension.id)),
                     "Uninstall",
                 )
-                .style(ButtonStyle::OutlinedGhost)
-                .disabled(true),
+                .button_style(NativeButtonStyle::Inline)
+                .disabled(true)
+                .into_any_element(),
                 configure: is_configurable.then(|| {
-                    Button::new(
+                    native_button(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
                     .disabled(true)
+                    .button_style(NativeButtonStyle::Inline)
+                    .into_any_element()
                 }),
                 upgrade: Some(
-                    Button::new(SharedString::from(extension.id.clone()), "Upgrade").disabled(true),
+                    native_button(
+                        SharedString::from(format!("upgrade-{}", extension.id)),
+                        "Upgrade",
+                    )
+                    .button_style(NativeButtonStyle::Filled)
+                    .tint(NativeButtonTint::Accent)
+                    .disabled(true)
+                    .into_any_element(),
                 ),
             },
             ExtensionStatus::Installed(installed_version) => ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("uninstall-{}", extension.id)),
                     "Uninstall",
                 )
-                .style(ButtonStyle::OutlinedGhost)
+                .button_style(NativeButtonStyle::Inline)
                 .on_click({
                     let extension_id = extension.id.clone();
                     move |_, _, cx| {
@@ -1073,13 +1083,14 @@ impl ExtensionsPage {
                                 .detach_and_log_err(cx);
                         });
                     }
-                }),
+                })
+                .into_any_element(),
                 configure: is_configurable.then(|| {
-                    Button::new(
+                    native_button(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
-                    .style(ButtonStyle::OutlinedGhost)
+                    .button_style(NativeButtonStyle::Inline)
                     .on_click({
                         let extension_id = extension.id.clone();
                         move |_, _, cx| {
@@ -1098,59 +1109,55 @@ impl ExtensionsPage {
                             }
                         }
                     })
+                    .into_any_element()
                 }),
                 upgrade: if installed_version == extension.manifest.version {
                     None
                 } else {
                     Some(
-                        Button::new(SharedString::from(extension.id.clone()), "Upgrade")
-                          .style(ButtonStyle::Tinted(ui::TintColor::Accent))
-                            .when(!is_compatible, |upgrade_button| {
-                                upgrade_button.disabled(true).tooltip({
-                                    let version = extension.manifest.version.clone();
-                                    move |_, cx| {
-                                        Tooltip::simple(
-                                            format!(
-                                                "v{version} is not compatible with this version of Zed.",
-                                            ),
-                                             cx,
+                        native_button(
+                            SharedString::from(format!("upgrade-{}", extension.id)),
+                            "Upgrade",
+                        )
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Accent)
+                        .disabled(!is_compatible)
+                        .on_click({
+                            let extension_id = extension.id.clone();
+                            let version = extension.manifest.version.clone();
+                            move |_, _, cx| {
+                                telemetry::event!("Extension Installed", extension_id, version);
+                                ExtensionStore::global(cx).update(cx, |store, cx| {
+                                    store
+                                        .upgrade_extension(
+                                            extension_id.clone(),
+                                            version.clone(),
+                                            cx,
                                         )
-                                    }
-                                })
-                            })
-                            .disabled(!is_compatible)
-                            .on_click({
-                                let extension_id = extension.id.clone();
-                                let version = extension.manifest.version.clone();
-                                move |_, _, cx| {
-                                    telemetry::event!("Extension Installed", extension_id, version);
-                                    ExtensionStore::global(cx).update(cx, |store, cx| {
-                                        store
-                                            .upgrade_extension(
-                                                extension_id.clone(),
-                                                version.clone(),
-                                                cx,
-                                            )
-                                            .detach_and_log_err(cx)
-                                    });
-                                }
-                            }),
+                                        .detach_and_log_err(cx)
+                                });
+                            }
+                        })
+                        .into_any_element(),
                     )
                 },
             },
             ExtensionStatus::Removing => ExtensionCardButtons {
-                install_or_uninstall: Button::new(
-                    SharedString::from(extension.id.clone()),
+                install_or_uninstall: native_button(
+                    SharedString::from(format!("uninstall-{}", extension.id)),
                     "Uninstall",
                 )
-                .style(ButtonStyle::OutlinedGhost)
-                .disabled(true),
+                .button_style(NativeButtonStyle::Inline)
+                .disabled(true)
+                .into_any_element(),
                 configure: is_configurable.then(|| {
-                    Button::new(
+                    native_button(
                         SharedString::from(format!("configure-{}", extension.id)),
                         "Configure",
                     )
                     .disabled(true)
+                    .button_style(NativeButtonStyle::Inline)
+                    .into_any_element()
                 }),
                 upgrade: None,
             },
@@ -1556,8 +1563,8 @@ impl Render for ExtensionsPage {
                                     ExtensionFilter::NotInstalled => 2,
                                 })
                                 .segment_style(NativeSegmentedStyle::Rounded)
-                                .on_select(
-                                    cx.listener(|this, event: &SegmentSelectEvent, _, cx| {
+                                .on_select(cx.listener(
+                                    |this, event: &SegmentSelectEvent, _, cx| {
                                         this.filter = match event.index {
                                             0 => ExtensionFilter::All,
                                             1 => ExtensionFilter::Installed,
@@ -1565,8 +1572,8 @@ impl Render for ExtensionsPage {
                                         };
                                         this.filter_extension_entries(cx);
                                         this.scroll_to_top(cx);
-                                    }),
-                                ),
+                                    },
+                                )),
                             ),
                     ),
             )
