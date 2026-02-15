@@ -90,7 +90,7 @@ use workspace::{
     open_new,
 };
 use workspace::{
-    CloseIntent, CloseProject, CloseWindow, NotificationFrame, RestoreBanner,
+    CloseIntent, CloseProject, CloseWindow, RestoreBanner,
     with_active_or_new_workspace,
 };
 use workspace::{Pane, notifications::DetachAndPromptErr};
