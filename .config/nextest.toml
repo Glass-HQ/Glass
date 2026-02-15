@@ -34,3 +34,7 @@ slow-timeout = { period = "300s", terminate-after = 1 }
 [[profile.default.overrides]]
 filter = 'package(language_model) and test(test_from_image_downscales_to_default_5mb_limit)'
 slow-timeout = { period = "300s", terminate-after = 1 }
+
+[[profile.default.overrides]]
+filter =  'package(editor) and test(test_random_split_editor)'
+slow-timeout = { period = "300s", terminate-after = 1 }

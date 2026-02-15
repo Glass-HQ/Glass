@@ -8,7 +8,7 @@ use anyhow::{Context as _, Result, anyhow};
 use buffer_diff::{BufferDiff, DiffHunkSecondaryStatus};
 use collections::{HashMap, HashSet};
 use editor::{
-    Addon, Editor, EditorEvent, SelectionEffects, SplittableEditor,
+    Addon, Editor, EditorEvent, SelectionEffects, SplittableEditor, ToggleSplitDiff,
     actions::{GoToHunk, GoToPreviousHunk, SendReviewToAgent},
     multibuffer_context_lines,
     scroll::Autoscroll,
@@ -477,6 +477,7 @@ impl ProjectDiff {
     }
 
     fn button_states(&self, cx: &App) -> ButtonStates {
+        let is_split = self.editor.read(cx).is_split();
         let editor = self.editor.read(cx).primary_editor().read(cx);
         let snapshot = self.multibuffer.read(cx).snapshot(cx);
         let prev_next = snapshot.diff_hunks().nth(1).is_some();
@@ -537,6 +538,7 @@ impl ProjectDiff {
             selection,
             stage_all,
             unstage_all,
+            is_split,
         }
     }
 
@@ -1287,6 +1289,7 @@ struct ButtonStates {
     selection: bool,
     stage_all: bool,
     unstage_all: bool,
+    is_split: bool,
 }
 
 impl Render for ProjectDiffToolbar {
@@ -1388,6 +1391,19 @@ impl Render for ProjectDiffToolbar {
                                 ),
                             )
                         },
+                    )
+                    .child(
+                        native_button(
+                            "toggle-split",
+                            if button_states.is_split {
+                                "Stacked View"
+                            } else {
+                                "Split View"
+                            },
+                        )
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.dispatch_action(&ToggleSplitDiff, window, cx);
+                        })),
                     )
                     .child(
                         native_button("commit", "Commit")
