@@ -479,6 +479,18 @@
     //
     // You need to rejoin a call for this setting to apply
     "experimental.legacy_audio_compatible": true,
+    // Requires 'rodio_audio: true'
+    //
+    // Select specific output audio device.
+    // `null` means use system default.
+    // Any unrecognized output device will fall back to system default.
+    "experimental.output_audio_device": null,
+    // Requires 'rodio_audio: true'
+    //
+    // Select specific input audio device.
+    // `null` means use system default.
+    // Any unrecognized input device will fall back to system default.
+    "experimental.input_audio_device": null,
   },
   // Scrollbar related settings
   "scrollbar": {
@@ -858,8 +870,6 @@
     "button": true,
     // Where to dock the agent panel. Can be 'left', 'right' or 'bottom'.
     "dock": "right",
-    // Where to dock the agents panel. Can be 'left' or 'right'.
-    "agents_panel_dock": "left",
     // Default width when the agent panel is docked to the left or right.
     "default_width": 640,
     // Default height when the agent panel is docked to the bottom.

@@ -1239,12 +1239,12 @@ fn keymap_page() -> SettingsPage {
                 title: "Edit Keybindings".into(),
                 description: Some("Customize keybindings in the keymap editor.".into()),
                 button_text: "Open Keymap".into(),
-                on_click: Arc::new(|settings_window, window, cx| {
+                on_click: Arc::new(|settings_window: &mut crate::SettingsWindow, window: &mut gpui::Window, cx: &mut gpui::App| {
                     let Some(original_window) = settings_window.original_window else {
                         return;
                     };
                     original_window
-                        .update(cx, |_workspace, original_window, cx| {
+                        .update(cx, |_workspace, original_window: &mut gpui::Window, cx| {
                             original_window
                                 .dispatch_action(zed_actions::OpenKeymap.boxed_clone(), cx);
                             original_window.activate_window();
@@ -1252,6 +1252,7 @@ fn keymap_page() -> SettingsPage {
                         .ok();
                     window.remove_window();
                 }),
+                files: USER,
             }),
         ]
     }

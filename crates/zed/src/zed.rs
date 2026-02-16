@@ -14,7 +14,6 @@ pub mod visual_tests;
 pub(crate) mod windows_only_instance;
 
 use agent_ui::{AgentDiffToolbar, AgentPanelDelegate};
-use agent_ui_v2::agents_panel::AgentsPanel;
 use anyhow::Context as _;
 pub use app_menus::*;
 use assets::Assets;
@@ -85,7 +84,7 @@ use uuid::Uuid;
 use workspace::notifications::{
     NotificationId, dismiss_app_notification, show_app_notification,
 };
-use workspace::utility_pane::utility_slot_for_dock_position;
+
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
     WorkspaceSettings, create_and_open_local_file,
@@ -647,8 +646,7 @@ fn initialize_panels(
             add_panel_when_ready(git_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(debug_panel, workspace_handle.clone(), cx.clone()),
             add_panel_when_ready(native_platforms_panel, workspace_handle.clone(), cx.clone()),
-            initialize_agent_panel(workspace_handle.clone(), prompt_builder, cx.clone()).map(|r| r.log_err()),
-            initialize_agents_panel(workspace_handle, cx.clone()).map(|r| r.log_err())
+            initialize_agent_panel(workspace_handle, prompt_builder, cx.clone()).map(|r| r.log_err()),
         );
 
         anyhow::Ok(())
@@ -733,31 +731,6 @@ async fn initialize_agent_panel(
                 .register_action(agent_ui::AgentPanel::toggle_focus)
                 .register_action(agent_ui::InlineAssistant::inline_assist);
         }
-    })?;
-
-    anyhow::Ok(())
-}
-
-async fn initialize_agents_panel(
-    workspace_handle: WeakEntity<Workspace>,
-    mut cx: AsyncWindowContext,
-) -> anyhow::Result<()> {
-    workspace_handle
-        .update_in(&mut cx, |workspace, window, cx| {
-            setup_or_teardown_ai_panel(workspace, window, cx, |workspace, cx| {
-                AgentsPanel::load(workspace, cx)
-            })
-        })?
-        .await?;
-
-    workspace_handle.update_in(&mut cx, |_workspace, window, cx| {
-        cx.observe_global_in::<SettingsStore>(window, move |workspace, window, cx| {
-            setup_or_teardown_ai_panel(workspace, window, cx, |workspace, cx| {
-                AgentsPanel::load(workspace, cx)
-            })
-            .detach_and_log_err(cx);
-        })
-        .detach();
     })?;
 
     anyhow::Ok(())
@@ -1029,18 +1002,6 @@ fn register_actions(
              window: &mut Window,
              cx: &mut Context<Workspace>| {
                 workspace.toggle_panel_focus::<TerminalPanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &zed_actions::agent::ToggleAgentPane,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                if let Some(panel) = workspace.panel::<AgentsPanel>(cx) {
-                    let position = panel.read(cx).position(window, cx);
-                    let slot = utility_slot_for_dock_position(position);
-                    workspace.toggle_utility_pane(slot, window, cx);
-                }
             },
         )
         .register_action({
@@ -4694,7 +4655,6 @@ mod tests {
                 "action",
                 "activity_indicator",
                 "agent",
-                "agents",
                 "app_menu",
                 "assistant",
                 "assistant2",
@@ -4931,7 +4891,7 @@ mod tests {
                 false,
                 cx,
             );
-            agent_ui_v2::agents_panel::init(cx);
+
             repl::init(app_state.fs.clone(), cx);
             repl::notebook::init(cx);
             tasks_ui::init(cx);

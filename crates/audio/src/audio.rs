@@ -1,10 +1,9 @@
 use anyhow::{Context as _, Result};
 use collections::HashMap;
 use gpui::{App, BorrowAppContext, Global};
-use log::info;
 
 use rodio::{
-    Decoder, OutputStream, OutputStreamBuilder, Source, mixer::Mixer, nz, source::Buffered,
+    Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, nz, source::Buffered,
 };
 use std::{io::Cursor, num::NonZero};
 use util::ResultExt;
@@ -35,8 +34,7 @@ impl Sound {
 }
 
 pub struct Audio {
-    output_handle: Option<OutputStream>,
-    output_mixer: Option<Mixer>,
+    output_handle: Option<MixerDeviceSink>,
     source_cache: HashMap<Sound, Buffered<Decoder<Cursor<Vec<u8>>>>>,
 }
 
@@ -44,7 +42,6 @@ impl Default for Audio {
     fn default() -> Self {
         Self {
             output_handle: Default::default(),
-            output_mixer: Default::default(),
             source_cache: Default::default(),
         }
     }
@@ -53,27 +50,23 @@ impl Default for Audio {
 impl Global for Audio {}
 
 impl Audio {
-    fn ensure_output_exists(&mut self) -> Result<&Mixer> {
+    fn ensure_output_exists(&mut self) -> Result<&MixerDeviceSink> {
         #[cfg(debug_assertions)]
         log::warn!(
             "Audio does not sound correct without optimizations. Use a release build to debug audio issues"
         );
 
         if self.output_handle.is_none() {
-            let output_handle = OutputStreamBuilder::open_default_stream()
+            let mut output_handle = DeviceSinkBuilder::open_default_sink()
                 .context("Could not open default output stream")?;
-            info!("Output stream: {:?}", output_handle);
+            output_handle.log_on_drop(false);
+            log::info!("Output stream: {:?}", output_handle);
+            output_handle.mixer().add(rodio::source::Zero::new(CHANNEL_COUNT, SAMPLE_RATE));
             self.output_handle = Some(output_handle);
-            if let Some(output_handle) = &self.output_handle {
-                let (mixer, source) = rodio::mixer::mixer(CHANNEL_COUNT, SAMPLE_RATE);
-                mixer.add(rodio::source::Zero::new(CHANNEL_COUNT, SAMPLE_RATE));
-                self.output_mixer = Some(mixer);
-                output_handle.mixer().add(source);
-            }
         }
 
         Ok(self
-            .output_mixer
+            .output_handle
             .as_ref()
             .expect("we only get here if opening the outputstream succeeded"))
     }
@@ -81,12 +74,12 @@ impl Audio {
     pub fn play_sound(sound: Sound, cx: &mut App) {
         cx.update_default_global(|this: &mut Self, cx| {
             let source = this.sound_source(sound, cx).log_err()?;
-            let output_mixer = this
+            let output = this
                 .ensure_output_exists()
-                .context("Could not get output mixer")
+                .context("Could not get output")
                 .log_err()?;
 
-            output_mixer.add(source);
+            output.mixer().add(source);
             Some(())
         });
     }
