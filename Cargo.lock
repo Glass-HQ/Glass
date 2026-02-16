@@ -4717,6 +4717,7 @@ dependencies = [
  "libc",
  "log",
  "node_runtime",
+ "open_ai",
  "paths",
  "pretty_assertions",
  "project",
@@ -4998,9 +4999,14 @@ version = "0.1.0"
 dependencies = [
  "editor",
  "encoding_rs",
+ "fuzzy",
  "gpui",
+ "language",
+ "picker",
+ "project",
  "settings",
  "ui",
+ "util",
  "workspace",
 ]
 
@@ -6360,7 +6366,7 @@ dependencies = [
 [[package]]
 name = "gh-workflow"
 version = "0.8.0"
-source = "git+https://github.com/zed-industries/gh-workflow?rev=09acfdf2bd5c1d6254abefd609c808ff73547b2c#09acfdf2bd5c1d6254abefd609c808ff73547b2c"
+source = "git+https://github.com/zed-industries/gh-workflow?rev=c9eac0ed361583e1072860d96776fa52775b82ac#c9eac0ed361583e1072860d96776fa52775b82ac"
 dependencies = [
  "async-trait",
  "derive_more 2.0.1",
@@ -6377,7 +6383,7 @@ dependencies = [
 [[package]]
 name = "gh-workflow-macros"
 version = "0.8.0"
-source = "git+https://github.com/zed-industries/gh-workflow?rev=09acfdf2bd5c1d6254abefd609c808ff73547b2c#09acfdf2bd5c1d6254abefd609c808ff73547b2c"
+source = "git+https://github.com/zed-industries/gh-workflow?rev=c9eac0ed361583e1072860d96776fa52775b82ac#c9eac0ed361583e1072860d96776fa52775b82ac"
 dependencies = [
  "heck 0.5.0",
  "quote",
@@ -10168,6 +10174,7 @@ dependencies = [
  "futures",
  "http_client",
  "log",
+ "rand 0.9.2",
  "schemars",
  "serde",
  "serde_json",
@@ -11479,6 +11486,7 @@ dependencies = [
  "dap",
  "dap_adapters",
  "db",
+ "encoding_rs",
  "extension",
  "fancy-regex",
  "fs",
@@ -14898,6 +14906,7 @@ dependencies = [
  "itertools 0.14.0",
  "language",
  "log",
+ "menu",
  "pretty_assertions",
  "project",
  "rand 0.9.2",

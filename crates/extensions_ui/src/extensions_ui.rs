@@ -284,6 +284,10 @@ fn keywords_by_feature() -> &'static BTreeMap<Feature, Vec<&'static str>> {
     })
 }
 
+fn extension_button_id(extension_id: &Arc<str>, operation: ExtensionOperation) -> ElementId {
+    (SharedString::from(extension_id.clone()), operation as usize).into()
+}
+
 struct ExtensionCardButtons {
     install_or_uninstall: AnyElement,
     upgrade: Option<AnyElement>,
@@ -640,7 +644,7 @@ impl ExtensionsPage {
                                 }),
                             )
                             .child(
-                                native_button(SharedString::from(extension.id.clone()), "Uninstall")
+                                native_button(extension_button_id(&extension.id, ExtensionOperation::Remove), "Uninstall")
                                     .button_style(NativeButtonStyle::Filled)
                                     .tint(NativeButtonTint::Destructive)
                                     .disabled(matches!(status, ExtensionStatus::Removing))
@@ -989,7 +993,7 @@ impl ExtensionsPage {
             // The button here is a placeholder, as it won't be interactable anyways.
             return ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("install-placeholder-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
                 )
                 .button_style(NativeButtonStyle::Filled)
@@ -1009,7 +1013,7 @@ impl ExtensionsPage {
         match status.clone() {
             ExtensionStatus::NotInstalled => ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("install-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
                 )
                 .button_style(NativeButtonStyle::Filled)
@@ -1029,7 +1033,7 @@ impl ExtensionsPage {
             },
             ExtensionStatus::Installing => ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("install-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Install),
                     "Install",
                 )
                 .button_style(NativeButtonStyle::Filled)
@@ -1041,7 +1045,7 @@ impl ExtensionsPage {
             },
             ExtensionStatus::Upgrading => ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("uninstall-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
                 .button_style(NativeButtonStyle::Inline)
@@ -1058,7 +1062,7 @@ impl ExtensionsPage {
                 }),
                 upgrade: Some(
                     native_button(
-                        SharedString::from(format!("upgrade-{}", extension.id)),
+                        extension_button_id(&extension.id, ExtensionOperation::Upgrade),
                         "Upgrade",
                     )
                     .button_style(NativeButtonStyle::Filled)
@@ -1069,7 +1073,7 @@ impl ExtensionsPage {
             },
             ExtensionStatus::Installed(installed_version) => ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("uninstall-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
                 .button_style(NativeButtonStyle::Inline)
@@ -1116,7 +1120,7 @@ impl ExtensionsPage {
                 } else {
                     Some(
                         native_button(
-                            SharedString::from(format!("upgrade-{}", extension.id)),
+                            extension_button_id(&extension.id, ExtensionOperation::Upgrade),
                             "Upgrade",
                         )
                         .button_style(NativeButtonStyle::Filled)
@@ -1144,7 +1148,7 @@ impl ExtensionsPage {
             },
             ExtensionStatus::Removing => ExtensionCardButtons {
                 install_or_uninstall: native_button(
-                    SharedString::from(format!("uninstall-{}", extension.id)),
+                    extension_button_id(&extension.id, ExtensionOperation::Remove),
                     "Uninstall",
                 )
                 .button_style(NativeButtonStyle::Inline)
