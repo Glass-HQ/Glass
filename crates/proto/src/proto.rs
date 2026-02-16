@@ -46,12 +46,15 @@ messages!(
     (RunGitHook, Background),
     (CopyProjectEntry, Foreground),
     (CreateBufferForPeer, Foreground),
+    (CreateFileForPeer, Foreground),
     (CreateImageForPeer, Foreground),
     (CreateContext, Foreground),
     (CreateContextResponse, Foreground),
     (CreateProjectEntry, Foreground),
     (DeleteNotification, Foreground),
     (DeleteProjectEntry, Foreground),
+    (DownloadFileByPath, Background),
+    (DownloadFileResponse, Background),
     (EndStream, Foreground),
     (Error, Foreground),
     (ExpandProjectEntry, Foreground),
@@ -292,6 +295,7 @@ request_messages!(
     (CopyProjectEntry, ProjectEntryResponse),
     (CreateProjectEntry, ProjectEntryResponse),
     (DeleteProjectEntry, ProjectEntryResponse),
+    (DownloadFileByPath, DownloadFileResponse),
     (ExpandProjectEntry, ExpandProjectEntryResponse),
     (ExpandAllForProjectEntry, ExpandAllForProjectEntryResponse),
     (ApplyCodeActionKind, ApplyCodeActionKindResponse),
@@ -464,6 +468,7 @@ entity_messages!(
     GetColorPresentation,
     CopyProjectEntry,
     CreateBufferForPeer,
+    CreateFileForPeer,
     CreateImageForPeer,
     CreateProjectEntry,
     GetDocumentColor,
@@ -605,6 +610,7 @@ entity_messages!(
     RestrictWorktrees,
     FindSearchCandidatesChunk,
     FindSearchCandidatesCancelled,
+    DownloadFileByPath
 );
 
 impl From<Timestamp> for SystemTime {

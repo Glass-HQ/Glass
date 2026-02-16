@@ -466,7 +466,7 @@ impl ConfigurationView {
     ) -> Self {
         let copilot = AppState::try_global(cx)
             .and_then(|state| state.upgrade())
-            .map(|state| GlobalCopilotAuth::get_or_init(state, cx));
+            .and_then(|state| GlobalCopilotAuth::try_get_or_init(state, cx));
 
         Self {
             copilot_status: copilot.as_ref().map(|copilot| copilot.0.read(cx).status()),
@@ -551,8 +551,9 @@ impl ConfigurationView {
             .button_style(NativeButtonStyle::Filled)
             .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| {
-                if let Some(app_state) = AppState::global(cx).upgrade() {
-                    let copilot = GlobalCopilotAuth::get_or_init(app_state, cx);
+                if let Some(app_state) = AppState::global(cx).upgrade()
+                    && let Some(copilot) = GlobalCopilotAuth::try_get_or_init(app_state, cx)
+                {
                     initiate_sign_in(copilot.0, window, cx)
                 }
             })
@@ -570,8 +571,9 @@ impl ConfigurationView {
             .button_style(NativeButtonStyle::Filled)
             .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| {
-                if let Some(app_state) = AppState::global(cx).upgrade() {
-                    let copilot = GlobalCopilotAuth::get_or_init(app_state, cx);
+                if let Some(app_state) = AppState::global(cx).upgrade()
+                    && let Some(copilot) = GlobalCopilotAuth::try_get_or_init(app_state, cx)
+                {
                     reinstall_and_sign_in(copilot.0, window, cx);
                 }
             })

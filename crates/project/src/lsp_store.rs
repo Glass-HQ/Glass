@@ -3905,6 +3905,7 @@ pub struct LanguageServerStatus {
     pub binary: Option<LanguageServerBinary>,
     pub configuration: Option<Value>,
     pub workspace_folders: BTreeSet<Uri>,
+    pub process_id: Option<u32>,
 }
 
 #[derive(Clone, Debug)]
@@ -9493,6 +9494,7 @@ impl LspStore {
                     binary: None,
                     configuration: None,
                     workspace_folders: BTreeSet::new(),
+                    process_id: None,
                 },
             );
             cx.emit(LspStoreEvent::LanguageServerAdded(
@@ -11549,6 +11551,7 @@ impl LspStore {
                 binary: Some(language_server.binary().clone()),
                 configuration: Some(language_server.configuration().clone()),
                 workspace_folders: language_server.workspace_folders(),
+                process_id: language_server.process_id(),
             },
         );
 
