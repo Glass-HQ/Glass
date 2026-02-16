@@ -15,6 +15,7 @@ use gpui::{AsyncWindowContext, Entity, WeakEntity};
 use language::{Toolchain, ToolchainScope};
 use project::{Project, debugger::breakpoint_store::SourceBreakpoint};
 use remote::RemoteConnectionOptions;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -66,7 +67,7 @@ pub(crate) struct SerializedWorkspace {
     pub(crate) active_mode: Option<String>,
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct DockStructure {
     pub(crate) left: DockData,
     pub(crate) right: DockData,
@@ -116,7 +117,7 @@ impl Bind for DockStructure {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Default)]
+#[derive(Debug, PartialEq, Clone, Default, Serialize, Deserialize)]
 pub struct DockData {
     pub(crate) visible: bool,
     pub(crate) active_panel: Option<String>,

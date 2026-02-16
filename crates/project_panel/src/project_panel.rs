@@ -5375,6 +5375,7 @@ impl ProjectPanel {
                             entry_id.to_usize()
                         )))
                         .when(index == components_len - 1, |this| this.flex_1().min_w_0())
+                        .when(index == 0, |this| this.ml_neg_0p5())
                         .px_0p5()
                         .rounded_xs()
                         .hover(|style| style.bg(cx.theme().colors().element_active))

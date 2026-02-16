@@ -35,6 +35,7 @@ toast.workspace = true
 settings.workspace = true
 util.workspace = true
 workspace_modes.workspace = true
+zed_actions.workspace = true
 
 # CEF browser integration
 cef = { git = "https://github.com/tauri-apps/cef-rs", default-features = false }

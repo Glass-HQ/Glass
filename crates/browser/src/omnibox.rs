@@ -275,7 +275,7 @@ impl Omnibox {
 
     fn move_up(
         &mut self,
-        _: &editor::actions::MoveUp,
+        _: &zed_actions::editor::MoveUp,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -292,7 +292,7 @@ impl Omnibox {
 
     fn move_down(
         &mut self,
-        _: &editor::actions::MoveDown,
+        _: &zed_actions::editor::MoveDown,
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
