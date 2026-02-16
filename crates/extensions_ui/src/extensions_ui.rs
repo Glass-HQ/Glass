@@ -317,6 +317,7 @@ pub struct ExtensionsPage {
     remote_extension_entries: Vec<ExtensionMetadata>,
     dev_extension_entries: Vec<Arc<ExtensionManifest>>,
     filtered_remote_extension_indices: Vec<usize>,
+    filtered_dev_extension_indices: Vec<usize>,
     query_editor: Entity<Editor>,
     query_contains_error: bool,
     provides_filter: Option<ExtensionProvides>,
@@ -378,6 +379,7 @@ impl ExtensionsPage {
                 filter: ExtensionFilter::All,
                 dev_extension_entries: Vec::new(),
                 filtered_remote_extension_indices: Vec::new(),
+                filtered_dev_extension_indices: Vec::new(),
                 remote_extension_entries: Vec::new(),
                 query_contains_error: false,
                 provides_filter,
@@ -490,6 +492,19 @@ impl ExtensionsPage {
                 })
                 .map(|(ix, _)| ix),
         );
+
+        self.filtered_dev_extension_indices.clear();
+        self.filtered_dev_extension_indices.extend(
+            self.dev_extension_entries
+                .iter()
+                .enumerate()
+                .filter(|(_, manifest)| match self.provides_filter {
+                    Some(provides) => manifest.provides().contains(&provides),
+                    None => true,
+                })
+                .map(|(ix, _)| ix),
+        );
+
         cx.notify();
     }
 
@@ -598,14 +613,15 @@ impl ExtensionsPage {
         cx: &mut Context<Self>,
     ) -> Vec<ExtensionCard> {
         let dev_extension_entries_len = if self.filter.include_dev_extensions() {
-            self.dev_extension_entries.len()
+            self.filtered_dev_extension_indices.len()
         } else {
             0
         };
         range
             .map(|ix| {
                 if ix < dev_extension_entries_len {
-                    let extension = &self.dev_extension_entries[ix];
+                    let dev_ix = self.filtered_dev_extension_indices[ix];
+                    let extension = &self.dev_extension_entries[dev_ix];
                     self.render_dev_extension(extension, cx)
                 } else {
                     let extension_ix =
@@ -1715,7 +1731,7 @@ impl Render for ExtensionsPage {
             .child(v_flex().px_4().size_full().overflow_y_hidden().map(|this| {
                 let mut count = self.filtered_remote_extension_indices.len();
                 if self.filter.include_dev_extensions() {
-                    count += self.dev_extension_entries.len();
+                    count += self.filtered_dev_extension_indices.len();
                 }
 
                 if count == 0 {

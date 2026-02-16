@@ -228,6 +228,11 @@ pub fn register(workspace: &mut Workspace) {
     workspace.register_action(|workspace, _: &ExpandCommitEditor, window, cx| {
         CommitModal::toggle(workspace, None, window, cx)
     });
+    workspace.register_action(|workspace, _: &git::Init, window, cx| {
+        if let Some(panel) = workspace.panel::<GitPanel>(cx) {
+            panel.update(cx, |panel, cx| panel.git_init(window, cx));
+        }
+    });
 }
 
 #[derive(Debug, Clone)]
