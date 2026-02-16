@@ -40,6 +40,7 @@ mod thread_item;
 mod toggle;
 mod tooltip;
 mod tree_view_item;
+mod update_button;
 
 pub use ai::*;
 pub use avatar::*;
@@ -83,3 +84,4 @@ pub use thread_item::*;
 pub use toggle::*;
 pub use tooltip::*;
 pub use tree_view_item::*;
+pub use update_button::*;

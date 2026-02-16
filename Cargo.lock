@@ -8,7 +8,6 @@ version = "0.1.0"
 dependencies = [
  "action_log",
  "agent-client-protocol",
- "agent_settings",
  "anyhow",
  "base64 0.22.1",
  "buffer_diff",
@@ -108,7 +107,6 @@ dependencies = [
  "project",
  "proto",
  "release_channel",
- "semver",
  "smallvec",
  "ui",
  "util",
@@ -504,13 +502,14 @@ dependencies = [
 [[package]]
 name = "alacritty_terminal"
 version = "0.25.1"
-source = "git+https://github.com/zed-industries/alacritty?rev=936aee8761a17affc84ab418ae21306c27c26221#936aee8761a17affc84ab418ae21306c27c26221"
+source = "git+https://github.com/zed-industries/alacritty?rev=9d9640d4#9d9640d4e56d67a09d049f9c0a300aae08d4f61e"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.10.0",
  "home",
  "libc",
  "log",
+ "mach2 0.5.0",
  "miow",
  "parking_lot",
  "piper",
@@ -3289,7 +3288,6 @@ name = "copilot_chat"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "collections",
  "dirs 4.0.0",
  "fs",
@@ -4289,6 +4287,7 @@ checksum = "abd57806937c9cc163efc8ea3910e00a62e2aeb0b8119f1793a978088f8f6b04"
 name = "dev_container"
 version = "0.1.0"
 dependencies = [
+ "fs",
  "futures",
  "gpui",
  "http 1.3.1",
@@ -4298,6 +4297,7 @@ dependencies = [
  "node_runtime",
  "paths",
  "picker",
+ "project",
  "serde",
  "serde_json",
  "settings",
@@ -4305,6 +4305,7 @@ dependencies = [
  "ui",
  "util",
  "workspace",
+ "worktree",
 ]
 
 [[package]]
@@ -8015,9 +8016,9 @@ dependencies = [
 
 [[package]]
 name = "jupyter-protocol"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec0c2e3fba7f516ac3bc703f28abe3b83157320e603fb4abbee5ba9c016e2578"
+checksum = "073486929b8271fc18bd001fb8604f4b4d88c0fae134b88ed943c46c8826d9eb"
 dependencies = [
  "async-trait",
  "bytes",
@@ -13298,6 +13299,7 @@ dependencies = [
  "collections",
  "editor",
  "feature_flags",
+ "fs",
  "futures",
  "gpui",
  "itertools 0.14.0",
@@ -13671,6 +13673,7 @@ dependencies = [
  "pretty_assertions",
  "project",
  "recent_projects",
+ "regex",
  "release_channel",
  "schemars",
  "search",
@@ -13678,6 +13681,7 @@ dependencies = [
  "serde_json",
  "session",
  "settings",
+ "shell_command_parser",
  "strum 0.27.2",
  "telemetry",
  "theme",
@@ -15350,9 +15354,11 @@ dependencies = [
  "pretty_assertions",
  "project",
  "recent_projects",
+ "release_channel",
  "remote",
  "rpc",
  "schemars",
+ "semver",
  "serde",
  "settings",
  "smallvec",
@@ -15855,9 +15861,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-go"
-version = "0.23.4"
+version = "0.25.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b13d476345220dbe600147dd444165c5791bf85ef53e28acbedd46112ee18431"
+checksum = "c8560a4d2f835cc0d4d2c2e03cbd0dde2f6114b43bc491164238d333e28b16ea"
 dependencies = [
  "cc",
  "tree-sitter-language",

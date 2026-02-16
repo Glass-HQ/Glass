@@ -96,7 +96,7 @@ jobs:
             --no-configured-files ${{ inputs.bump-type }} "${BUMP_FILES[@]}"
 
         if [[ -f "Cargo.toml" ]]; then
-            cargo update --workspace --offline
+            cargo update --workspace
         fi
 
         NEW_VERSION="$(sed -n 's/version = \"\(.*\)\"/\1/p' < extension.toml)"
@@ -115,7 +115,7 @@ jobs:
         token: ${{ steps.generate-token.outputs.token }}
         sign-commits: true
         assignees: ${{ github.actor }}
-    timeout-minutes: 1
+    timeout-minutes: 3
   create_version_label:
     needs:
     - check_version_changed

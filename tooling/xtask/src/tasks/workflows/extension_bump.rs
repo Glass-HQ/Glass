@@ -195,7 +195,7 @@ fn bump_extension_version(
             version_changed = version_changed_output.expr(),
         )))
         .runs_on(runners::LINUX_SMALL)
-        .timeout_minutes(1u32)
+        .timeout_minutes(3u32)
         .add_step(generate_token)
         .add_step(steps::checkout_repo())
         .add_step(install_bump_2_version())
@@ -271,7 +271,7 @@ fn bump_version(current_version: &JobOutput, bump_type: &WorkflowInput) -> (Step
             --no-configured-files {bump_type} "${{BUMP_FILES[@]}}"
 
         if [[ -f "Cargo.toml" ]]; then
-            cargo update --workspace --offline
+            cargo update --workspace
         fi
 
         NEW_VERSION="$({VERSION_CHECK})"

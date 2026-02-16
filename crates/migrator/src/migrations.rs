@@ -287,6 +287,12 @@ pub(crate) mod m_2026_02_03 {
     pub(crate) use settings::migrate_experimental_sweep_mercury;
 }
 
+pub(crate) mod m_2026_02_04 {
+    mod settings;
+
+    pub(crate) use settings::migrate_tool_permission_defaults;
+}
+
 pub(crate) mod m_2026_02_06 {
     mod keymap;
     mod settings;
