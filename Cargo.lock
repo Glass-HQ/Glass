@@ -164,6 +164,7 @@ dependencies = [
  "chrono",
  "client",
  "clock",
+ "cloud_api_types",
  "cloud_llm_client",
  "collections",
  "context_server",
@@ -351,6 +352,7 @@ dependencies = [
  "chrono",
  "client",
  "clock",
+ "cloud_api_types",
  "cloud_llm_client",
  "collections",
  "command_palette_hooks",
@@ -487,7 +489,7 @@ name = "ai_onboarding"
 version = "0.1.0"
 dependencies = [
  "client",
- "cloud_llm_client",
+ "cloud_api_types",
  "component",
  "gpui",
  "language_model",
@@ -6475,6 +6477,7 @@ dependencies = [
  "anyhow",
  "collections",
  "db",
+ "feature_flags",
  "fs",
  "git",
  "git_ui",
@@ -8258,6 +8261,7 @@ dependencies = [
  "bedrock",
  "chrono",
  "client",
+ "cloud_api_types",
  "cloud_llm_client",
  "collections",
  "component",
@@ -8886,6 +8890,7 @@ dependencies = [
  "urlencoding",
  "util",
  "workspace",
+ "zed_actions",
 ]
 
 [[package]]
@@ -9651,7 +9656,7 @@ dependencies = [
 [[package]]
 name = "notify"
 version = "8.2.0"
-source = "git+https://github.com/zed-industries/notify.git?rev=b4588b2e5aee68f4c0e100f140e808cbce7b1419#b4588b2e5aee68f4c0e100f140e808cbce7b1419"
+source = "git+https://github.com/zed-industries/notify.git?rev=6c550ac3c56cbd143c57ea6390e197af9d790908#6c550ac3c56cbd143c57ea6390e197af9d790908"
 dependencies = [
  "bitflags 2.9.4",
  "fsevent-sys 4.1.0",
@@ -9679,7 +9684,7 @@ dependencies = [
 [[package]]
 name = "notify-types"
 version = "2.0.0"
-source = "git+https://github.com/zed-industries/notify.git?rev=b4588b2e5aee68f4c0e100f140e808cbce7b1419#b4588b2e5aee68f4c0e100f140e808cbce7b1419"
+source = "git+https://github.com/zed-industries/notify.git?rev=6c550ac3c56cbd143c57ea6390e197af9d790908#6c550ac3c56cbd143c57ea6390e197af9d790908"
 
 [[package]]
 name = "ntapi"
@@ -12329,6 +12334,7 @@ dependencies = [
  "anyhow",
  "askpass",
  "async-trait",
+ "base64 0.22.1",
  "collections",
  "fs",
  "futures",
@@ -14309,6 +14315,7 @@ dependencies = [
  "multi_buffer",
  "ui",
  "workspace",
+ "zed_actions",
 ]
 
 [[package]]
@@ -15234,7 +15241,7 @@ dependencies = [
  "auto_update",
  "chrono",
  "client",
- "cloud_llm_client",
+ "cloud_api_types",
  "collections",
  "db",
  "git_ui",
@@ -19285,6 +19292,7 @@ name = "zeta_prompt"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "indoc",
  "serde",
  "strum 0.27.2",
 ]

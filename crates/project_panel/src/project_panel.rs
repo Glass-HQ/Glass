@@ -21,11 +21,12 @@ use git_ui::file_diff_view::FileDiffView;
 use gpui::{
     Action, AnyElement, App, AsyncWindowContext, Bounds, ClipboardItem, Context, CursorStyle,
     DismissEvent, Div, DragMoveEvent, Entity, EventEmitter, ExternalPaths, FocusHandle, Focusable,
-    Hsla, InteractiveElement, KeyContext, ListHorizontalSizingBehavior, ListSizingBehavior,
-    Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, ParentElement, Pixels, Point,
-    PromptLevel, Render, ScrollStrategy, Stateful, Styled, Subscription, Task,
-    UniformListScrollHandle, WeakEntity, Window, actions, anchored, deferred, div, hsla,
-    linear_color_stop, linear_gradient, point, px, size, transparent_white, uniform_list,
+    FontWeight, Hsla, InteractiveElement, KeyContext, ListHorizontalSizingBehavior,
+    ListSizingBehavior, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent,
+    ParentElement, Pixels, Point, PromptLevel, Render, ScrollStrategy, Stateful, Styled,
+    Subscription, Task, UniformListScrollHandle, WeakEntity, Window, actions, anchored, deferred,
+    div, hsla, linear_color_stop, linear_gradient, point, px, size, transparent_white,
+    uniform_list,
 };
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
@@ -5267,38 +5268,30 @@ impl ProjectPanel {
                             .min_w_0()
                             .map(|this| match self.state.ancestors.get(&entry_id) {
                                 Some(folded_ancestors) => {
-                                    this.child(
-                                        h_flex()
-                                            .w_full()
-                                            .min_w_0()
-                                            .overflow_hidden()
-                                            .children(self.render_folder_elements(
-                                                folded_ancestors,
-                                                entry_id,
-                                                file_name,
-                                                path_style,
-                                                is_sticky,
-                                                kind.is_file(),
-                                                is_active || is_marked,
-                                                settings.drag_and_drop,
-                                                item_colors.drag_over,
-                                                folded_directory_drag_target,
-                                                filename_text_color,
-                                                cx,
-                                            )),
-                                    )
+                                    this.children(self.render_folder_elements(
+                                        folded_ancestors,
+                                        entry_id,
+                                        file_name,
+                                        path_style,
+                                        is_sticky,
+                                        kind.is_file(),
+                                        is_active || is_marked,
+                                        settings.drag_and_drop,
+                                        settings.bold_folder_labels,
+                                        item_colors.drag_over,
+                                        folded_directory_drag_target,
+                                        filename_text_color,
+                                        cx,
+                                    ))
                                 }
 
                                 None => this.child(
-                                    div()
-                                        .w_full()
-                                        .min_w_0()
-                                        .child(
-                                            Label::new(file_name)
-                                                .single_line()
-                                                .truncate()
-                                                .color(filename_text_color)
-                                                .into_any_element(),
+                                    Label::new(file_name)
+                                        .single_line()
+                                        .color(filename_text_color)
+                                        .when(
+                                            settings.bold_folder_labels && kind.is_dir(),
+                                            |this| this.weight(FontWeight::SEMIBOLD),
                                         )
                                         .into_any_element(),
                                 ),
@@ -5352,6 +5345,7 @@ impl ProjectPanel {
         is_file: bool,
         is_active_or_marked: bool,
         drag_and_drop_enabled: bool,
+        bold_folder_labels: bool,
         drag_over_color: Hsla,
         folded_directory_drag_target: Option<FoldedDirectoryDragTarget>,
         filename_text_color: Color,
@@ -5464,6 +5458,9 @@ impl ProjectPanel {
                                 .single_line()
                                 .truncate()
                                 .color(filename_text_color)
+                                .when(bold_folder_labels && !is_file, |this| {
+                                    this.weight(FontWeight::SEMIBOLD)
+                                })
                                 .when(index == active_index && is_active_or_marked, |this| {
                                     this.underline()
                                 }),

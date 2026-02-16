@@ -2517,6 +2517,13 @@ impl RemoteServerProjects {
             })
             .unwrap_or(false);
 
+        // We cannot currently connect a dev container from within a remote server due to the remote_server architecture
+        let is_local = self
+            .workspace
+            .upgrade()
+            .map(|workspace| workspace.read(cx).project().read(cx).is_local())
+            .unwrap_or(true);
+
         let modal_section = v_flex()
             .track_focus(&self.focus_handle(cx))
             .id("ssh-server-list")
@@ -2524,7 +2531,7 @@ impl RemoteServerProjects {
             .track_scroll(&state.scroll_handle)
             .size_full()
             .child(connect_button)
-            .when(has_open_project, |this| {
+            .when(has_open_project && is_local, |this| {
                 this.child(connect_dev_container_button)
             });
 
@@ -2559,7 +2566,7 @@ impl RemoteServerProjects {
         )
         .entry(state.add_new_server.clone());
 
-        if has_open_project {
+        if has_open_project && is_local {
             modal_section = modal_section.entry(state.add_new_devcontainer.clone());
         }
 
