@@ -1292,7 +1292,10 @@ impl EditorElement {
         // Handle diff review indicator when gutter is hovered in diff mode with AI enabled
         let show_diff_review = editor.show_diff_review_button()
             && cx.has_flag::<DiffReviewFeatureFlag>()
-            && !DisableAiSettings::get_global(cx).disable_ai;
+            && !DisableAiSettings::is_ai_disabled_for_buffer(
+                editor.buffer.read(cx).as_singleton().as_ref(),
+                cx,
+            );
 
         let diff_review_indicator = if gutter_hovered && show_diff_review {
             let is_visible = editor

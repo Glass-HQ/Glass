@@ -2372,7 +2372,8 @@ impl LocalLspStore {
             Some(worktree_path)
         });
 
-        let mut child = util::command::new_smol_command(command);
+        use util::command::Stdio;
+        let mut child = util::command::new_command(command);
 
         if let Some(buffer_env) = buffer.env.as_ref() {
             child.envs(buffer_env);
@@ -2393,9 +2394,9 @@ impl LocalLspStore {
         }
 
         let mut child = child
-            .stdin(smol::process::Stdio::piped())
-            .stdout(smol::process::Stdio::piped())
-            .stderr(smol::process::Stdio::piped())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .spawn()?;
 
         let stdin = child.stdin.as_mut().context("failed to acquire stdin")?;
@@ -7667,9 +7668,10 @@ impl LspStore {
                                         source_worktree_id,
                                         path,
                                         kind: symbol_kind,
-                                        name: symbol_name,
+                                        name: collapse_newlines(&symbol_name, "↵ "),
                                         range: range_from_lsp(symbol_location.range),
-                                        container_name,
+                                        container_name: container_name
+                                            .map(|c| collapse_newlines(&c, "↵ ")),
                                     })
                                 },
                             )
@@ -14039,7 +14041,7 @@ impl LspAdapterDelegate for LocalLspAdapterDelegate {
         };
 
         let env = self.shell_env().await;
-        let output = util::command::new_smol_command(&npm)
+        let output = util::command::new_command(&npm)
             .args(["root", "-g"])
             .envs(env)
             .current_dir(local_package_directory)
@@ -14074,7 +14076,7 @@ impl LspAdapterDelegate for LocalLspAdapterDelegate {
         if self.fs.is_file(&working_dir).await {
             working_dir.pop();
         }
-        let output = util::command::new_smol_command(&command.path)
+        let output = util::command::new_command(&command.path)
             .args(command.arguments)
             .envs(command.env.clone().unwrap_or_default())
             .current_dir(working_dir)
@@ -14213,6 +14215,13 @@ async fn populate_labels_for_symbols(
             });
         }
     }
+}
+
+pub(crate) fn collapse_newlines(text: &str, separator: &str) -> String {
+    text.lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .join(separator)
 }
 
 fn include_text(server: &lsp::LanguageServer) -> Option<bool> {

@@ -143,6 +143,7 @@ pub enum IconName {
     Globe,
     GitBranchAlt,
     GitBranchPlus,
+    GitGraph,
     Github,
     Hash,
     HistoryRerun,
