@@ -1,26 +1,13 @@
 # Configuring Supported Languages
 
-Zed offers powerful customization options for each programming language it supports. This guide will walk you through the various ways you can tailor your coding experience to your preferences and project requirements.
+Zed's language support is built on two technologies:
 
-Zed's language support is built on two main technologies:
+1. **Tree-sitter** handles syntax highlighting and structure-based features like the outline panel.
+2. **Language Server Protocol (LSP)** provides semantic features: code completion, diagnostics, go-to-definition, and refactoring.
 
-1. Tree-sitter: This handles syntax highlighting and structure-based features like symbol extraction.
-2. Language Server Protocol (LSP): This provides semantic features such as code completion and diagnostics.
+This page covers language-specific settings, file associations, language server configuration, formatting, linting, and syntax highlighting.
 
-These components work together to provide Zed's language capabilities.
-
-In this guide, we'll cover:
-
-- Language-specific settings
-- File associations
-- Working with language servers
-- Formatting and linting configuration
-- Customizing syntax highlighting and themes
-- Advanced language features
-
-By the end of this guide, you should know how to configure and customize supported languages in Zed.
-
-For a comprehensive list of languages supported by Zed and their specific configurations, see our [Supported Languages](./languages.md) page. To go further, you could explore developing your own extensions to add support for additional languages or enhance existing functionality. For more information on creating language extensions, see our [Language Extensions](./extensions/languages.md) guide.
+For a list of supported languages, see [Supported Languages](./languages.md). To add support for new languages, see [Language Extensions](./extensions/languages.md).
 
 ## Language-specific Settings
 
@@ -409,6 +396,22 @@ To create your own theme extension, refer to the [Developing Theme Extensions](.
 
 ## Using Language Server Features
 
+### Semantic Tokens
+
+Semantic tokens provide richer syntax highlighting by using type and scope information from language servers. Enable them with the `semantic_tokens` setting:
+
+```json [settings]
+"semantic_tokens": "combined"
+```
+
+- `"off"` — Tree-sitter highlighting only (default)
+- `"combined"` — LSP semantic tokens overlaid on tree-sitter
+- `"full"` — LSP semantic tokens replace tree-sitter entirely
+
+You can customize token colors and styles through `global_lsp_settings.semantic_token_rules` in your settings.
+
+→ [Semantic Tokens documentation](./semantic-tokens.md)
+
 ### Inlay Hints
 
 Inlay hints provide additional information inline in your code, such as parameter names or inferred types. Configure inlay hints in your `settings.json`:
@@ -451,6 +454,10 @@ When renaming a symbol that spans multiple files, Zed will open a preview in a m
 ### Hover Information
 
 Use the `editor: Hover` command to display information about the symbol under the cursor. This often includes type information, documentation, and links to relevant resources.
+
+### Workspace Symbol Search
+
+The {#action project_symbols::Toggle} command allows you to search for symbols (functions, classes, variables) across your entire project. This is useful for quickly navigating large codebases.
 
 ### Code Completion
 

@@ -1,7 +1,8 @@
 use crate::{
     Anchor, Autoscroll, BufferSerialization, Capability, Editor, EditorEvent, EditorSettings,
-    FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData, ReportEditorEvent,
-    SearchWithinRange, SelectionEffects, ToPoint as _, display_map::HighlightKey,
+    ExcerptId, ExcerptRange, FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData,
+    ReportEditorEvent, SearchWithinRange, SelectionEffects, ToPoint as _,
+    display_map::HighlightKey,
     editor_settings::SeedQuerySetting,
     persistence::{DB, SerializedEditor},
     scroll::{ScrollAnchor, ScrollOffset},
@@ -1055,13 +1056,12 @@ impl Editor {
     }
 }
 
-pub(crate) enum BufferSearchHighlights {}
 impl SearchableItem for Editor {
     type Match = Range<Anchor>;
 
     fn get_matches(&self, _window: &mut Window, _: &mut App) -> Vec<Range<Anchor>> {
         self.background_highlights
-            .get(&HighlightKey::Type(TypeId::of::<BufferSearchHighlights>()))
+            .get(&HighlightKey::BufferSearchHighlights)
             .map_or(Vec::new(), |(_color, ranges)| {
                 ranges.iter().cloned().collect()
             })
@@ -1069,7 +1069,7 @@ impl SearchableItem for Editor {
 
     fn clear_matches(&mut self, _: &mut Window, cx: &mut Context<Self>) {
         if self
-            .clear_background_highlights::<BufferSearchHighlights>(cx)
+            .clear_background_highlights(HighlightKey::BufferSearchHighlights, cx)
             .is_some()
         {
             cx.emit(SearchEvent::MatchesInvalidated);
@@ -1085,10 +1085,11 @@ impl SearchableItem for Editor {
     ) {
         let existing_range = self
             .background_highlights
-            .get(&HighlightKey::Type(TypeId::of::<BufferSearchHighlights>()))
+            .get(&HighlightKey::BufferSearchHighlights)
             .map(|(_, range)| range.as_ref());
         let updated = existing_range != Some(matches);
-        self.highlight_background::<BufferSearchHighlights>(
+        self.highlight_background(
+            HighlightKey::BufferSearchHighlights,
             matches,
             move |index, theme| {
                 if active_match_index == Some(*index) {
@@ -1105,7 +1106,7 @@ impl SearchableItem for Editor {
     }
 
     fn has_filtered_search_ranges(&mut self) -> bool {
-        self.has_background_highlights::<SearchWithinRange>()
+        self.has_background_highlights(HighlightKey::SearchWithinRange)
     }
 
     fn toggle_filtered_search_ranges(
@@ -1116,7 +1117,7 @@ impl SearchableItem for Editor {
     ) {
         if self.has_filtered_search_ranges() {
             self.previous_search_ranges = self
-                .clear_background_highlights::<SearchWithinRange>(cx)
+                .clear_background_highlights(HighlightKey::SearchWithinRange, cx)
                 .map(|(_, ranges)| ranges)
         }
 
@@ -1340,7 +1341,7 @@ impl SearchableItem for Editor {
         let buffer = self.buffer().read(cx).snapshot(cx);
         let search_within_ranges = self
             .background_highlights
-            .get(&HighlightKey::Type(TypeId::of::<SearchWithinRange>()))
+            .get(&HighlightKey::SearchWithinRange)
             .map_or(vec![], |(_color, ranges)| {
                 ranges.iter().cloned().collect::<Vec<_>>()
             });

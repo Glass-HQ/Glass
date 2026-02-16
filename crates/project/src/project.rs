@@ -363,6 +363,10 @@ pub enum Event {
         server_id: LanguageServerId,
         request_id: Option<usize>,
     },
+    RefreshSemanticTokens {
+        server_id: LanguageServerId,
+        request_id: Option<usize>,
+    },
     RefreshCodeLens,
     RevealInProjectPanel(ProjectEntryId),
     SnippetEdit(BufferId, Vec<(lsp::Range, Snippet)>),
@@ -806,6 +810,7 @@ pub struct Symbol {
     pub name: String,
     pub kind: lsp::SymbolKind,
     pub range: Range<Unclipped<PointUtf16>>,
+    pub container_name: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -2820,6 +2825,13 @@ impl Project {
                 server_id,
                 request_id,
             } => cx.emit(Event::RefreshInlayHints {
+                server_id: *server_id,
+                request_id: *request_id,
+            }),
+            LspStoreEvent::RefreshSemanticTokens {
+                server_id,
+                request_id,
+            } => cx.emit(Event::RefreshSemanticTokens {
                 server_id: *server_id,
                 request_id: *request_id,
             }),

@@ -3,7 +3,8 @@ use std::{cmp, sync::Arc};
 use client::{Client, UserStore};
 use cloud_llm_client::EditPredictionRejectReason;
 use edit_prediction_types::{
-    DataCollectionState, EditPredictionDelegate, EditPredictionIconSet, SuggestionDisplayType,
+    DataCollectionState, EditPredictionDelegate, EditPredictionDismissReason,
+    EditPredictionIconSet, SuggestionDisplayType,
 };
 use gpui::{App, Entity, prelude::*};
 use language::{Buffer, ToPoint as _};
@@ -76,6 +77,7 @@ impl EditPredictionDelegate for ZedEditPredictionDelegate {
                     .with_down(IconName::ZedPredictDown)
                     .with_error(IconName::ZedPredictError)
             }
+            EditPredictionModel::Ollama => EditPredictionIconSet::new(IconName::AiOllama),
         }
     }
 
@@ -166,9 +168,14 @@ impl EditPredictionDelegate for ZedEditPredictionDelegate {
         });
     }
 
-    fn discard(&mut self, cx: &mut Context<Self>) {
-        self.store.update(cx, |store, _cx| {
-            store.reject_current_prediction(EditPredictionRejectReason::Discarded, &self.project);
+    fn discard(&mut self, reason: EditPredictionDismissReason, cx: &mut Context<Self>) {
+        self.store.update(cx, |store, cx| {
+            store.reject_current_prediction(
+                EditPredictionRejectReason::Discarded,
+                &self.project,
+                reason,
+                cx,
+            );
         });
     }
 
@@ -206,6 +213,8 @@ impl EditPredictionDelegate for ZedEditPredictionDelegate {
                 store.reject_current_prediction(
                     EditPredictionRejectReason::InterpolatedEmpty,
                     &self.project,
+                    EditPredictionDismissReason::Ignored,
+                    cx,
                 );
                 return None;
             };
