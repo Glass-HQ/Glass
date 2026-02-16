@@ -5,7 +5,7 @@ use std::{
 
 use buffer_diff::{BufferDiff, BufferDiffSnapshot};
 use collections::HashMap;
-use feature_flags::{FeatureFlag, FeatureFlagAppExt as _};
+
 use gpui::{Action, AppContext as _, Entity, EventEmitter, Focusable, Subscription, WeakEntity};
 use itertools::Itertools;
 use language::{Buffer, Capability};
@@ -362,16 +362,6 @@ fn patch_for_excerpt(
     }
 }
 
-pub struct SplitDiffFeatureFlag;
-
-impl FeatureFlag for SplitDiffFeatureFlag {
-    const NAME: &'static str = "split-diff";
-
-    fn enabled_for_staff() -> bool {
-        true
-    }
-}
-
 #[derive(Clone, Copy, PartialEq, Eq, Action, Default)]
 #[action(namespace = editor)]
 pub struct ToggleSplitDiff;
@@ -513,9 +503,6 @@ impl SplittableEditor {
     }
 
     pub fn split(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !cx.has_flag::<SplitDiffFeatureFlag>() {
-            return;
-        }
         if self.lhs.is_some() {
             return;
         }
@@ -539,6 +526,9 @@ impl SplittableEditor {
             editor.set_delegate_stage_and_restore(true);
             editor.set_delegate_open_excerpts(true);
             editor.set_show_vertical_scrollbar(false, cx);
+            editor.disable_lsp_data();
+            editor.disable_runnables();
+            editor.disable_diagnostics(cx);
             editor.set_minimap_visibility(crate::MinimapVisibility::Disabled, window, cx);
             editor
         });
@@ -2097,7 +2087,7 @@ mod tests {
     use rand::rngs::StdRng;
     use settings::{DiffViewStyle, SettingsStore};
     use ui::{VisualContext as _, div, px};
-    use workspace::Workspace;
+    use workspace::MultiWorkspace;
 
     use crate::SplittableEditor;
     use crate::display_map::{BlockPlacement, BlockProperties, BlockStyle};
@@ -2115,8 +2105,9 @@ mod tests {
             crate::init(cx);
         });
         let project = Project::test(FakeFs::new(cx.executor()), [], cx).await;
-        let (workspace, cx) =
-            cx.add_window_view(|window, cx| Workspace::test_new(project.clone(), window, cx));
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+        let workspace = multi_workspace.read_with(cx, |mw, _| mw.workspace().clone());
         let rhs_multibuffer = cx.new(|cx| {
             let mut multibuffer = MultiBuffer::new(Capability::ReadWrite);
             multibuffer.set_all_diff_hunks_expanded(cx);

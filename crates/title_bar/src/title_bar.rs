@@ -1,6 +1,5 @@
 mod application_menu;
 mod onboarding_banner;
-mod project_dropdown;
 mod title_bar_settings;
 mod update_version;
 
@@ -20,6 +19,7 @@ use crate::application_menu::{
 use auto_update::AutoUpdateStatus;
 use client::{Client, UserStore, zed_urls};
 use cloud_api_types::Plan;
+use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use gpui::{
     Action, AnyElement, App, Context, Corner, Element, Entity, FocusHandle, Focusable,
     InteractiveElement, IntoElement, MouseButton, NativeButton, NativeButtonStyle,
@@ -28,7 +28,6 @@ use gpui::{
 };
 use onboarding_banner::OnboardingBanner;
 use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorktrees};
-use project_dropdown::ProjectDropdown;
 use remote::RemoteConnectionOptions;
 use settings::Settings;
 use settings::WorktreeId;
@@ -37,12 +36,13 @@ use theme::ActiveTheme;
 use title_bar_settings::TitleBarSettings;
 use ui::{
     Avatar, ButtonLike, Chip, ContextMenu, IconWithIndicator, Indicator, PopoverMenu,
-    PopoverMenuHandle, TintColor, Tooltip, prelude::*,
+    PopoverMenuHandle, TintColor, Tooltip, prelude::*, utils::platform_title_bar_height,
 };
 use update_version::UpdateVersion;
 use util::ResultExt;
 use workspace::{
-    Pane, SwitchProject, TitleBarItemViewHandle, Workspace, notifications::NotifyResultExt,
+    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar,
+    ToggleWorktreeSecurity, Workspace, notifications::NotifyResultExt,
 };
 use workspace_modes::{
     ModeId, ModeSwitcher, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
@@ -87,17 +87,6 @@ pub fn init(cx: &mut App) {
             {
                 titlebar.update(cx, |titlebar, cx| {
                     titlebar.toggle_update_simulation(cx);
-                });
-            }
-        });
-
-        workspace.register_action(|workspace, _: &SwitchProject, window, cx| {
-            if let Some(titlebar) = workspace
-                .titlebar_item()
-                .and_then(|item| item.downcast::<TitleBar>().ok())
-            {
-                titlebar.update(cx, |titlebar, cx| {
-                    titlebar.show_project_dropdown(window, cx);
                 });
             }
         });
@@ -161,7 +150,6 @@ pub struct TitleBar {
     _subscriptions: Vec<Subscription>,
     banner: Entity<OnboardingBanner>,
     update_version: Entity<UpdateVersion>,
-    project_dropdown_handle: PopoverMenuHandle<ProjectDropdown>,
     right_items: Vec<Box<dyn TitleBarItemViewHandle>>,
     active_pane: Option<Entity<Pane>>,
 }
@@ -184,12 +172,13 @@ impl Render for TitleBar {
 
         children.push(
             h_flex()
-                .gap_1()
+                .gap_0p5()
                 .map(|title_bar| {
                     let mut render_project_items = !is_browser_mode
                         && (title_bar_settings.show_branch_name
                             || title_bar_settings.show_project_items);
                     title_bar
+                        .children(self.render_workspace_sidebar_toggle(window, cx))
                         .when_some(
                             self.application_menu.clone().filter(|_| !show_menus),
                             |title_bar, menu| {
@@ -277,7 +266,7 @@ impl Render for TitleBar {
                 );
             });
 
-            let height = PlatformTitleBar::height(window);
+            let height = platform_title_bar_height(window);
             let title_bar_color = self.platform_titlebar.update(cx, |platform_titlebar, cx| {
                 platform_titlebar.title_bar_color(window, cx)
             });
@@ -390,6 +379,48 @@ impl TitleBar {
         let update_version = cx.new(|cx| UpdateVersion::new(cx));
         let platform_titlebar = cx.new(|cx| PlatformTitleBar::new(id, cx));
 
+        // Set up observer to sync sidebar state from MultiWorkspace to PlatformTitleBar.
+        {
+            let platform_titlebar = platform_titlebar.clone();
+            let window_handle = window.window_handle();
+            cx.spawn(async move |this: WeakEntity<TitleBar>, cx| {
+                let Some(multi_workspace_handle) = window_handle.downcast::<MultiWorkspace>()
+                else {
+                    return;
+                };
+
+                let _ = cx.update(|cx| {
+                    let Ok(multi_workspace) = multi_workspace_handle.entity(cx) else {
+                        return;
+                    };
+
+                    let is_open = multi_workspace.read(cx).is_sidebar_open();
+                    let has_notifications = multi_workspace.read(cx).sidebar_has_notifications(cx);
+                    platform_titlebar.update(cx, |titlebar, cx| {
+                        titlebar.set_workspace_sidebar_open(is_open, cx);
+                        titlebar.set_sidebar_has_notifications(has_notifications, cx);
+                    });
+
+                    let platform_titlebar = platform_titlebar.clone();
+                    let subscription = cx.observe(&multi_workspace, move |mw, cx| {
+                        let is_open = mw.read(cx).is_sidebar_open();
+                        let has_notifications = mw.read(cx).sidebar_has_notifications(cx);
+                        platform_titlebar.update(cx, |titlebar, cx| {
+                            titlebar.set_workspace_sidebar_open(is_open, cx);
+                            titlebar.set_sidebar_has_notifications(has_notifications, cx);
+                        });
+                    });
+
+                    if let Some(this) = this.upgrade() {
+                        this.update(cx, |this, _| {
+                            this._subscriptions.push(subscription);
+                        });
+                    }
+                });
+            })
+            .detach();
+        }
+
         Self {
             platform_titlebar,
             application_menu,
@@ -400,7 +431,6 @@ impl TitleBar {
             _subscriptions: subscriptions,
             banner,
             update_version,
-            project_dropdown_handle: PopoverMenuHandle::default(),
             right_items: Vec::new(),
             active_pane: None,
         }
@@ -462,12 +492,6 @@ impl TitleBar {
         self.update_version
             .update(cx, |banner, cx| banner.update_simulation(cx));
         cx.notify();
-    }
-
-    pub fn show_project_dropdown(&self, window: &mut Window, cx: &mut App) {
-        if self.worktree_count(cx) > 1 {
-            self.project_dropdown_handle.show(window, cx);
-        }
     }
 
     /// Returns the worktree to display in the title bar.
@@ -735,6 +759,41 @@ impl TitleBar {
         })
     }
 
+    fn render_workspace_sidebar_toggle(
+        &self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if !cx.has_flag::<AgentV2FeatureFlag>() {
+            return None;
+        }
+
+        let is_sidebar_open = self.platform_titlebar.read(cx).is_workspace_sidebar_open();
+
+        if is_sidebar_open {
+            return None;
+        }
+
+        let has_notifications = self.platform_titlebar.read(cx).sidebar_has_notifications();
+
+        Some(
+            IconButton::new("toggle-workspace-sidebar", IconName::WorkspaceNavClosed)
+                .icon_size(IconSize::Small)
+                .when(has_notifications, |button| {
+                    button
+                        .indicator(Indicator::dot().color(Color::Accent))
+                        .indicator_border_color(Some(cx.theme().colors().title_bar_background))
+                })
+                .tooltip(move |_, cx| {
+                    Tooltip::for_action("Open Workspace Sidebar", &ToggleWorkspaceSidebar, cx)
+                })
+                .on_click(|_, window, cx| {
+                    window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
+                })
+                .into_any_element(),
+        )
+    }
+
     pub fn render_project_name(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let workspace = self.workspace.clone();
 
@@ -756,24 +815,6 @@ impl TitleBar {
             .map(|w| w.read(cx).focus_handle(cx))
             .unwrap_or_else(|| cx.focus_handle());
 
-        if self.worktree_count(cx) > 1 {
-            self.render_multi_project_menu(display_name, is_project_selected, cx)
-                .into_any_element()
-        } else {
-            self.render_single_project_menu(display_name, is_project_selected, focus_handle, cx)
-                .into_any_element()
-        }
-    }
-
-    fn render_single_project_menu(
-        &self,
-        name: String,
-        is_project_selected: bool,
-        focus_handle: FocusHandle,
-        _cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let workspace = self.workspace.clone();
-
         PopoverMenu::new("recent-projects-menu")
             .menu(move |window, cx| {
                 Some(recent_projects::RecentProjects::popover(
@@ -784,45 +825,7 @@ impl TitleBar {
                     cx,
                 ))
             })
-            .trigger(native_button("project_name_trigger", name).button_style(
-                if is_project_selected {
-                    NativeButtonStyle::Rounded
-                } else {
-                    NativeButtonStyle::Inline
-                },
-            ))
-            .anchor(gpui::Corner::TopLeft)
-    }
-
-    fn render_multi_project_menu(
-        &self,
-        name: String,
-        is_project_selected: bool,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let project = self.project.clone();
-        let workspace = self.workspace.clone();
-        let initial_active_worktree_id = self
-            .effective_active_worktree(cx)
-            .map(|wt| wt.read(cx).id());
-
-        PopoverMenu::new("project-dropdown-menu")
-            .with_handle(self.project_dropdown_handle.clone())
-            .menu(move |window, cx| {
-                let project = project.clone();
-                let workspace = workspace.clone();
-
-                Some(cx.new(|cx| {
-                    ProjectDropdown::new(
-                        project.clone(),
-                        workspace.clone(),
-                        initial_active_worktree_id,
-                        window,
-                        cx,
-                    )
-                }))
-            })
-            .trigger(native_button("project_name_trigger", name).button_style(
+            .trigger(native_button("project_name_trigger", display_name).button_style(
                 if is_project_selected {
                     NativeButtonStyle::Rounded
                 } else {
@@ -939,14 +942,16 @@ impl TitleBar {
 
     pub fn render_sign_in_button(&mut self, _: &mut Context<Self>) -> NativeButton {
         let client = self.client.clone();
+        let workspace = self.workspace.clone();
         native_button("sign_in", "Sign In").on_click(move |_, window, cx| {
             let client = client.clone();
+            let workspace = workspace.clone();
             window
-                .spawn(cx, async move |cx| {
+                .spawn(cx, async move |mut cx| {
                     client
                         .sign_in_with_optional_connect(true, cx)
                         .await
-                        .notify_async_err(cx);
+                        .notify_workspace_async_err(workspace, &mut cx);
                 })
                 .detach();
         })
