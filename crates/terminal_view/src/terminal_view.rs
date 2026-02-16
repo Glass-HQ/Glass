@@ -1475,7 +1475,7 @@ impl Item for TerminalView {
         }
     }
 
-    fn breadcrumbs(&self, _: &theme::Theme, cx: &App) -> Option<Vec<BreadcrumbText>> {
+    fn breadcrumbs(&self, cx: &App) -> Option<Vec<BreadcrumbText>> {
         Some(vec![BreadcrumbText {
             text: self.terminal().read(cx).breadcrumb_text.clone(),
             highlights: None,
