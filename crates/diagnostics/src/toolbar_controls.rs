@@ -3,11 +3,11 @@ use gpui::{
     Context, EventEmitter, NativeButtonTint, ParentElement, Render, Window, native_icon_button,
 };
 use language::DiagnosticEntry;
-use search::buffer_search;
 use text::{Anchor, BufferId};
 use ui::prelude::*;
 use workspace::{ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, item::ItemHandle};
 use zed_actions::assistant::InlineAssist;
+use zed_actions::buffer_search;
 
 pub struct ToolbarControls {
     editor: Option<Box<dyn DiagnosticsToolbarEditor>>,

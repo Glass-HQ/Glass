@@ -9,6 +9,8 @@ use gpui::{
     ParentElement, Render, Styled, Subscription, Window, WindowBounds, WindowOptions, div,
     native_button, point,
 };
+use project::project_settings::ProjectSettings;
+use settings::Settings as _;
 use ui::{ButtonLike, CommonAnimationExt, ConfiguredApiCard, Vector, VectorName, prelude::*};
 use util::ResultExt as _;
 use workspace::{AppState, Toast, Workspace, notifications::NotificationId};
@@ -271,6 +273,9 @@ impl CopilotCodeVerification {
                                 cx.listener(move |this, _, _window, cx| {
                                     let command = command.clone();
                                     let copilot_clone = copilot.clone();
+                                    let request_timeout = ProjectSettings::get_global(cx)
+                                        .global_lsp_settings
+                                        .get_request_timeout();
                                     copilot.update(cx, |copilot, cx| {
                                         if let Some(server) = copilot.language_server() {
                                             let server = server.clone();
@@ -285,6 +290,7 @@ impl CopilotCodeVerification {
                                                                 .unwrap_or_default(),
                                                             ..Default::default()
                                                         },
+                                                        request_timeout,
                                                     )
                                                     .await
                                                     .into_response()

@@ -374,6 +374,9 @@ impl AnyProtoClient {
                             Response::SemanticTokensResponse(response) => {
                                 to_any_envelope(&envelope, response)
                             }
+                            Response::GetFoldingRangesResponse(response) => {
+                                to_any_envelope(&envelope, response)
+                            }
                         };
                         Some(proto::ProtoLspResponse {
                             server_id,

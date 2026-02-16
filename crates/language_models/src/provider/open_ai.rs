@@ -555,6 +555,7 @@ pub fn into_open_ai_response(
         stop: _,
         temperature,
         thinking_allowed: _,
+        thinking_effort: _,
     } = request;
 
     let mut input_items = Vec::new();
@@ -1435,6 +1436,7 @@ mod tests {
             stop: vec![],
             temperature: None,
             thinking_allowed: true,
+            thinking_effort: None,
         };
 
         // Validate that all models are supported by tiktoken-rs
@@ -1571,6 +1573,7 @@ mod tests {
             stop: vec!["<STOP>".into()],
             temperature: None,
             thinking_allowed: false,
+            thinking_effort: None,
         };
 
         let response = into_open_ai_response(

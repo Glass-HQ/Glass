@@ -1,4 +1,3 @@
-mod context_server_command;
 mod default_command;
 mod delta_command;
 mod diagnostics_command;
@@ -10,7 +9,6 @@ mod selection_command;
 mod streaming_example_command;
 mod tab_command;
 
-pub use crate::context_server_command::*;
 pub use crate::default_command::*;
 pub use crate::delta_command::*;
 pub use crate::diagnostics_command::*;
