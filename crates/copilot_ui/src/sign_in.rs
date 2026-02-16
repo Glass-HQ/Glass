@@ -11,7 +11,7 @@ use gpui::{
 };
 use ui::{ButtonLike, CommonAnimationExt, ConfiguredApiCard, Vector, VectorName, prelude::*};
 use util::ResultExt as _;
-use workspace::{Toast, Workspace, notifications::NotificationId};
+use workspace::{AppState, Toast, Workspace, notifications::NotificationId};
 
 const COPILOT_SIGN_UP_URL: &str = "https://github.com/features/copilot";
 const ERROR_LABEL: &str =
@@ -448,7 +448,7 @@ impl Render for CopilotCodeVerification {
 
 pub struct ConfigurationView {
     copilot_status: Option<Status>,
-    is_authenticated: Box<dyn Fn(&App) -> bool + 'static>,
+    is_authenticated: Box<dyn Fn(&mut App) -> bool + 'static>,
     edit_prediction: bool,
     _subscription: Option<Subscription>,
 }
@@ -460,11 +460,13 @@ pub enum ConfigurationMode {
 
 impl ConfigurationView {
     pub fn new(
-        is_authenticated: impl Fn(&App) -> bool + 'static,
+        is_authenticated: impl Fn(&mut App) -> bool + 'static,
         mode: ConfigurationMode,
         cx: &mut Context<Self>,
     ) -> Self {
-        let copilot = GlobalCopilotAuth::try_global(cx).cloned();
+        let copilot = AppState::try_global(cx)
+            .and_then(|state| state.upgrade())
+            .map(|state| GlobalCopilotAuth::get_or_init(state, cx));
 
         Self {
             copilot_status: copilot.as_ref().map(|copilot| copilot.0.read(cx).status()),
@@ -549,7 +551,8 @@ impl ConfigurationView {
             .button_style(NativeButtonStyle::Filled)
             .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| {
-                if let Some(copilot) = GlobalCopilotAuth::get_or_init(cx) {
+                if let Some(app_state) = AppState::global(cx).upgrade() {
+                    let copilot = GlobalCopilotAuth::get_or_init(app_state, cx);
                     initiate_sign_in(copilot.0, window, cx)
                 }
             })
@@ -567,8 +570,9 @@ impl ConfigurationView {
             .button_style(NativeButtonStyle::Filled)
             .tint(NativeButtonTint::Accent)
             .on_click(|_, window, cx| {
-                if let Some(copilot) = GlobalCopilotAuth::get_or_init(cx) {
-                    reinstall_and_sign_in(copilot.0, window, cx)
+                if let Some(app_state) = AppState::global(cx).upgrade() {
+                    let copilot = GlobalCopilotAuth::get_or_init(app_state, cx);
+                    reinstall_and_sign_in(copilot.0, window, cx);
                 }
             })
     }

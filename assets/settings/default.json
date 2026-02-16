@@ -1315,6 +1315,8 @@
     // Whether to show the project diagnostics indicator in the title bar.
     "button": true,
     // Whether to show warnings or not by default.
+    //
+    // Default: true
     "include_warnings": true,
     // Settings for using LSP pull diagnostics mechanism in Zed.
     "lsp_pull_diagnostics": {
