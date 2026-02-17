@@ -9,7 +9,9 @@ mod cef_instance;
 mod client;
 mod context_menu_handler;
 mod display_handler;
+mod download_handler;
 mod events;
+mod find_handler;
 mod history;
 mod input;
 mod keycodes;
@@ -44,7 +46,10 @@ pub fn init(cx: &mut App) {
     match CefInstance::initialize(cx) {
         Ok(_) => {}
         Err(e) => {
-            log::error!("[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.", e);
+            log::error!(
+                "[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.",
+                e
+            );
         }
     }
 

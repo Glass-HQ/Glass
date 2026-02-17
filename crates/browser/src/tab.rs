@@ -5,7 +5,7 @@
 
 use crate::client::{ClientBuilder, MANUAL_KEY_EVENT};
 use crate::context_menu_handler::ContextMenuContext;
-use crate::events::{self, BrowserEvent, EventReceiver};
+use crate::events::{self, BrowserEvent, DownloadUpdatedEvent, EventReceiver, FindResultEvent};
 use crate::render_handler::RenderState;
 use anyhow::{Context as _, Result};
 use cef::{ImplBrowser, ImplBrowserHost, ImplFrame, MouseButtonType};
@@ -32,6 +32,8 @@ pub enum TabEvent {
     ContextMenuOpen {
         context: ContextMenuContext,
     },
+    FindResult(FindResultEvent),
+    DownloadUpdated(DownloadUpdatedEvent),
 }
 
 pub struct BrowserTab {
@@ -49,6 +51,7 @@ pub struct BrowserTab {
     is_pinned: bool,
     favicon_url: Option<String>,
     pending_url: Option<String>,
+    request_context: Option<cef::RequestContext>,
 }
 
 impl EventEmitter<TabEvent> for BrowserTab {}
@@ -74,6 +77,7 @@ impl BrowserTab {
             is_pinned: false,
             favicon_url: None,
             pending_url: None,
+            request_context: None,
         }
     }
 
@@ -103,6 +107,7 @@ impl BrowserTab {
             is_pinned: false,
             favicon_url,
             pending_url: None,
+            request_context: None,
         }
     }
 
@@ -155,6 +160,12 @@ impl BrowserTab {
                     self.favicon_url = urls.into_iter().next();
                     cx.emit(TabEvent::FaviconChanged(self.favicon_url.clone()));
                 }
+                BrowserEvent::FindResult(result) => {
+                    cx.emit(TabEvent::FindResult(result));
+                }
+                BrowserEvent::DownloadUpdated(update) => {
+                    cx.emit(TabEvent::DownloadUpdated(update));
+                }
             }
         }
     }
@@ -177,13 +188,14 @@ impl BrowserTab {
 
         let url = cef::CefString::from(initial_url);
 
+        let mut request_context = self.request_context.clone();
         let browser = cef::browser_host_create_browser_sync(
             Some(&window_info),
             Some(&mut self.client.clone()),
             Some(&url),
             Some(&browser_settings),
             None,
-            None,
+            request_context.as_mut(),
         )
         .context("Failed to create CEF browser")?;
 
@@ -318,6 +330,31 @@ impl BrowserTab {
         });
     }
 
+    pub fn find_in_page(&self, query: &str, forward: bool, match_case: bool, find_next: bool) {
+        self.with_host(|host| {
+            let query = cef::CefString::from(query);
+            host.find(
+                Some(&query),
+                if forward { 1 } else { 0 },
+                if match_case { 1 } else { 0 },
+                if find_next { 1 } else { 0 },
+            );
+        });
+    }
+
+    pub fn stop_finding(&self, clear_selection: bool) {
+        self.with_host(|host| {
+            host.stop_finding(if clear_selection { 1 } else { 0 });
+        });
+    }
+
+    pub fn start_download(&self, url: &str) {
+        self.with_host(|host| {
+            let url = cef::CefString::from(url);
+            host.start_download(Some(&url));
+        });
+    }
+
     pub fn send_mouse_click(
         &self,
         x: i32,
@@ -416,6 +453,10 @@ impl BrowserTab {
 
     pub fn set_pinned(&mut self, value: bool) {
         self.is_pinned = value;
+    }
+
+    pub fn set_request_context(&mut self, request_context: Option<cef::RequestContext>) {
+        self.request_context = request_context;
     }
 
     pub fn close_browser(&mut self) {

@@ -1,11 +1,11 @@
 use gpui::{
-    anchored, canvas, deferred, div, prelude::*, surface, Context, Corner, IntoElement, MouseButton,
-    ObjectFit, ParentElement, Styled,
+    Context, Corner, IntoElement, MouseButton, ObjectFit, ParentElement, Styled, anchored, canvas,
+    deferred, div, native_icon_button, prelude::*, surface,
 };
 use ui::{Icon, IconName, IconSize, prelude::*};
 
-use super::swipe::{SwipePhase, SWIPE_INDICATOR_SIZE};
 use super::BrowserView;
+use super::swipe::{SWIPE_INDICATOR_SIZE, SwipePhase};
 use crate::new_tab_page;
 
 impl BrowserView {
@@ -49,7 +49,280 @@ impl BrowserView {
             )
     }
 
+    fn render_find_overlay(&mut self, cx: &mut Context<Self>) -> Option<gpui::AnyElement> {
+        if !self.find_visible {
+            return None;
+        }
+
+        let theme = cx.theme();
+        let match_count = self.find_match_count.max(0);
+        let active_match = self.find_active_match_ordinal.max(0);
+        let match_text = if match_count == 0 {
+            String::from("0/0")
+        } else {
+            format!("{active_match}/{match_count}")
+        };
+
+        let overlay = div()
+            .id("browser-find-overlay")
+            .absolute()
+            .top(px(8.))
+            .right(px(8.))
+            .w(px(320.))
+            .key_context("BrowserFindBar")
+            .bg(theme.colors().elevated_surface_background)
+            .border_1()
+            .border_color(theme.colors().border)
+            .rounded_md()
+            .shadow_md()
+            .p_1()
+            .flex()
+            .items_center()
+            .gap_1()
+            .when_some(self.find_editor.clone(), |this, editor| {
+                this.child(div().flex_1().min_w_0().child(editor))
+            })
+            .child(
+                div()
+                    .w(px(52.))
+                    .text_size(rems(0.75))
+                    .text_color(theme.colors().text_muted)
+                    .text_right()
+                    .child(match_text),
+            )
+            .child(
+                native_icon_button("find-previous", "chevron.up")
+                    .size(px(18.))
+                    .tooltip("Previous Match")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if !this.find_visible {
+                            this.find_visible = true;
+                            this.focus_find_editor(window, cx);
+                        }
+                        this.run_find(false, true, cx);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                native_icon_button("find-next", "chevron.down")
+                    .size(px(18.))
+                    .tooltip("Next Match")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if !this.find_visible {
+                            this.find_visible = true;
+                            this.focus_find_editor(window, cx);
+                        }
+                        this.run_find(true, true, cx);
+                        cx.notify();
+                    })),
+            )
+            .child(
+                native_icon_button("find-close", "xmark")
+                    .size(px(18.))
+                    .tooltip("Close Find")
+                    .on_click(cx.listener(|this, _, window, cx| {
+                        if let Some(tab) = this.active_tab() {
+                            tab.read(cx).stop_finding(true);
+                        }
+                        this.find_visible = false;
+                        this.find_query.clear();
+                        this.find_match_count = 0;
+                        this.find_active_match_ordinal = 0;
+                        this.set_find_editor_text("", window, cx);
+                        window.focus(&this.focus_handle, cx);
+                        cx.notify();
+                    })),
+            );
+
+        Some(overlay.into_any_element())
+    }
+
+    fn format_download_size(bytes: i64) -> String {
+        let safe_bytes = bytes.max(0) as f64;
+        if safe_bytes < 1024.0 {
+            return format!("{} B", safe_bytes as i64);
+        }
+        if safe_bytes < 1024.0 * 1024.0 {
+            return format!("{:.1} KB", safe_bytes / 1024.0);
+        }
+        if safe_bytes < 1024.0 * 1024.0 * 1024.0 {
+            return format!("{:.1} MB", safe_bytes / (1024.0 * 1024.0));
+        }
+        format!("{:.1} GB", safe_bytes / (1024.0 * 1024.0 * 1024.0))
+    }
+
+    fn download_display_name(download: &super::DownloadItemState) -> String {
+        if !download.item.suggested_file_name.is_empty() {
+            return download.item.suggested_file_name.clone();
+        }
+        download
+            .item
+            .full_path
+            .clone()
+            .and_then(|path| {
+                std::path::Path::new(&path)
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(ToString::to_string)
+            })
+            .unwrap_or_else(|| String::from("download"))
+    }
+
+    fn download_status_line(download: &super::DownloadItemState) -> String {
+        if download.item.is_complete {
+            return String::from("Complete");
+        }
+        if download.item.is_canceled {
+            return String::from("Canceled");
+        }
+        if download.item.is_interrupted {
+            return String::from("Interrupted");
+        }
+        if download.item.is_in_progress {
+            let received = Self::format_download_size(download.item.received_bytes);
+            let total = if download.item.total_bytes > 0 {
+                Self::format_download_size(download.item.total_bytes)
+            } else {
+                String::from("--")
+            };
+            let percent = download.item.percent_complete.max(0);
+            return format!("{percent}% ({received}/{total})");
+        }
+        String::from("Queued")
+    }
+
+    fn render_download_center_overlay(
+        &mut self,
+        cx: &mut Context<Self>,
+    ) -> Option<gpui::AnyElement> {
+        if !self.download_center_visible {
+            return None;
+        }
+
+        let theme = cx.theme();
+        let top_offset = if self.find_visible { px(52.) } else { px(8.) };
+
+        let rows = self.downloads.iter().map(|download| {
+            let id = download.item.id;
+            let file_name = Self::download_display_name(download);
+            let status = Self::download_status_line(download);
+            let is_complete = download.item.is_complete;
+            let has_path = download.item.full_path.is_some();
+            let is_incognito = download.is_incognito;
+
+            div()
+                .id(("download-row", id))
+                .w_full()
+                .p_2()
+                .border_b_1()
+                .border_color(theme.colors().border_variant)
+                .child(
+                    div()
+                        .flex()
+                        .items_start()
+                        .justify_between()
+                        .gap_2()
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w_0()
+                                .overflow_hidden()
+                                .child(
+                                    div()
+                                        .text_size(rems(0.8125))
+                                        .whitespace_nowrap()
+                                        .text_ellipsis()
+                                        .child(file_name),
+                                )
+                                .child(
+                                    div()
+                                        .text_size(rems(0.75))
+                                        .text_color(theme.colors().text_muted)
+                                        .child(status),
+                                ),
+                        )
+                        .when(is_incognito, |this| {
+                            this.child(
+                                div()
+                                    .text_size(rems(0.625))
+                                    .text_color(theme.colors().text_muted)
+                                    .child("Incognito"),
+                            )
+                        }),
+                )
+                .when(is_complete && has_path, |this| {
+                    this.child(
+                        div()
+                            .mt_1()
+                            .flex()
+                            .gap_2()
+                            .child(
+                                div()
+                                    .id(("download-open", id))
+                                    .text_size(rems(0.75))
+                                    .text_color(theme.colors().text_accent)
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(move |this, _, _window, cx| {
+                                        this.open_download_with_system(id, cx);
+                                    }))
+                                    .child("Open"),
+                            )
+                            .child(
+                                div()
+                                    .id(("download-reveal", id))
+                                    .text_size(rems(0.75))
+                                    .text_color(theme.colors().text_accent)
+                                    .cursor_pointer()
+                                    .on_click(cx.listener(move |this, _, _window, cx| {
+                                        this.reveal_download_in_finder(id, cx);
+                                    }))
+                                    .child("Reveal"),
+                            ),
+                    )
+                })
+        });
+
+        let overlay = div()
+            .id("browser-download-center-overlay")
+            .absolute()
+            .top(top_offset)
+            .right(px(8.))
+            .w(px(360.))
+            .max_h(px(360.))
+            .overflow_y_scroll()
+            .bg(theme.colors().elevated_surface_background)
+            .border_1()
+            .border_color(theme.colors().border)
+            .rounded_md()
+            .shadow_md()
+            .child(
+                div()
+                    .w_full()
+                    .p_2()
+                    .border_b_1()
+                    .border_color(theme.colors().border_variant)
+                    .text_size(rems(0.8125))
+                    .text_color(theme.colors().text)
+                    .child("Downloads"),
+            )
+            .when(self.downloads.is_empty(), |this| {
+                this.child(
+                    div()
+                        .w_full()
+                        .p_3()
+                        .text_size(rems(0.75))
+                        .text_color(theme.colors().text_muted)
+                        .child("No downloads yet."),
+                )
+            })
+            .when(!self.downloads.is_empty(), |this| this.children(rows));
+
+        Some(overlay.into_any_element())
+    }
+
     pub(super) fn render_browser_content(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+        let find_overlay = self.render_find_overlay(cx);
+        let download_center_overlay = self.render_download_center_overlay(cx);
         let theme = cx.theme();
 
         let is_new_tab_page = self
@@ -67,7 +340,13 @@ impl BrowserView {
                 .relative()
                 .flex_1()
                 .w_full()
-                .child(new_tab_page::render_new_tab_page(omnibox.as_ref(), cx))
+                .child(new_tab_page::render_new_tab_page(
+                    omnibox.as_ref(),
+                    self.is_incognito_window,
+                    cx,
+                ))
+                .when_some(find_overlay, |this, overlay| this.child(overlay))
+                .when_some(download_center_overlay, |this, overlay| this.child(overlay))
                 .into_any_element();
         }
 
@@ -152,15 +431,11 @@ impl BrowserView {
                             .border_1()
                             .border_color(theme.colors().border)
                             .opacity(opacity)
-                            .child(
-                                Icon::new(icon)
-                                    .size(IconSize::Small)
-                                    .color(if committed {
-                                        ui::Color::Default
-                                    } else {
-                                        ui::Color::Muted
-                                    }),
-                            ),
+                            .child(Icon::new(icon).size(IconSize::Small).color(if committed {
+                                ui::Color::Default
+                            } else {
+                                ui::Color::Muted
+                            })),
                     ),
             )
         } else {
@@ -202,6 +477,8 @@ impl BrowserView {
             })
             .when_some(context_menu_overlay, |this, overlay| this.child(overlay))
             .when_some(swipe_indicator, |this, indicator| this.child(indicator))
+            .when_some(find_overlay, |this, overlay| this.child(overlay))
+            .when_some(download_center_overlay, |this, overlay| this.child(overlay))
             .into_any_element()
     }
 }

@@ -4,22 +4,25 @@
 //! Ties together the render, load, display, life span, and keyboard handlers.
 
 use cef::{
-    rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, ContextMenuHandler,
-    DisplayHandler, ImplClient, ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler,
-    LoadHandler, PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler,
+    Browser, Client, ContextMenuHandler, DisplayHandler, DownloadHandler, FindHandler, ImplClient,
+    ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler, LoadHandler,
+    PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler, rc::Rc as _, wrap_client,
+    wrap_keyboard_handler,
 };
 
 use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
 use crate::display_handler::{DisplayHandlerBuilder, OsrDisplayHandler};
+use crate::download_handler::{DownloadHandlerBuilder, OsrDownloadHandler};
 use crate::events::EventSender;
+use crate::find_handler::{FindHandlerBuilder, OsrFindHandler};
 use crate::life_span_handler::{LifeSpanHandlerBuilder, OsrLifeSpanHandler};
 use crate::load_handler::{LoadHandlerBuilder, OsrLoadHandler};
 use crate::permission_handler::{OsrPermissionHandler, PermissionHandlerBuilder};
 use crate::render_handler::{OsrRenderHandler, RenderHandlerBuilder, RenderState};
 use crate::request_handler::{OsrRequestHandler, RequestHandlerBuilder};
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // ── Keyboard Handler ─────────────────────────────────────────────────
 // Suppresses native macOS key events that CEF picks up through the
@@ -73,6 +76,8 @@ wrap_client! {
         display_handler: DisplayHandler,
         life_span_handler: LifeSpanHandler,
         keyboard_handler: KeyboardHandler,
+        download_handler: DownloadHandler,
+        find_handler: FindHandler,
         request_handler: cef::RequestHandler,
         context_menu_handler: ContextMenuHandler,
         permission_handler: PermissionHandler,
@@ -99,6 +104,14 @@ wrap_client! {
             Some(self.keyboard_handler.clone())
         }
 
+        fn download_handler(&self) -> Option<cef::DownloadHandler> {
+            Some(self.download_handler.clone())
+        }
+
+        fn find_handler(&self) -> Option<cef::FindHandler> {
+            Some(self.find_handler.clone())
+        }
+
         fn request_handler(&self) -> Option<cef::RequestHandler> {
             Some(self.request_handler.clone())
         }
@@ -114,15 +127,14 @@ wrap_client! {
 }
 
 impl ClientBuilder {
-    pub fn build(
-        render_state: Arc<Mutex<RenderState>>,
-        event_sender: EventSender,
-    ) -> cef::Client {
+    pub fn build(render_state: Arc<Mutex<RenderState>>, event_sender: EventSender) -> cef::Client {
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
         let life_span_handler = OsrLifeSpanHandler::new(event_sender.clone());
         let request_handler = OsrRequestHandler::new(event_sender.clone());
+        let download_handler = OsrDownloadHandler::new(event_sender.clone());
+        let find_handler = OsrFindHandler::new(event_sender.clone());
         let context_menu_handler = OsrContextMenuHandler::new(event_sender);
         let permission_handler = OsrPermissionHandler::new();
         Self::new(
@@ -131,6 +143,8 @@ impl ClientBuilder {
             DisplayHandlerBuilder::build(display_handler),
             LifeSpanHandlerBuilder::build(life_span_handler),
             KeyboardHandlerBuilder::build(),
+            DownloadHandlerBuilder::build(download_handler),
+            FindHandlerBuilder::build(find_handler),
             RequestHandlerBuilder::build(request_handler),
             ContextMenuHandlerBuilder::build(context_menu_handler),
             PermissionHandlerBuilder::build(permission_handler),

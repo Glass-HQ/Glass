@@ -147,9 +147,9 @@ impl BrowserView {
                             menu = menu.separator();
                             {
                                 let view = view.clone();
-                                menu = menu.entry("Close Tab", None, move |_window, cx| {
+                                menu = menu.entry("Close Tab", None, move |window, cx| {
                                     view.update(cx, |this, cx| {
-                                        this.close_tab_at_inner(index, cx);
+                                        this.close_tab_at(index, window, cx);
                                     })
                                     .ok();
                                 });
@@ -351,9 +351,9 @@ impl BrowserView {
                                                 menu = menu.entry(
                                                     "Close Tab",
                                                     None,
-                                                    move |_window, cx| {
+                                                    move |window, cx| {
                                                         view.update(cx, |this, cx| {
-                                                            this.close_tab_at_inner(index, cx);
+                                                            this.close_tab_at(index, window, cx);
                                                         })
                                                         .ok();
                                                     },

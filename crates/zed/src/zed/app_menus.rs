@@ -1,7 +1,7 @@
 use gpui::{App, Menu, MenuItem, OsAction};
 use release_channel::ReleaseChannel;
 use terminal_view::terminal_panel;
-use zed_actions::{ToggleFocus as ToggleDebugPanel, dev};
+use zed_actions::{ToggleFocus as ToggleDebugPanel, dev, workspace as workspace_actions};
 
 pub fn app_menus(cx: &mut App) -> Vec<Menu> {
     use zed_actions::Quit;
@@ -113,6 +113,10 @@ pub fn app_menus(cx: &mut App) -> Vec<Menu> {
             items: vec![
                 MenuItem::action("New", workspace::NewFile),
                 MenuItem::action("New Window", workspace::NewWindow),
+                MenuItem::action(
+                    "New Incognito Window",
+                    workspace_actions::NewIncognitoWindow,
+                ),
                 MenuItem::separator(),
                 #[cfg(not(target_os = "macos"))]
                 MenuItem::action("Open File...", workspace::OpenFiles),

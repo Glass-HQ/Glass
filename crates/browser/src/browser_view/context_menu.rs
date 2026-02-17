@@ -33,9 +33,9 @@ impl BrowserView {
 
             if let Some(link_url) = &context.link_url {
                 let url = link_url.clone();
-                let tab = tab.clone();
+                let tab_for_open_new_tab = tab.clone();
                 menu = menu.entry("Open Link in New Tab", None, move |_window, cx| {
-                    tab.update(cx, |_, cx| {
+                    tab_for_open_new_tab.update(cx, |_, cx| {
                         cx.emit(TabEvent::OpenNewTab(url.clone()));
                     });
                 });
@@ -43,6 +43,14 @@ impl BrowserView {
                 let url = link_url.clone();
                 menu = menu.entry("Copy Link Address", None, move |_window, cx| {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(url.clone()));
+                });
+
+                let url = link_url.clone();
+                let tab_for_download = tab.clone();
+                menu = menu.entry("Download Link", None, move |_window, cx| {
+                    tab_for_download.update(cx, |tab, _| {
+                        tab.start_download(&url);
+                    });
                 });
 
                 menu = menu.separator();
