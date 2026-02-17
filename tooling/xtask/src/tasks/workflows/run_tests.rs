@@ -343,7 +343,6 @@ fn check_workspace_binaries() -> NamedJob {
             .add_step(steps::cache_rust_dependencies_namespace())
             .map(steps::install_linux_dependencies)
             .add_step(steps::setup_sccache(Platform::Linux))
-            .add_step(steps::script("cargo build -p collab"))
             .add_step(steps::script("cargo build --workspace --bins --examples"))
             .add_step(steps::show_sccache_stats(Platform::Linux))
             .add_step(steps::cleanup_cargo_config(Platform::Linux)),
@@ -361,6 +360,10 @@ pub(crate) fn clippy(platform: Platform) -> NamedJob {
         job: release_job(&[])
             .runs_on(runner)
             .add_step(steps::checkout_repo())
+            .when(
+                platform == Platform::Windows,
+                |job| job.add_step(steps::configure_git_longpaths()),
+            )
             .add_step(steps::setup_cargo_config(platform))
             .when(
                 platform == Platform::Linux || platform == Platform::Mac,
@@ -409,6 +412,10 @@ fn run_platform_tests_impl(platform: Platform, filter_packages: bool) -> NamedJo
                 )
             })
             .add_step(steps::checkout_repo())
+            .when(
+                platform == Platform::Windows,
+                |job| job.add_step(steps::configure_git_longpaths()),
+            )
             .add_step(steps::setup_cargo_config(platform))
             .when(
                 platform == Platform::Linux || platform == Platform::Mac,
@@ -419,10 +426,7 @@ fn run_platform_tests_impl(platform: Platform, filter_packages: bool) -> NamedJo
                 steps::install_linux_dependencies,
             )
             .add_step(steps::setup_node())
-            .when(
-                platform == Platform::Linux || platform == Platform::Mac,
-                |job| job.add_step(steps::cargo_install_nextest()),
-            )
+            .add_step(steps::cargo_install_nextest())
             .add_step(steps::clear_target_dir_if_large(platform))
             .add_step(steps::setup_sccache(platform))
             .when(filter_packages, |job| {

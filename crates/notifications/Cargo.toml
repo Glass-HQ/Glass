@@ -28,10 +28,7 @@ gpui.workspace = true
 rpc.workspace = true
 sum_tree.workspace = true
 time.workspace = true
-ui.workspace = true
 util.workspace = true
-workspace.workspace = true
-zed_actions.workspace = true
 
 [dev-dependencies]
 client = { workspace = true, features = ["test-support"] }

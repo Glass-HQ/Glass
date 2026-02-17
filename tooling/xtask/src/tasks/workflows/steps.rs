@@ -60,6 +60,10 @@ pub fn checkout_repo() -> Step<Use> {
     .add_with(("clean", false))
 }
 
+pub fn configure_git_longpaths() -> Step<Run> {
+    named::pwsh("git config --system core.longpaths true")
+}
+
 pub fn checkout_repo_with_token(token: &StepOutput) -> Step<Use> {
     named::uses(
         "actions",

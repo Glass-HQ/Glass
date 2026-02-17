@@ -536,7 +536,7 @@ See [Terminal settings](./reference/all-settings.md#terminal) for additional non
     "button": true                // Show/hide dock header button
   },
 
-  
+
 ```
 
 ## Collaboration Panels

@@ -30,9 +30,7 @@ paths.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 ui.workspace = true
-theme.workspace = true
 toast.workspace = true
-settings.workspace = true
 util.workspace = true
 workspace_modes.workspace = true
 zed_actions.workspace = true
@@ -40,9 +38,7 @@ zed_actions.workspace = true
 # CEF browser integration
 cef = { git = "https://github.com/tauri-apps/cef-rs", default-features = false }
 parking_lot.workspace = true
-image.workspace = true
 log.workspace = true
-smallvec.workspace = true
 url.workspace = true
 
 # GPU-accelerated rendering (IOSurface → CVPixelBuffer → GPUI Surface)

@@ -8,7 +8,6 @@
   - [Uninstall](./uninstall.md)
 - [Troubleshooting](./troubleshooting.md)
 
-
 # AI
 
 - [Overview](./ai/overview.md)

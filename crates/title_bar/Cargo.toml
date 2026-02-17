@@ -41,7 +41,6 @@ notifications.workspace = true
 project.workspace = true
 recent_projects.workspace = true
 remote.workspace = true
-rpc.workspace = true
 semver.workspace = true
 schemars.workspace = true
 serde.workspace = true
