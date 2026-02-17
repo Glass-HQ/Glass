@@ -7645,12 +7645,12 @@ pub fn open_paths(
                             return;
                         }
                     }
-                    'outer: for window in local_workspace_windows(cx) {
+                    for window in local_workspace_windows(cx) {
                         if let Ok(multi_workspace) = window.read(cx) {
-                            for workspace in multi_workspace.workspaces() {
+                            if let Some(workspace) = multi_workspace.workspaces().first() {
                                 existing = Some((window, workspace.clone()));
                                 open_visible = OpenVisible::None;
-                                break 'outer;
+                                break;
                             }
                         }
                     }
