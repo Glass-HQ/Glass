@@ -41,8 +41,8 @@ use ui::{
 use update_version::UpdateVersion;
 use util::ResultExt;
 use workspace::{
-    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar,
-    ToggleWorktreeSecurity, Workspace, notifications::NotifyResultExt,
+    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
+    Workspace, notifications::NotifyResultExt,
 };
 use workspace_modes::{
     ModeId, ModeSwitcher, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
@@ -825,13 +825,15 @@ impl TitleBar {
                     cx,
                 ))
             })
-            .trigger(native_button("project_name_trigger", display_name).button_style(
-                if is_project_selected {
-                    NativeButtonStyle::Rounded
-                } else {
-                    NativeButtonStyle::Inline
-                },
-            ))
+            .trigger(
+                native_button("project_name_trigger", display_name).button_style(
+                    if is_project_selected {
+                        NativeButtonStyle::Rounded
+                    } else {
+                        NativeButtonStyle::Inline
+                    },
+                ),
+            )
             .anchor(gpui::Corner::TopLeft)
     }
 

@@ -140,7 +140,9 @@ async fn launch_once(
         "--terminate-existing",
         "--activate",
         "--json-output",
-        json_output_path.to_str().unwrap_or("/tmp/glass_devicectl.json"),
+        json_output_path
+            .to_str()
+            .unwrap_or("/tmp/glass_devicectl.json"),
     ]);
     cmd.stdout(smol::process::Stdio::piped());
     cmd.stderr(smol::process::Stdio::piped());
@@ -222,10 +224,7 @@ async fn launch_once(
 
 fn json_output_path() -> PathBuf {
     let mut path = std::env::temp_dir();
-    path.push(format!(
-        "glass_devicectl_{}.json",
-        std::process::id()
-    ));
+    path.push(format!("glass_devicectl_{}.json", std::process::id()));
     path
 }
 

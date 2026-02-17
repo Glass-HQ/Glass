@@ -1,5 +1,5 @@
 use crate::input;
-use gpui::{point, Context, ScrollDelta, TouchPhase, Window};
+use gpui::{Context, ScrollDelta, TouchPhase, Window, point};
 use std::time::Duration;
 
 use super::BrowserView;
@@ -91,9 +91,7 @@ impl BrowserView {
                     cx.notify();
                     return;
                 }
-                TouchPhase::Ended
-                    if self.swipe_state.phase == SwipePhase::Horizontal =>
-                {
+                TouchPhase::Ended if self.swipe_state.phase == SwipePhase::Horizontal => {
                     if self.swipe_state.threshold_crossed() {
                         if let Some(tab) = self.active_tab().cloned() {
                             if self.swipe_state.is_swiping_back() {
@@ -108,12 +106,11 @@ impl BrowserView {
                             cx.background_executor()
                                 .timer(Duration::from_millis(300))
                                 .await;
-                            this
-                                .update(cx, |this, cx| {
-                                    this.swipe_state.reset();
-                                    cx.notify();
-                                })
-                                .ok();
+                            this.update(cx, |this, cx| {
+                                this.swipe_state.reset();
+                                cx.notify();
+                            })
+                            .ok();
                         }));
                     } else {
                         self.swipe_state.reset();

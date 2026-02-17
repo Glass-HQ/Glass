@@ -47,7 +47,6 @@ use language_model::{
 };
 use menu;
 use multi_buffer::ExcerptInfo;
-use toast::{StatusToast, ToastIcon};
 use panel::{PanelHeader, panel_button, panel_filled_button, panel_icon_button};
 use project::{
     Fs, Project, ProjectPath,
@@ -65,6 +64,7 @@ use std::{sync::Arc, time::Duration, usize};
 use strum::{IntoEnumIterator, VariantNames};
 use theme::ThemeSettings;
 use time::OffsetDateTime;
+use toast::{StatusToast, ToastIcon};
 use ui::{
     ButtonLike, Checkbox, CommonAnimationExt, ContextMenu, ElevationIndex, IndentGuideColors,
     PopoverMenu, RenderedIndentGuide, ScrollAxes, Scrollbars, SplitButton, Tooltip, WithScrollbar,

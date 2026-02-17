@@ -6,8 +6,8 @@
 
 use crate::events::{BrowserEvent, EventSender};
 use cef::{
-    rc::Rc as _, wrap_life_span_handler, Browser, ImplLifeSpanHandler, LifeSpanHandler,
-    WrapLifeSpanHandler,
+    Browser, ImplLifeSpanHandler, LifeSpanHandler, WrapLifeSpanHandler, rc::Rc as _,
+    wrap_life_span_handler,
 };
 
 #[derive(Clone)]

@@ -1,5 +1,5 @@
-use futures::channel::mpsc;
 use futures::StreamExt;
+use futures::channel::mpsc;
 use gpui::{
     App, ClipboardItem, Context, EventEmitter, FocusHandle, Focusable, Render, ScrollStrategy,
     SharedString, Task, UniformListScrollHandle, Window, uniform_list,
@@ -8,8 +8,8 @@ use native_platforms::apple::build::BuildOutput;
 use native_platforms::apple::install::InstallOutput;
 use native_platforms::apple::launch::LaunchOutput;
 use native_platforms::apple::run::RunOutput;
-use ui::prelude::*;
 use ui::Tooltip;
+use ui::prelude::*;
 use workspace::item::{Item, ItemEvent, TabContentParams};
 
 pub enum AnyOutput {
@@ -56,7 +56,7 @@ impl BuildLogsView {
             let mut build_success = None;
 
             loop {
-                use futures::future::{select, Either};
+                use futures::future::{Either, select};
                 use std::time::Duration;
 
                 let timeout = cx.background_executor().timer(Duration::from_millis(50));
@@ -569,9 +569,9 @@ impl Render for BuildLogsView {
                                         .on_click({
                                             let full_text = full_text.clone();
                                             move |_, _window, cx| {
-                                                cx.write_to_clipboard(
-                                                    ClipboardItem::new_string(full_text.clone()),
-                                                );
+                                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                                    full_text.clone(),
+                                                ));
                                             }
                                         }),
                                 ),
@@ -591,26 +591,22 @@ impl Render for BuildLogsView {
             .when(has_lines, |this| {
                 let view = cx.weak_entity();
                 this.child(
-                    uniform_list(
-                        "build-logs",
-                        visible_count,
-                        move |range, _window, cx| {
-                            let Some(view) = view.upgrade() else {
-                                return Vec::new();
-                            };
-                            view.update(cx, |this, cx| {
-                                let indices = this.visible_indices();
-                                range
-                                    .into_iter()
-                                    .filter_map(|ix| {
-                                        let real_idx = indices.get(ix).copied()?;
-                                        this.lines.get(real_idx).cloned()
-                                    })
-                                    .map(|line| this.render_line(&line, cx).into_any_element())
-                                    .collect()
-                            })
-                        },
-                    )
+                    uniform_list("build-logs", visible_count, move |range, _window, cx| {
+                        let Some(view) = view.upgrade() else {
+                            return Vec::new();
+                        };
+                        view.update(cx, |this, cx| {
+                            let indices = this.visible_indices();
+                            range
+                                .into_iter()
+                                .filter_map(|ix| {
+                                    let real_idx = indices.get(ix).copied()?;
+                                    this.lines.get(real_idx).cloned()
+                                })
+                                .map(|line| this.render_line(&line, cx).into_any_element())
+                                .collect()
+                        })
+                    })
                     .flex_1()
                     .track_scroll(&self.scroll_handle),
                 )

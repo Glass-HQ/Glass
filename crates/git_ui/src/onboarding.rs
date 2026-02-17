@@ -110,12 +110,10 @@ impl Render for GitOnboardingModal {
                     .child(Headline::new("Native Git Support").size(HeadlineSize::Large)),
             )
             .child(h_flex().absolute().top_2().right_2().child(
-                native_icon_button("cancel", "xmark").on_click(cx.listener(
-                    |_, _, _window, cx| {
-                        git_onboarding_event!("Cancelled", trigger = "X click");
-                        cx.emit(DismissEvent);
-                    },
-                )),
+                native_icon_button("cancel", "xmark").on_click(cx.listener(|_, _, _window, cx| {
+                    git_onboarding_event!("Cancelled", trigger = "X click");
+                    cx.emit(DismissEvent);
+                })),
             ));
 
         let open_panel_button = native_button("open-panel", "Get Started with the Git Panel")

@@ -166,7 +166,10 @@ impl Omnibox {
 
             let (query_for_search, current_url) = this
                 .read_with(cx, |this, cx| {
-                    (this.url_editor.read(cx).text(cx), this.current_page_url.clone())
+                    (
+                        this.url_editor.read(cx).text(cx),
+                        this.current_page_url.clone(),
+                    )
                 })
                 .ok()
                 .unwrap_or_default();
@@ -353,13 +356,16 @@ impl Omnibox {
                         this.hover(|style| style.bg(theme.colors().ghost_element_hover))
                     })
                     .cursor_pointer()
-                    .on_mouse_down(gpui::MouseButton::Left, cx.listener(move |this, _, window, cx| {
-                        this.selected_index = index;
-                        if let Some(suggestion) = this.suggestions.get(index) {
-                            let url = suggestion.url_or_search();
-                            this.navigate(url, window, cx);
-                        }
-                    }))
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |this, _, window, cx| {
+                            this.selected_index = index;
+                            if let Some(suggestion) = this.suggestions.get(index) {
+                                let url = suggestion.url_or_search();
+                                this.navigate(url, window, cx);
+                            }
+                        }),
+                    )
                     .child(
                         h_flex()
                             .gap_2()

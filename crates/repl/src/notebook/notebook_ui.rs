@@ -3,7 +3,6 @@ use std::future::Future;
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Context as _, Result};
-use workspace::ViewId;
 use collections::HashMap;
 use feature_flags::{FeatureFlagAppExt as _, NotebookFeatureFlag};
 use futures::FutureExt;
@@ -17,6 +16,7 @@ use language::{Language, LanguageRegistry};
 use project::{Project, ProjectEntryId, ProjectPath};
 use settings::Settings as _;
 use ui::{CommonAnimationExt, Tooltip, prelude::*};
+use workspace::ViewId;
 use workspace::item::{ItemEvent, SaveOptions, TabContentParams};
 use workspace::searchable::SearchableItemHandle;
 use workspace::{Item, ItemHandle, Pane, ProjectItem, ToolbarItemLocation};

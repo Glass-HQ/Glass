@@ -281,8 +281,11 @@ impl UserStore {
         self.by_github_login.clear();
     }
 
-
-    fn update_contacts(&mut self, message: UpdateContacts, _cx: &Context<Self>) -> Task<Result<()>> {
+    fn update_contacts(
+        &mut self,
+        message: UpdateContacts,
+        _cx: &Context<Self>,
+    ) -> Task<Result<()>> {
         match message {
             UpdateContacts::Wait(barrier) => {
                 drop(barrier);
@@ -681,7 +684,6 @@ impl User {
         })
     }
 }
-
 
 impl Collaborator {
     pub fn from_proto(message: proto::Collaborator) -> Result<Self> {

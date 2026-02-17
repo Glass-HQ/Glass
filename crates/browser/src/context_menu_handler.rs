@@ -9,9 +9,9 @@
 
 use crate::events::{BrowserEvent, EventSender};
 use cef::{
-    rc::Rc as _, wrap_context_menu_handler, Browser, ContextMenuHandler, ContextMenuParams, Frame,
-    ImplContextMenuHandler, ImplContextMenuParams, ImplRunContextMenuCallback, MenuModel,
-    RunContextMenuCallback, WrapContextMenuHandler,
+    Browser, ContextMenuHandler, ContextMenuParams, Frame, ImplContextMenuHandler,
+    ImplContextMenuParams, ImplRunContextMenuCallback, MenuModel, RunContextMenuCallback,
+    WrapContextMenuHandler, rc::Rc as _, wrap_context_menu_handler,
 };
 
 /// Context information extracted from CEF's ContextMenuParams, sent to the UI.

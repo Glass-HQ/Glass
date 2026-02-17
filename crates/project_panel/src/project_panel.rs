@@ -30,7 +30,6 @@ use gpui::{
 };
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
-use toast::{StatusToast, ToastIcon};
 use project::{
     Entry, EntryKind, Fs, GitEntry, GitEntryRef, GitTraversal, Project, ProjectEntryId,
     ProjectPath, Worktree, WorktreeId,
@@ -57,6 +56,7 @@ use std::{
     time::Duration,
 };
 use theme::ThemeSettings;
+use toast::{StatusToast, ToastIcon};
 use ui::{
     Color, ContextMenu, ContextMenuEntry, DecoratedIcon, Divider, Icon, IconDecoration,
     IconDecorationKind, IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize,
@@ -5538,11 +5538,8 @@ impl ProjectPanel {
                     .child(if show_editor {
                         h_flex().h_6().w_full().child(self.filename_editor.clone())
                     } else {
-                        h_flex()
-                            .h_6()
-                            .w_full()
-                            .min_w_0()
-                            .map(|this| match self.state.ancestors.get(&entry_id) {
+                        h_flex().h_6().w_full().min_w_0().map(|this| {
+                            match self.state.ancestors.get(&entry_id) {
                                 Some(folded_ancestors) => {
                                     this.children(self.render_folder_elements(
                                         folded_ancestors,
@@ -5571,7 +5568,8 @@ impl ProjectPanel {
                                         )
                                         .into_any_element(),
                                 ),
-                            })
+                            }
+                        })
                     })
                     .on_secondary_mouse_down(cx.listener(
                         move |this, event: &MouseDownEvent, window, cx| {
@@ -5587,7 +5585,7 @@ impl ProjectPanel {
                             }
                             this.deploy_context_menu(event.position, entry_id, window, cx);
                         },
-                    ))
+                    )),
             )
             .when_some(validation_color_and_message, |this, (color, message)| {
                 this.relative().child(deferred(
@@ -6566,9 +6564,7 @@ impl Render for ProjectPanel {
                                 })
                             })
                             .with_sizing_behavior(ListSizingBehavior::Infer)
-                            .with_horizontal_sizing_behavior(
-                                ListHorizontalSizingBehavior::FitList,
-                            )
+                            .with_horizontal_sizing_behavior(ListHorizontalSizingBehavior::FitList)
                             .with_width_from_item(self.state.max_width_item_index)
                             .track_scroll(&self.scroll_handle),
                         )

@@ -5,8 +5,8 @@ use gpui::{App, AppContext as _, Context, Entity, Task, Window};
 use std::time::Duration;
 
 use super::{
-    BrowserView, CloseTab, NewTab, NextTab, PreviousTab, ReopenClosedTab, ToggleSidebar,
-    TabBarMode, MAX_CLOSED_TABS,
+    BrowserView, CloseTab, MAX_CLOSED_TABS, NewTab, NextTab, PreviousTab, ReopenClosedTab,
+    TabBarMode, ToggleSidebar,
 };
 
 impl BrowserView {
@@ -24,7 +24,9 @@ impl BrowserView {
     pub fn open_url(&mut self, url: &str, cx: &mut Context<Self>) {
         log::info!(
             "[default-browser] BrowserView::open_url called with: {}, message_pump_started: {}, last_viewport: {:?}",
-            url, self.message_pump_started, self.last_viewport
+            url,
+            self.message_pump_started,
+            self.last_viewport
         );
         let tab = cx.new(|cx| {
             let mut tab = BrowserTab::new(cx);
@@ -552,7 +554,8 @@ impl BrowserView {
                 });
             }
         }
-        self.tabs.retain(|tab| tab == &keep_tab || tab.read(cx).is_pinned());
+        self.tabs
+            .retain(|tab| tab == &keep_tab || tab.read(cx).is_pinned());
         if let Some(new_index) = self.tabs.iter().position(|t| t == &keep_tab) {
             self.active_tab_index = new_index;
         } else {

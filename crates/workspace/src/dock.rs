@@ -145,10 +145,7 @@ impl Render for DockButtonBar {
             .on_click(move |_, window, cx| {
                 if let Some(workspace) = workspace_weak.upgrade() {
                     workspace.update(cx, |_workspace, cx| {
-                        window.dispatch_action(
-                            Box::new(crate::DeploySearch::default()),
-                            cx,
-                        );
+                        window.dispatch_action(Box::new(crate::DeploySearch::default()), cx);
                     });
                 }
             });

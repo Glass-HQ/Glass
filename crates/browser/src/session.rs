@@ -40,9 +40,7 @@ pub async fn save(json: String) -> anyhow::Result<()> {
 }
 
 pub fn restore_history() -> Option<Vec<HistoryEntry>> {
-    let json = KEY_VALUE_STORE
-        .read_kvp(BROWSER_HISTORY_KEY)
-        .log_err()??;
+    let json = KEY_VALUE_STORE.read_kvp(BROWSER_HISTORY_KEY).log_err()??;
     serde_json::from_str(&json).log_err()
 }
 

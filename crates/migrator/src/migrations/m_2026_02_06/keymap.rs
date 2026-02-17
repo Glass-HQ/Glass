@@ -72,8 +72,14 @@ static STRING_REPLACE: LazyLock<HashMap<&str, &str>> = LazyLock::new(|| {
             "outline_panel::RevealInFileManager",
             "project_panel::RevealInFileManager",
         ),
-        ("outline_panel::FoldDirectory", "project_panel::FoldDirectory"),
-        ("outline_panel::UnfoldDirectory", "project_panel::UnfoldDirectory"),
+        (
+            "outline_panel::FoldDirectory",
+            "project_panel::FoldDirectory",
+        ),
+        (
+            "outline_panel::UnfoldDirectory",
+            "project_panel::UnfoldDirectory",
+        ),
         ("outline_panel::ScrollUp", "project_panel::ScrollUp"),
         ("outline_panel::ScrollDown", "project_panel::ScrollDown"),
         (

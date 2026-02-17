@@ -1,11 +1,11 @@
 use gpui::{
-    anchored, canvas, deferred, div, prelude::*, surface, Context, Corner, IntoElement, MouseButton,
-    ObjectFit, ParentElement, Styled,
+    Context, Corner, IntoElement, MouseButton, ObjectFit, ParentElement, Styled, anchored, canvas,
+    deferred, div, prelude::*, surface,
 };
 use ui::{Icon, IconName, IconSize, prelude::*};
 
-use super::swipe::{SwipePhase, SWIPE_INDICATOR_SIZE};
 use super::BrowserView;
+use super::swipe::{SWIPE_INDICATOR_SIZE, SwipePhase};
 use crate::new_tab_page;
 
 impl BrowserView {
@@ -152,15 +152,11 @@ impl BrowserView {
                             .border_1()
                             .border_color(theme.colors().border)
                             .opacity(opacity)
-                            .child(
-                                Icon::new(icon)
-                                    .size(IconSize::Small)
-                                    .color(if committed {
-                                        ui::Color::Default
-                                    } else {
-                                        ui::Color::Muted
-                                    }),
-                            ),
+                            .child(Icon::new(icon).size(IconSize::Small).color(if committed {
+                                ui::Color::Default
+                            } else {
+                                ui::Color::Muted
+                            })),
                     ),
             )
         } else {

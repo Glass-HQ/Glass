@@ -26,7 +26,6 @@ use language_model::{
     ZED_CLOUD_PROVIDER_ID,
 };
 use language_models::AllLanguageModelSettings;
-use toast::{StatusToast, ToastIcon};
 use project::{
     agent_server_store::{
         AgentServerStore, CLAUDE_CODE_NAME, CODEX_NAME, ExternalAgentServerName,
@@ -35,6 +34,7 @@ use project::{
     context_server_store::{ContextServerConfiguration, ContextServerStatus, ContextServerStore},
 };
 use settings::{Settings, SettingsStore, update_settings_file};
+use toast::{StatusToast, ToastIcon};
 use ui::{
     ButtonStyle, Chip, CommonAnimationExt, ContextMenu, ContextMenuEntry, Disclosure, Divider,
     DividerColor, ElevationIndex, Indicator, LabelSize, PopoverMenu, Switch, Tooltip,

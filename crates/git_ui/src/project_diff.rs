@@ -21,8 +21,9 @@ use git::{
     status::FileStatus,
 };
 use gpui::{
-    Action, AnyElement, App, AppContext as _, AsyncWindowContext, Entity, EventEmitter, FocusHandle,
-    Focusable, Render, Subscription, Task, WeakEntity, actions, native_button, native_icon_button,
+    Action, AnyElement, App, AppContext as _, AsyncWindowContext, Entity, EventEmitter,
+    FocusHandle, Focusable, Render, Subscription, Task, WeakEntity, actions, native_button,
+    native_icon_button,
 };
 use language::{Anchor, Buffer, BufferId, Capability, OffsetRangeExt};
 use multi_buffer::{MultiBuffer, PathKey};
@@ -1078,18 +1079,15 @@ impl Render for ProjectDiff {
                                     .child(Label::new("Remote up to date")),
                             ),
                         })
-                        .child(
-                            h_flex().justify_around().mt_1().child(
-                                native_button("project-diff-close-button", "Close")
-                                    .on_click(move |_, window, cx| {
-                                        window.focus(&keybinding_focus_handle, cx);
-                                        window.dispatch_action(
-                                            Box::new(CloseActiveItem::default()),
-                                            cx,
-                                        );
-                                    }),
+                        .child(h_flex().justify_around().mt_1().child(
+                            native_button("project-diff-close-button", "Close").on_click(
+                                move |_, window, cx| {
+                                    window.focus(&keybinding_focus_handle, cx);
+                                    window
+                                        .dispatch_action(Box::new(CloseActiveItem::default()), cx);
+                                },
                             ),
-                        ),
+                        )),
                 )
             })
             .when(!is_empty, |el| el.child(self.editor.clone()))
@@ -1402,12 +1400,9 @@ impl Render for ProjectDiffToolbar {
                     .when(
                         button_states.unstage_all && !button_states.stage_all,
                         |el| {
-                            el.child(
-                                native_button("unstage-all", "Unstage All")
-                                    .on_click(cx.listener(|this, _, window, cx| {
-                                        this.unstage_all(window, cx)
-                                    })),
-                            )
+                            el.child(native_button("unstage-all", "Unstage All").on_click(
+                                cx.listener(|this, _, window, cx| this.unstage_all(window, cx)),
+                            ))
                         },
                     )
                     .when(
@@ -1424,12 +1419,11 @@ impl Render for ProjectDiffToolbar {
                             )
                         },
                     )
-                    .child(
-                        native_button("commit", "Commit")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.dispatch_action(&Commit, window, cx);
-                            })),
-                    ),
+                    .child(native_button("commit", "Commit").on_click(cx.listener(
+                        |this, _, window, cx| {
+                            this.dispatch_action(&Commit, window, cx);
+                        },
+                    ))),
             )
             // "Send Review to Agent" button (only shown when there are review comments)
             .when(review_count > 0, |el| {

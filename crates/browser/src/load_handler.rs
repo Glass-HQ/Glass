@@ -4,9 +4,7 @@
 //! URL and title tracking is handled by the DisplayHandler instead.
 
 use crate::events::{BrowserEvent, EventSender};
-use cef::{
-    rc::Rc as _, wrap_load_handler, Browser, ImplLoadHandler, LoadHandler, WrapLoadHandler,
-};
+use cef::{Browser, ImplLoadHandler, LoadHandler, WrapLoadHandler, rc::Rc as _, wrap_load_handler};
 
 #[derive(Clone)]
 pub struct OsrLoadHandler {

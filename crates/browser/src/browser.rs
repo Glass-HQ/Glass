@@ -44,7 +44,10 @@ pub fn init(cx: &mut App) {
     match CefInstance::initialize(cx) {
         Ok(_) => {}
         Err(e) => {
-            log::error!("[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.", e);
+            log::error!(
+                "[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.",
+                e
+            );
         }
     }
 

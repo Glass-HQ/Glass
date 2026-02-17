@@ -109,7 +109,6 @@ pub fn cargo_fmt() -> Step<Run> {
     named::bash("cargo fmt --all -- --check")
 }
 
-
 pub fn cargo_install_nextest() -> Step<Use> {
     named::uses("taiki-e", "install-action", "nextest")
 }
@@ -235,8 +234,7 @@ pub struct NamedJob<J: JobType = RunJob> {
 //     }
 // }
 
-pub(crate) const DEFAULT_REPOSITORY_OWNER_GUARD: &str =
-    "(github.repository_owner == 'Glass-HQ')";
+pub(crate) const DEFAULT_REPOSITORY_OWNER_GUARD: &str = "(github.repository_owner == 'Glass-HQ')";
 
 pub fn repository_owner_guard_expression(trigger_always: bool) -> Expression {
     Expression::new(format!(

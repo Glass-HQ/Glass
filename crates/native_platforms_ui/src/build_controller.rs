@@ -115,16 +115,10 @@ impl BuildController {
                             match output {
                                 Ok(result) if !result.status.success() => {
                                     let stderr = String::from_utf8_lossy(&result.stderr);
-                                    log::error!(
-                                        "Failed to terminate app on device: {}",
-                                        stderr
-                                    );
+                                    log::error!("Failed to terminate app on device: {}", stderr);
                                 }
                                 Err(error) => {
-                                    log::error!(
-                                        "Failed to run devicectl terminate: {}",
-                                        error
-                                    );
+                                    log::error!("Failed to run devicectl terminate: {}", error);
                                 }
                                 _ => {
                                     log::info!("App terminated successfully");
@@ -132,9 +126,7 @@ impl BuildController {
                             }
                         }
                         None => {
-                            log::error!(
-                                "Cannot terminate app: no PID was captured during launch"
-                            );
+                            log::error!("Cannot terminate app: no PID was captured during launch");
                         }
                     }
                 }
@@ -164,38 +156,39 @@ impl BuildController {
         let launched_slot = self.launched_slot.clone();
         let completed = self.completed.clone();
 
-        let task = cx.spawn_in(window, async move |_this, cx| {
-            match kind {
-                PipelineKind::Build => {
-                    Self::run_build_pipeline(
-                        project,
-                        options,
-                        active_pid_for_task,
-                        workspace,
-                        panel,
-                        completed,
-                        cx,
-                    )
-                    .await;
-                }
-                PipelineKind::Run => {
-                    Self::run_run_pipeline(
-                        project,
-                        options,
-                        device,
-                        active_pid_for_task,
-                        workspace,
-                        panel,
-                        launched_slot,
-                        completed,
-                        cx,
-                    )
-                    .await;
-                }
+        let task = cx.spawn_in(window, async move |_this, cx| match kind {
+            PipelineKind::Build => {
+                Self::run_build_pipeline(
+                    project,
+                    options,
+                    active_pid_for_task,
+                    workspace,
+                    panel,
+                    completed,
+                    cx,
+                )
+                .await;
+            }
+            PipelineKind::Run => {
+                Self::run_run_pipeline(
+                    project,
+                    options,
+                    device,
+                    active_pid_for_task,
+                    workspace,
+                    panel,
+                    launched_slot,
+                    completed,
+                    cx,
+                )
+                .await;
             }
         });
 
-        self.state = ControllerState::Active { _task: task, active_pid };
+        self.state = ControllerState::Active {
+            _task: task,
+            active_pid,
+        };
     }
 
     async fn run_build_pipeline<T: 'static>(
@@ -295,11 +288,7 @@ impl BuildController {
 
                 let mut receiver = process.output_receiver;
                 while let Some(output) = receiver.next().await {
-                    if let RunOutput::AppLaunched {
-                        ref bundle_id,
-                        pid,
-                    } = output
-                    {
+                    if let RunOutput::AppLaunched { ref bundle_id, pid } = output {
                         if let Some(device) = &device {
                             if let Ok(mut slot) = launched_slot.lock() {
                                 *slot = Some(LaunchedApp {

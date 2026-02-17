@@ -9,10 +9,10 @@ use gpui::{
 };
 use gpui::{ListState, ScrollHandle, ScrollStrategy, UniformListScrollHandle};
 use language::LanguageRegistry;
-use toast::{StatusToast, ToastIcon};
 use persistence::COMPONENT_PREVIEW_DB;
 use project::Project;
 use std::{iter::Iterator, ops::Range, sync::Arc};
+use toast::{StatusToast, ToastIcon};
 use ui::{ButtonLike, Divider, HighlightedLabel, ListItem, ListSubHeader, Tooltip, prelude::*};
 use ui_input::InputField;
 use workspace::AppState;

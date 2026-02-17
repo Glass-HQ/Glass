@@ -4,9 +4,9 @@
 //! Ties together the render, load, display, life span, and keyboard handlers.
 
 use cef::{
-    rc::Rc as _, wrap_client, wrap_keyboard_handler, Browser, Client, ContextMenuHandler,
-    DisplayHandler, ImplClient, ImplKeyboardHandler, KeyEvent, KeyboardHandler, LifeSpanHandler,
-    LoadHandler, PermissionHandler, RenderHandler, WrapClient, WrapKeyboardHandler,
+    Browser, Client, ContextMenuHandler, DisplayHandler, ImplClient, ImplKeyboardHandler, KeyEvent,
+    KeyboardHandler, LifeSpanHandler, LoadHandler, PermissionHandler, RenderHandler, WrapClient,
+    WrapKeyboardHandler, rc::Rc as _, wrap_client, wrap_keyboard_handler,
 };
 
 use crate::context_menu_handler::{ContextMenuHandlerBuilder, OsrContextMenuHandler};
@@ -18,8 +18,8 @@ use crate::permission_handler::{OsrPermissionHandler, PermissionHandlerBuilder};
 use crate::render_handler::{OsrRenderHandler, RenderHandlerBuilder, RenderState};
 use crate::request_handler::{OsrRequestHandler, RequestHandlerBuilder};
 use parking_lot::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 // ── Keyboard Handler ─────────────────────────────────────────────────
 // Suppresses native macOS key events that CEF picks up through the
@@ -114,10 +114,7 @@ wrap_client! {
 }
 
 impl ClientBuilder {
-    pub fn build(
-        render_state: Arc<Mutex<RenderState>>,
-        event_sender: EventSender,
-    ) -> cef::Client {
+    pub fn build(render_state: Arc<Mutex<RenderState>>, event_sender: EventSender) -> cef::Client {
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());

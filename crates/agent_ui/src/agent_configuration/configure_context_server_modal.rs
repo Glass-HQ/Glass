@@ -10,7 +10,6 @@ use gpui::{
 };
 use language::{Language, LanguageRegistry};
 use markdown::{Markdown, MarkdownElement, MarkdownStyle};
-use toast::{StatusToast, ToastIcon};
 use project::{
     context_server_store::{
         ContextServerStatus, ContextServerStore, registry::ContextServerDescriptorRegistry,
@@ -21,6 +20,7 @@ use project::{
 use serde::Deserialize;
 use settings::{Settings as _, update_settings_file};
 use theme::ThemeSettings;
+use toast::{StatusToast, ToastIcon};
 use ui::{
     CommonAnimationExt, KeyBinding, Modal, ModalFooter, ModalHeader, Section, Tooltip,
     WithScrollbar, prelude::*,

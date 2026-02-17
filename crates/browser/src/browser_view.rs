@@ -19,9 +19,9 @@ use crate::session::SerializedTab;
 use crate::tab::{BrowserTab, TabEvent};
 use crate::toolbar::BrowserToolbar;
 use gpui::{
-    actions, div, prelude::*, App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable,
-    InteractiveElement, IntoElement, ParentElement, Pixels, Render, Styled, Subscription, Task,
-    Window,
+    App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, ParentElement, Pixels, Render, Styled, Subscription, Task, Window, actions, div,
+    prelude::*,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_modes::{ModeId, ModeViewRegistry};

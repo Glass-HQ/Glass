@@ -15,12 +15,7 @@ impl BrowserView {
         }
     }
 
-    pub(super) fn handle_paste(
-        &mut self,
-        _: &Paste,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
+    pub(super) fn handle_paste(&mut self, _: &Paste, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(tab) = self.active_tab() {
             tab.read(cx).paste();
         }

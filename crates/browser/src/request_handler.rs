@@ -7,8 +7,8 @@
 
 use crate::events::{BrowserEvent, EventSender};
 use cef::{
-    rc::Rc as _, wrap_request_handler, Browser, ImplRequestHandler, RequestHandler,
-    WindowOpenDisposition, WrapRequestHandler,
+    Browser, ImplRequestHandler, RequestHandler, WindowOpenDisposition, WrapRequestHandler,
+    rc::Rc as _, wrap_request_handler,
 };
 
 #[derive(Clone)]

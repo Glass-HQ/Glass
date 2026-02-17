@@ -2,9 +2,7 @@ use anyhow::{Context as _, Result};
 use collections::HashMap;
 use gpui::{App, BorrowAppContext, Global};
 
-use rodio::{
-    Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, nz, source::Buffered,
-};
+use rodio::{Decoder, DeviceSinkBuilder, MixerDeviceSink, Source, nz, source::Buffered};
 use std::{io::Cursor, num::NonZero};
 use util::ResultExt;
 
@@ -61,7 +59,9 @@ impl Audio {
                 .context("Could not open default output stream")?;
             output_handle.log_on_drop(false);
             log::info!("Output stream: {:?}", output_handle);
-            output_handle.mixer().add(rodio::source::Zero::new(CHANNEL_COUNT, SAMPLE_RATE));
+            output_handle
+                .mixer()
+                .add(rodio::source::Zero::new(CHANNEL_COUNT, SAMPLE_RATE));
             self.output_handle = Some(output_handle);
         }
 

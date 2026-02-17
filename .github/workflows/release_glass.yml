@@ -664,7 +664,7 @@ jobs:
         run: ls -lR artifacts
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
           name: Glass ${{ github.event.inputs.version }}

@@ -4745,8 +4745,14 @@ impl Workspace {
 
     /// Lazily create a per-workspace mode view from a registered factory.
     /// Returns the view and focus handle if available.
-    fn ensure_mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<&PerWorkspaceModeView> {
-        if let collections::hash_map::Entry::Vacant(entry) = self.per_workspace_mode_views.entry(mode_id) {
+    fn ensure_mode_view(
+        &mut self,
+        mode_id: ModeId,
+        cx: &mut Context<Self>,
+    ) -> Option<&PerWorkspaceModeView> {
+        if let collections::hash_map::Entry::Vacant(entry) =
+            self.per_workspace_mode_views.entry(mode_id)
+        {
             let factory = ModeViewRegistry::try_global(cx)
                 .and_then(|reg| reg.factory(mode_id))
                 .cloned();
@@ -4779,7 +4785,8 @@ impl Workspace {
                 ModeId::BROWSER => {
                     // Ensure per-workspace BrowserView exists and focus it
                     self.ensure_mode_view(ModeId::BROWSER, cx);
-                    let focus_handle = self.per_workspace_mode_views
+                    let focus_handle = self
+                        .per_workspace_mode_views
                         .get(&ModeId::BROWSER)
                         .map(|v| v.focus_handle.clone())
                         .or_else(|| {
@@ -6109,11 +6116,7 @@ impl Workspace {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn test_new(
-        project: Entity<Project>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn test_new(project: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         use node_runtime::NodeRuntime;
         use session::Session;
 
@@ -7248,7 +7251,6 @@ impl WorkspaceStore {
         self.workspaces.iter().map(|(window, weak)| (*window, weak))
     }
 }
-
 
 impl FollowerState {
     fn pane(&self) -> &Entity<Pane> {

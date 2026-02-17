@@ -22506,9 +22506,7 @@ impl Editor {
                     .gap_1()
                     .child(
                         native_icon_button(
-                            SharedString::from(format!(
-                                "diff-review-cancel-edit-{comment_id}"
-                            )),
+                            SharedString::from(format!("diff-review-cancel-edit-{comment_id}")),
                             "xmark",
                         )
                         .tooltip("Cancel")
@@ -22523,9 +22521,7 @@ impl Editor {
                     )
                     .child(
                         native_icon_button(
-                            SharedString::from(format!(
-                                "diff-review-confirm-edit-{comment_id}"
-                            )),
+                            SharedString::from(format!("diff-review-confirm-edit-{comment_id}")),
                             "return",
                         )
                         .tooltip("Confirm")
@@ -28718,33 +28714,31 @@ fn render_diff_hunk_controls(
         .block_mouse_except_scroll()
         .shadow_md()
         .child(if status.has_secondary_hunk() {
-            native_button(SharedString::from(format!("stage-{row}")), "Stage")
-                .on_click({
-                    let editor = editor.clone();
-                    move |_event, _window, cx| {
-                        editor.update(cx, |editor, cx| {
-                            editor.stage_or_unstage_diff_hunks(
-                                true,
-                                vec![hunk_range.start..hunk_range.start],
-                                cx,
-                            );
-                        });
-                    }
-                })
+            native_button(SharedString::from(format!("stage-{row}")), "Stage").on_click({
+                let editor = editor.clone();
+                move |_event, _window, cx| {
+                    editor.update(cx, |editor, cx| {
+                        editor.stage_or_unstage_diff_hunks(
+                            true,
+                            vec![hunk_range.start..hunk_range.start],
+                            cx,
+                        );
+                    });
+                }
+            })
         } else {
-            native_button(SharedString::from(format!("unstage-{row}")), "Unstage")
-                .on_click({
-                    let editor = editor.clone();
-                    move |_event, _window, cx| {
-                        editor.update(cx, |editor, cx| {
-                            editor.stage_or_unstage_diff_hunks(
-                                false,
-                                vec![hunk_range.start..hunk_range.start],
-                                cx,
-                            );
-                        });
-                    }
-                })
+            native_button(SharedString::from(format!("unstage-{row}")), "Unstage").on_click({
+                let editor = editor.clone();
+                move |_event, _window, cx| {
+                    editor.update(cx, |editor, cx| {
+                        editor.stage_or_unstage_diff_hunks(
+                            false,
+                            vec![hunk_range.start..hunk_range.start],
+                            cx,
+                        );
+                    });
+                }
+            })
         })
         .child(
             native_button(SharedString::from(format!("restore-{row}")), "Restore")
@@ -28774,8 +28768,7 @@ fn render_diff_hunk_controls(
                         move |_event, window, cx| {
                             editor.update(cx, |editor, cx| {
                                 let snapshot = editor.snapshot(window, cx);
-                                let position =
-                                    hunk_range.end.to_point(&snapshot.buffer_snapshot());
+                                let position = hunk_range.end.to_point(&snapshot.buffer_snapshot());
                                 editor.go_to_hunk_before_or_after_position(
                                     &snapshot,
                                     position,
@@ -28799,8 +28792,7 @@ fn render_diff_hunk_controls(
                         move |_event, window, cx| {
                             editor.update(cx, |editor, cx| {
                                 let snapshot = editor.snapshot(window, cx);
-                                let point =
-                                    hunk_range.start.to_point(&snapshot.buffer_snapshot());
+                                let point = hunk_range.start.to_point(&snapshot.buffer_snapshot());
                                 editor.go_to_hunk_before_or_after_position(
                                     &snapshot,
                                     point,

@@ -5,8 +5,8 @@ use futures::{SinkExt, StreamExt};
 use smol::io::{AsyncBufReadExt, BufReader};
 use smol::process::Command;
 use std::path::Path;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use super::device::get_device_destination;
 use super::xcode::{XcodeProject, XcodeProjectType};
@@ -35,10 +35,7 @@ pub enum BuildOutput {
     Completed(BuildResult),
 }
 
-pub async fn build(
-    project: &XcodeProject,
-    options: &BuildOptions,
-) -> Result<BuildProcess> {
+pub async fn build(project: &XcodeProject, options: &BuildOptions) -> Result<BuildProcess> {
     let mut cmd = Command::new("xcodebuild");
 
     match project.project_type {
@@ -188,8 +185,10 @@ fn parse_build_line(
         };
     }
 
-    if line.starts_with("CpResource ") || line.starts_with("CopyPNGFile ")
-        || line.starts_with("CpHeader ") || line.starts_with("Copy ")
+    if line.starts_with("CpResource ")
+        || line.starts_with("CopyPNGFile ")
+        || line.starts_with("CpHeader ")
+        || line.starts_with("Copy ")
     {
         return BuildOutput::Progress {
             phase: format_copy_summary(line),
@@ -268,7 +267,10 @@ fn parse_build_line(
     }
 
     // Shell commands in build output
-    if trimmed.starts_with("cd ") || trimmed.starts_with("export ") || trimmed.starts_with("setenv ") {
+    if trimmed.starts_with("cd ")
+        || trimmed.starts_with("export ")
+        || trimmed.starts_with("setenv ")
+    {
         return BuildOutput::Verbose(line.to_string());
     }
 
@@ -298,7 +300,14 @@ fn format_compile_summary(line: &str) -> String {
     // Find the source file path — usually the last path-like token before "(in target"
     let file = line
         .split_whitespace()
-        .filter(|s| s.contains('/') || s.ends_with(".swift") || s.ends_with(".c") || s.ends_with(".m") || s.ends_with(".mm") || s.ends_with(".cpp"))
+        .filter(|s| {
+            s.contains('/')
+                || s.ends_with(".swift")
+                || s.ends_with(".c")
+                || s.ends_with(".m")
+                || s.ends_with(".mm")
+                || s.ends_with(".cpp")
+        })
         .last()
         .map(extract_filename)
         .unwrap_or("sources");
@@ -339,7 +348,11 @@ fn format_script_summary(line: &str) -> String {
         .replace("\\ ", " ")
         .trim()
         .to_string();
-    let script_name = if script_name.is_empty() { "script".to_string() } else { script_name };
+    let script_name = if script_name.is_empty() {
+        "script".to_string()
+    } else {
+        script_name
+    };
     format!("Running script {} \u{203a} {}", target, script_name)
 }
 
@@ -473,7 +486,11 @@ pub fn find_built_app(project: &XcodeProject, options: &BuildOptions) -> Option<
     let build_dir = if build_dir.exists() {
         build_dir
     } else {
-        let alt_config = if config == "Release" { "Debug" } else { "Release" };
+        let alt_config = if config == "Release" {
+            "Debug"
+        } else {
+            "Release"
+        };
         let alt_dir = project_derived_data
             .join("Build/Products")
             .join(format!("{}-{}", alt_config, platform_suffix));

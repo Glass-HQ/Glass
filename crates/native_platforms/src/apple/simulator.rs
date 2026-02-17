@@ -90,7 +90,11 @@ fn extract_os_version(runtime: &str) -> Option<String> {
                             .filter(|p| !p.contains("SimRuntime"))
                             .map(|p| format!(".{}", p.trim_end_matches('-')))
                             .collect();
-                        return Some(format!("iOS {}{}", version_str.trim_start_matches('-'), rest));
+                        return Some(format!(
+                            "iOS {}{}",
+                            version_str.trim_start_matches('-'),
+                            rest
+                        ));
                     }
                 }
             }

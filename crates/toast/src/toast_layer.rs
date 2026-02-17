@@ -142,9 +142,7 @@ impl ToastLayer {
     }
 
     pub fn active_toast_action(&self) -> Option<ToastAction> {
-        self.active_toast
-            .as_ref()
-            .and_then(|t| t.action().cloned())
+        self.active_toast.as_ref().and_then(|t| t.action().cloned())
     }
 
     fn pause_dismiss_timer(&mut self) {

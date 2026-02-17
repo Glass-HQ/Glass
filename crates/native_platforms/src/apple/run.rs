@@ -2,8 +2,8 @@ use crate::DeviceType;
 use anyhow::Result;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use super::build::{self, BuildOptions, BuildOutput};
 use super::install::{self, InstallConfig, InstallOutput};
@@ -45,10 +45,7 @@ pub struct RunProcess {
     pub active_pid: Arc<AtomicU32>,
 }
 
-pub async fn run(
-    project: &XcodeProject,
-    options: &BuildOptions,
-) -> Result<RunProcess> {
+pub async fn run(project: &XcodeProject, options: &BuildOptions) -> Result<RunProcess> {
     let (tx, rx) = mpsc::unbounded();
     let active_pid = Arc::new(AtomicU32::new(0));
 
@@ -118,9 +115,7 @@ async fn run_pipeline(
     }
 
     // Phase 2: Find .app
-    let _ = tx
-        .send(RunOutput::PhaseChanged(RunPhase::FindingApp))
-        .await;
+    let _ = tx.send(RunOutput::PhaseChanged(RunPhase::FindingApp)).await;
 
     let app_path = match build::find_built_app(&project, &options) {
         Some(p) => p,
@@ -145,24 +140,21 @@ async fn run_pipeline(
     // Phase 3: Install (physical device only)
     if let Some(device) = &options.destination {
         if device.device_type == DeviceType::PhysicalDevice {
-            let _ = tx
-                .send(RunOutput::PhaseChanged(RunPhase::Installing))
-                .await;
+            let _ = tx.send(RunOutput::PhaseChanged(RunPhase::Installing)).await;
 
             let install_config = InstallConfig::default();
-            let install_process =
-                match install::install(&app_path, device, &install_config).await {
-                    Ok(p) => p,
-                    Err(e) => {
-                        let _ = tx
-                            .send(RunOutput::Failed {
-                                phase: RunPhase::Installing,
-                                message: format!("Failed to start install: {}", e),
-                            })
-                            .await;
-                        return;
-                    }
-                };
+            let install_process = match install::install(&app_path, device, &install_config).await {
+                Ok(p) => p,
+                Err(e) => {
+                    let _ = tx
+                        .send(RunOutput::Failed {
+                            phase: RunPhase::Installing,
+                            message: format!("Failed to start install: {}", e),
+                        })
+                        .await;
+                    return;
+                }
+            };
 
             let mut install_receiver = install_process.output_receiver;
             let mut install_success = false;
@@ -194,9 +186,7 @@ async fn run_pipeline(
 
     // Phase 4: Launch
     if let Some(device) = &options.destination {
-        let _ = tx
-            .send(RunOutput::PhaseChanged(RunPhase::Launching))
-            .await;
+        let _ = tx.send(RunOutput::PhaseChanged(RunPhase::Launching)).await;
 
         let bundle_id = match build::get_bundle_identifier(&app_path) {
             Some(id) => id,
@@ -221,19 +211,18 @@ async fn run_pipeline(
             ..LaunchConfig::default()
         };
 
-        let launch_process =
-            match launch::launch(&bundle_id, device, &launch_config).await {
-                Ok(p) => p,
-                Err(e) => {
-                    let _ = tx
-                        .send(RunOutput::Failed {
-                            phase: RunPhase::Launching,
-                            message: format!("Failed to start launch: {}", e),
-                        })
-                        .await;
-                    return;
-                }
-            };
+        let launch_process = match launch::launch(&bundle_id, device, &launch_config).await {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = tx
+                    .send(RunOutput::Failed {
+                        phase: RunPhase::Launching,
+                        message: format!("Failed to start launch: {}", e),
+                    })
+                    .await;
+                return;
+            }
+        };
 
         let mut launch_receiver = launch_process.output_receiver;
         let mut launch_success = false;

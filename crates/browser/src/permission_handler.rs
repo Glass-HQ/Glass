@@ -5,10 +5,9 @@
 //! platforms (HBO Max, Netflix, Disney+, etc).
 
 use cef::{
-    rc::Rc as _, wrap_permission_handler, Browser, Frame, ImplMediaAccessCallback,
-    ImplPermissionHandler, ImplPermissionPromptCallback, MediaAccessCallback,
-    PermissionHandler, PermissionPromptCallback, PermissionRequestResult,
-    WrapPermissionHandler,
+    Browser, Frame, ImplMediaAccessCallback, ImplPermissionHandler, ImplPermissionPromptCallback,
+    MediaAccessCallback, PermissionHandler, PermissionPromptCallback, PermissionRequestResult,
+    WrapPermissionHandler, rc::Rc as _, wrap_permission_handler,
 };
 
 const PROTECTED_MEDIA_IDENTIFIER: u32 = 262144;

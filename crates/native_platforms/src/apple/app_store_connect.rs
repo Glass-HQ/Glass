@@ -329,9 +329,7 @@ fn parse_beta_testers_output(output: &str) -> Result<Vec<BetaTester>> {
 }
 
 pub fn is_authenticated() -> bool {
-    let output = Command::new("asc")
-        .args(["auth", "status"])
-        .output();
+    let output = Command::new("asc").args(["auth", "status"]).output();
 
     match output {
         Ok(o) => {
@@ -406,7 +404,12 @@ pub fn logout() -> Result<()> {
     Ok(())
 }
 
-pub fn authenticate(name: &str, key_id: &str, issuer_id: &str, private_key_path: &str) -> Result<()> {
+pub fn authenticate(
+    name: &str,
+    key_id: &str,
+    issuer_id: &str,
+    private_key_path: &str,
+) -> Result<()> {
     let output = Command::new("asc")
         .args([
             "auth",

@@ -80,8 +80,8 @@ use image_store::{ImageItemEvent, ImageStoreEvent};
 
 use ::git::{blame::Blame, status::FileStatus};
 use gpui::{
-    App, AppContext, AsyncApp, Context, Entity, EventEmitter, Hsla, SharedString,
-    Task, WeakEntity, Window,
+    App, AppContext, AsyncApp, Context, Entity, EventEmitter, Hsla, SharedString, Task, WeakEntity,
+    Window,
 };
 use language::{
     Buffer, BufferEvent, Capability, CodeLabel, CursorShape, DiskState, Language, LanguageName,
@@ -2288,7 +2288,6 @@ impl Project {
         }
         cx.emit(Event::DisconnectedFromHost);
     }
-
 
     #[inline]
     pub fn close(&mut self, cx: &mut Context<Self>) {

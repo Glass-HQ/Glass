@@ -956,8 +956,8 @@ impl AgentPanel {
 
                     agent
                 }
-                None => {
-                    cx.background_spawn(async move {
+                None => cx
+                    .background_spawn(async move {
                         KEY_VALUE_STORE.read_kvp(LAST_USED_EXTERNAL_AGENT_KEY)
                     })
                     .await
@@ -967,8 +967,7 @@ impl AgentPanel {
                         serde_json::from_str::<LastUsedExternalAgent>(&value).log_err()
                     })
                     .map(|agent| agent.agent)
-                    .unwrap_or(ExternalAgent::NativeAgent)
-                }
+                    .unwrap_or(ExternalAgent::NativeAgent),
             };
 
             let server = ext_agent.server(fs, thread_store);

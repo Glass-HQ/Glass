@@ -5,9 +5,9 @@ use copilot::{
 };
 use gpui::{
     App, ClipboardItem, Context, DismissEvent, Element, Entity, EventEmitter, FocusHandle,
-    Focusable, InteractiveElement, IntoElement, MouseDownEvent, NativeButtonStyle, NativeButtonTint,
-    ParentElement, Render, Styled, Subscription, Window, WindowBounds, WindowOptions, div,
-    native_button, point,
+    Focusable, InteractiveElement, IntoElement, MouseDownEvent, NativeButtonStyle,
+    NativeButtonTint, ParentElement, Render, Styled, Subscription, Window, WindowBounds,
+    WindowOptions, div, native_button, point,
 };
 use project::project_settings::ProjectSettings;
 use settings::Settings as _;
@@ -384,7 +384,9 @@ impl CopilotCodeVerification {
                     .w_full()
                     .button_style(NativeButtonStyle::Filled)
                     .tint(NativeButtonTint::Accent)
-                    .on_click(move |_, window, cx| reinstall_and_sign_in(copilot.clone(), window, cx)),
+                    .on_click(move |_, window, cx| {
+                        reinstall_and_sign_in(copilot.clone(), window, cx)
+                    }),
             )
     }
 

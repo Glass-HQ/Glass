@@ -95,12 +95,10 @@ impl ModeViewRegistry {
 
     /// Get the title bar center view for a mode
     pub fn titlebar_center_view(&self, mode_id: ModeId) -> Option<&AnyView> {
-        self.titlebar_center_views
-            .get(&mode_id)
-            .or_else(|| {
-                self.views
-                    .get(&mode_id)
-                    .and_then(|v| v.titlebar_center_view.as_ref())
-            })
+        self.titlebar_center_views.get(&mode_id).or_else(|| {
+            self.views
+                .get(&mode_id)
+                .and_then(|v| v.titlebar_center_view.as_ref())
+        })
     }
 }

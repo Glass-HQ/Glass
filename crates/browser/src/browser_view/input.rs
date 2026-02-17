@@ -1,5 +1,5 @@
 use crate::input;
-use gpui::{point, Context, MouseButton, Window};
+use gpui::{Context, MouseButton, Window, point};
 
 use super::BrowserView;
 

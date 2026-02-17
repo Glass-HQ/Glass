@@ -53,11 +53,11 @@ use std::{
 use theme::{ActiveTheme, GlobalTheme, ThemeRegistry};
 use util::ResultExt;
 use uuid::Uuid;
-use workspace_modes::ModeId;
 use workspace::{
     AppState, MultiWorkspace, SerializedWorkspaceLocation, SessionWorkspace, Toast,
     WorkspaceSettings, WorkspaceStore, notifications::NotificationId, restore_multiworkspace,
 };
+use workspace_modes::ModeId;
 use zed::{
     OpenListener, OpenRequest, RawOpenRequest, app_menus, build_window_options,
     derive_paths_with_position, edit_prediction_registry, handle_cli_connection,
