@@ -318,7 +318,9 @@ fn check_dependencies() -> NamedJob {
             "dependency-review-action",
             "67d4f4bd7a9b17a0db54d2a7519187c65e339de8", // v4
         )
-        .if_condition(Expression::new("github.event_name == 'pull_request'"))
+        .if_condition(Expression::new(
+            "github.event_name == 'pull_request' && github.repository_owner == 'zed-industries'",
+        ))
         .with(("license-check", false))
     }
 
