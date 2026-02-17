@@ -232,6 +232,7 @@ pub mod workspace {
     actions!(
         workspace,
         [
+            NewIncognitoWindow,
             #[action(deprecated_aliases = ["editor::CopyPath", "project_panel::CopyPath"])]
             CopyPath,
             #[action(deprecated_aliases = ["editor::CopyRelativePath", "project_panel::CopyRelativePath"])]

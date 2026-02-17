@@ -1190,12 +1190,17 @@
       "cmd-z": "browser::Undo",
       "cmd-shift-z": "browser::Redo",
       "cmd-a": "browser::SelectAll",
+      "cmd-f": "browser::FindInPage",
+      "cmd-g": "browser::FindNextInPage",
+      "cmd-shift-g": "browser::FindPreviousInPage",
       "cmd-l": "browser::FocusOmnibox",
       "cmd-t": "browser::NewTab",
       "cmd-w": "browser::CloseTab",
+      "cmd-shift-n": "workspace::NewIncognitoWindow",
       "cmd-shift-t": "browser::ReopenClosedTab",
       "cmd-shift-]": "browser::NextTab",
       "cmd-shift-[": "browser::PreviousTab",
+      "cmd-shift-j": "browser::ToggleDownloadCenter",
       "cmd-r": "browser::Reload",
       "cmd-[": "browser::GoBack",
       "cmd-]": "browser::GoForward",
@@ -1203,6 +1208,15 @@
       "f12": "browser::OpenDevTools",
       "cmd-s": "browser::ToggleSidebar",
       "cmd-shift-c": "browser::CopyUrl"
+    }
+  },
+  {
+    "context": "BrowserFindBar",
+    "use_key_equivalents": true,
+    "bindings": {
+      "enter": "browser::FindNextInPage",
+      "shift-enter": "browser::FindPreviousInPage",
+      "escape": "browser::CloseFindInPage"
     }
   },
   {

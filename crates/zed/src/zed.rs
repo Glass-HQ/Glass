@@ -18,6 +18,7 @@ use anyhow::Context as _;
 pub use app_menus::*;
 use assets::Assets;
 use breadcrumbs::Breadcrumbs;
+use browser::BrowserView;
 use client::zed_urls;
 use collections::VecDeque;
 use debugger_ui::debugger_panel::DebugPanel;
@@ -45,10 +46,10 @@ use language_tools::lsp_log_view::LspLogToolbarItemView;
 use markdown::{Markdown, MarkdownElement, MarkdownFont, MarkdownStyle};
 use migrate::{MigrationBanner, MigrationEvent, MigrationNotification, MigrationType};
 use migrator::migrate_keymap;
+use native_platforms_ui::panel::NativePlatformsPanel;
 use onboarding::DOCS_URL;
 use onboarding::multibuffer_hint::MultibufferHint;
 pub use open_listener::*;
-use native_platforms_ui::panel::NativePlatformsPanel;
 use paths::{
     local_debug_file_relative_path, local_settings_file_relative_path,
     local_tasks_file_relative_path,
@@ -82,9 +83,8 @@ use util::markdown::MarkdownString;
 use util::rel_path::RelPath;
 use util::{ResultExt, asset_str, maybe};
 use uuid::Uuid;
-use workspace::notifications::{
-    NotificationId, dismiss_app_notification, show_app_notification,
-};
+use workspace::notifications::{NotificationId, dismiss_app_notification, show_app_notification};
+use workspace_modes::ModeId;
 
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
@@ -92,8 +92,7 @@ use workspace::{
     notifications::simple_message_notification::MessageNotification, open_new,
 };
 use workspace::{
-    CloseIntent, CloseProject, CloseWindow, RestoreBanner,
-    with_active_or_new_workspace,
+    CloseIntent, CloseProject, CloseWindow, RestoreBanner, with_active_or_new_workspace,
 };
 use workspace::{Pane, notifications::DetachAndPromptErr};
 use zed_actions::{
@@ -1034,6 +1033,33 @@ fn register_actions(
                     )
                     .detach();
                 }
+            }
+        })
+        .register_action({
+            let app_state = Arc::downgrade(&app_state);
+            move |_, _: &zed_actions::workspace::NewIncognitoWindow, _, cx| {
+                let app_state = app_state.clone();
+                cx.defer(move |cx| {
+                    if let Some(app_state) = app_state.upgrade() {
+                        open_new(
+                            Default::default(),
+                            app_state,
+                            cx,
+                            |workspace, window, cx| {
+                                cx.activate(true);
+                                workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+                                if let Some(view) = workspace.mode_view(ModeId::BROWSER, cx) {
+                                    if let Ok(browser_view) = view.downcast::<BrowserView>() {
+                                        browser_view.update(cx, |browser_view, cx| {
+                                            browser_view.configure_as_incognito_window(cx);
+                                        });
+                                    }
+                                }
+                            },
+                        )
+                        .detach();
+                    }
+                });
             }
         })
         .register_action({

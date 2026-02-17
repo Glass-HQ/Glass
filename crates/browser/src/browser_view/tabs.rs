@@ -5,13 +5,14 @@ use gpui::{App, AppContext as _, Context, Entity, Task, Window};
 use std::time::Duration;
 
 use super::{
-    BrowserView, CloseTab, NewTab, NextTab, PreviousTab, ReopenClosedTab, ToggleSidebar,
-    TabBarMode, MAX_CLOSED_TABS,
+    BrowserView, CloseTab, MAX_CLOSED_TABS, NewTab, NextTab, PreviousTab, ReopenClosedTab,
+    TabBarMode, ToggleSidebar,
 };
 
 impl BrowserView {
     pub(super) fn add_tab(&mut self, cx: &mut Context<Self>) {
         let tab = cx.new(|cx| BrowserTab::new(cx));
+        self.configure_tab_request_context(&tab, cx);
 
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
@@ -24,7 +25,9 @@ impl BrowserView {
     pub fn open_url(&mut self, url: &str, cx: &mut Context<Self>) {
         log::info!(
             "[default-browser] BrowserView::open_url called with: {}, message_pump_started: {}, last_viewport: {:?}",
-            url, self.message_pump_started, self.last_viewport
+            url,
+            self.message_pump_started,
+            self.last_viewport
         );
         let tab = cx.new(|cx| {
             let mut tab = BrowserTab::new(cx);
@@ -32,6 +35,7 @@ impl BrowserView {
             tab.set_pending_url(url.to_string());
             tab
         });
+        self.configure_tab_request_context(&tab, cx);
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
 
@@ -57,6 +61,7 @@ impl BrowserView {
             tab.set_pending_url(url.to_string());
             tab
         });
+        self.configure_tab_request_context(&tab, cx);
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
         self.tabs.push(tab);
@@ -82,7 +87,9 @@ impl BrowserView {
         }
 
         let url = url.to_string();
+        let request_context = self.request_context_for_new_tab();
         tab_entity.update(cx, |tab, _| {
+            tab.set_request_context(request_context);
             tab.set_new_tab_page(false);
             tab.set_scale_factor(scale_factor);
             tab.set_size(width, height);
@@ -173,7 +180,8 @@ impl BrowserView {
             return;
         }
 
-        if let Some(old_tab) = self.active_tab() {
+        if let Some(old_tab) = self.active_tab().cloned() {
+            self.clear_find_for_tab_switch(&old_tab, window, cx);
             old_tab.update(cx, |tab, _| {
                 tab.set_focus(false);
                 tab.set_hidden(true);
@@ -334,6 +342,10 @@ impl BrowserView {
         }
 
         if let Some(tab) = self.active_tab().cloned() {
+            self.clear_find_for_tab_switch(&tab, window, cx);
+        }
+
+        if let Some(tab) = self.active_tab().cloned() {
             self.push_closed_tab(&tab, cx);
         }
 
@@ -388,6 +400,7 @@ impl BrowserView {
         let favicon_url = closed.favicon_url.clone();
 
         let tab = cx.new(|cx| BrowserTab::new_with_state(url, title, false, favicon_url, cx));
+        self.configure_tab_request_context(&tab, cx);
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
         self.tabs.push(tab.clone());
@@ -450,6 +463,12 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if index == self.active_tab_index {
+            if let Some(tab) = self.active_tab().cloned() {
+                self.clear_find_for_tab_switch(&tab, window, cx);
+            }
+        }
+
         self.close_tab_at_inner(index, cx);
         self.update_toolbar_active_tab(window, cx);
     }
@@ -552,7 +571,8 @@ impl BrowserView {
                 });
             }
         }
-        self.tabs.retain(|tab| tab == &keep_tab || tab.read(cx).is_pinned());
+        self.tabs
+            .retain(|tab| tab == &keep_tab || tab.read(cx).is_pinned());
         if let Some(new_index) = self.tabs.iter().position(|t| t == &keep_tab) {
             self.active_tab_index = new_index;
         } else {

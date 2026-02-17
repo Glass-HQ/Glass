@@ -1,5 +1,5 @@
 use crate::input;
-use gpui::{point, Context, MouseButton, Window};
+use gpui::{Context, MouseButton, Window, point};
 
 use super::BrowserView;
 
@@ -52,9 +52,13 @@ impl BrowserView {
     pub(super) fn handle_key_down(
         &mut self,
         event: &gpui::KeyDownEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.find_editor_is_focused(window, cx) {
+            return;
+        }
+
         if let Some(tab) = self.active_tab() {
             tab.update(cx, |tab, _| {
                 tab.set_focus(true);
@@ -75,9 +79,13 @@ impl BrowserView {
     pub(super) fn handle_key_up(
         &mut self,
         event: &gpui::KeyUpEvent,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.find_editor_is_focused(window, cx) {
+            return;
+        }
+
         if let Some(tab) = self.active_tab() {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
