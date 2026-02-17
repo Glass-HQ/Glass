@@ -1,7 +1,7 @@
 use crate::{
     Anchor, Autoscroll, BufferSerialization, Capability, Editor, EditorEvent, EditorSettings,
-    ExcerptId, ExcerptRange, FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData,
-    ReportEditorEvent, SearchWithinRange, SelectionEffects, ToPoint as _,
+    FormatTarget, MultiBuffer, MultiBufferSnapshot, NavigationData, ReportEditorEvent,
+    SelectionEffects, ToPoint as _,
     display_map::HighlightKey,
     editor_settings::SeedQuerySetting,
     persistence::{DB, SerializedEditor},
@@ -34,8 +34,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use text::{BufferId, BufferSnapshot, Selection};
-use theme::Theme;
+use text::{BufferSnapshot, Selection};
 use ui::{IconDecorationKind, prelude::*};
 use util::{TryFutureExt, paths::PathExt};
 use workspace::{
