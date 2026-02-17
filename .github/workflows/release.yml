@@ -10,7 +10,7 @@ on:
     - v*
 jobs:
   run_tests_mac:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-mac-large
     steps:
     - name: steps::checkout_repo
@@ -51,7 +51,7 @@ jobs:
         rm -rf ./../.cargo
     timeout-minutes: 60
   run_tests_linux:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-16x32-ubuntu-2204
     steps:
     - name: steps::checkout_repo
@@ -106,7 +106,7 @@ jobs:
         - 5432:5432
         options: --health-cmd pg_isready --health-interval 500ms --health-timeout 5s --health-retries 10
   run_tests_windows:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: self-32vcpu-windows-2022
     steps:
     - name: steps::checkout_repo
@@ -146,7 +146,7 @@ jobs:
       shell: pwsh
     timeout-minutes: 60
   clippy_mac:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-mac-large
     steps:
     - name: steps::checkout_repo
@@ -175,7 +175,7 @@ jobs:
       run: sccache --show-stats || true
     timeout-minutes: 60
   clippy_linux:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-16x32-ubuntu-2204
     steps:
     - name: steps::checkout_repo
@@ -210,7 +210,7 @@ jobs:
       run: sccache --show-stats || true
     timeout-minutes: 60
   clippy_windows:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: self-32vcpu-windows-2022
     steps:
     - name: steps::checkout_repo
@@ -238,7 +238,7 @@ jobs:
       shell: pwsh
     timeout-minutes: 60
   check_scripts:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-2x4-ubuntu-2404
     steps:
     - name: steps::checkout_repo
@@ -263,7 +263,7 @@ jobs:
         fi
     timeout-minutes: 60
   create_draft_release:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-2x4-ubuntu-2404
     steps:
     - name: steps::checkout_repo

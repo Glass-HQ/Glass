@@ -13,7 +13,7 @@ on:
   workflow_dispatch: {}
 jobs:
   determine_bump_type:
-    if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
+    if: (github.repository_owner == 'Glass-HQ')
     runs-on: namespace-profile-2x4-ubuntu-2404
     permissions: {}
     steps:
