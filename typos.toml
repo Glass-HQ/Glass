@@ -83,6 +83,8 @@ extend-ignore-re = [
     # AMD GPU Services
     "ags",
     # AMD GPU Services
-    "AGS"
+    "AGS",
+    # Apple Unique Device Identifier
+    "udid"
 ]
 check-filename = true
