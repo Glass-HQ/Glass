@@ -71,10 +71,7 @@ pub(crate) fn run_tests() -> Workflow {
         )
         .concurrency(
             Concurrency::default()
-                .group(concat!(
-                    "${{ github.workflow }}-${{ github.ref_name }}-",
-                    "${{ github.ref_name == 'main' && github.sha || 'anysha' }}"
-                ))
+                .group("${{ github.workflow }}-${{ github.ref_name }}-${{ github.sha }}")
                 .cancel_in_progress(true),
         )
         .add_env(("CARGO_TERM_COLOR", "always"))

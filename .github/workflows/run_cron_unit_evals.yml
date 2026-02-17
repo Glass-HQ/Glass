@@ -29,10 +29,7 @@ jobs:
         mkdir -p ./../.cargo
         cp ./.cargo/ci-config.toml ./../.cargo/config.toml
     - name: steps::cache_rust_dependencies_namespace
-      uses: namespacelabs/nscloud-cache-action@v1
-      with:
-        cache: rust
-        path: ~/.rustup
+      uses: Swatinem/rust-cache@v2
     - name: steps::setup_linux
       run: ./script/linux
     - name: steps::install_mold

@@ -18,10 +18,7 @@ jobs:
       with:
         clean: false
     - name: steps::cache_rust_dependencies_namespace
-      uses: namespacelabs/nscloud-cache-action@v1
-      with:
-        cache: rust
-        path: ~/.rustup
+      uses: Swatinem/rust-cache@v2
     - name: steps::setup_linux
       run: ./script/linux
     - name: publish_extension_cli::publish_job::build_extension_cli
@@ -48,10 +45,7 @@ jobs:
       with:
         clean: false
     - name: steps::cache_rust_dependencies_namespace
-      uses: namespacelabs/nscloud-cache-action@v1
-      with:
-        cache: rust
-        path: ~/.rustup
+      uses: Swatinem/rust-cache@v2
     - id: short-sha
       name: publish_extension_cli::get_short_sha
       run: |
