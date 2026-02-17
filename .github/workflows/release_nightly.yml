@@ -13,7 +13,7 @@ on:
 jobs:
   check_style:
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-mac-large
+    runs-on: macos-14
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -27,7 +27,7 @@ jobs:
     timeout-minutes: 60
   run_tests_windows:
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: windows-2022
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -67,7 +67,7 @@ jobs:
     timeout-minutes: 60
   clippy_windows:
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: self-32vcpu-windows-2022
+    runs-on: windows-2022
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -98,7 +98,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-8x32-ubuntu-2004-arm-m4
+    runs-on: ubuntu-24.04-arm
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -144,7 +144,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-32x64-ubuntu-2004
+    runs-on: ubuntu-20.04
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -190,7 +190,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-mac-large
+    runs-on: macos-14
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -241,7 +241,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: namespace-profile-mac-large
+    runs-on: macos-14
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -292,7 +292,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: self-32vcpu-windows-2022
+    runs-on: windows-2022
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -345,7 +345,7 @@ jobs:
     - check_style
     - run_tests_windows
     - clippy_windows
-    runs-on: self-32vcpu-windows-2022
+    runs-on: windows-2022
     env:
       CARGO_INCREMENTAL: 0
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
@@ -398,7 +398,7 @@ jobs:
     - check_style
     - run_tests_windows
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-32x64-ubuntu-2004
+    runs-on: ubuntu-20.04
     env:
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
       ZED_MINIDUMP_ENDPOINT: ${{ secrets.ZED_SENTRY_MINIDUMP_ENDPOINT }}
@@ -432,7 +432,7 @@ jobs:
     - check_style
     - run_tests_windows
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-mac-large
+    runs-on: macos-14
     env:
       ZED_CLIENT_CHECKSUM_SEED: ${{ secrets.ZED_CLIENT_CHECKSUM_SEED }}
       ZED_MINIDUMP_ENDPOINT: ${{ secrets.ZED_SENTRY_MINIDUMP_ENDPOINT }}
@@ -485,7 +485,7 @@ jobs:
     - bundle_windows_aarch64
     - bundle_windows_x86_64
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-4x8-ubuntu-2204
+    runs-on: ubuntu-22.04
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -547,7 +547,7 @@ jobs:
     - bundle_windows_aarch64
     - bundle_windows_x86_64
     if: failure()
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
     - name: release::send_slack_message
       run: |

@@ -7,7 +7,7 @@ on:
   workflow_dispatch: {}
 jobs:
   fetch_extension_repos:
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
     - id: list-repos
       name: extension_workflow_rollout::fetch_extension_repos::get_repositories
@@ -34,7 +34,7 @@ jobs:
     needs:
     - fetch_extension_repos
     if: needs.fetch_extension_repos.outputs.repos != '[]'
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     strategy:
       matrix:
         repo: ${{ fromJson(needs.fetch_extension_repos.outputs.repos) }}
@@ -158,7 +158,7 @@ jobs:
   create_rollout_tag:
     needs:
     - rollout_workflows_to_extension
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
     - id: generate-token
       name: extension_bump::generate_token

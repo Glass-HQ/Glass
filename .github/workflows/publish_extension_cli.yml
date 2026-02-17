@@ -11,7 +11,7 @@ on:
 jobs:
   publish_job:
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -35,7 +35,7 @@ jobs:
     needs:
     - publish_job
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-8x16-ubuntu-2204
+    runs-on: ubuntu-22.04
     steps:
     - id: generate-token
       name: extension_bump::generate_token
@@ -84,7 +84,7 @@ jobs:
     needs:
     - publish_job
     if: (github.repository_owner == 'Glass-HQ')
-    runs-on: namespace-profile-2x4-ubuntu-2404
+    runs-on: ubuntu-24.04
     steps:
     - id: generate-token
       name: extension_bump::generate_token
