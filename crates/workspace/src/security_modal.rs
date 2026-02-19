@@ -7,7 +7,10 @@ use std::{
 };
 
 use collections::{HashMap, HashSet};
-use gpui::{DismissEvent, EventEmitter, FocusHandle, Focusable, WeakEntity};
+use gpui::{
+    CheckboxChangeEvent, DismissEvent, EventEmitter, FocusHandle, Focusable, WeakEntity,
+    native_checkbox,
+};
 
 use project::{
     WorktreeId,
@@ -16,9 +19,7 @@ use project::{
 };
 use smallvec::SmallVec;
 use theme::ActiveTheme;
-use ui::{
-    AlertModal, Checkbox, FluentBuilder, KeyBinding, ListBulletItem, ToggleState, prelude::*,
-};
+use ui::{AlertModal, FluentBuilder, KeyBinding, ListBulletItem, prelude::*};
 
 use crate::{DismissDecision, ModalView, ToggleWorktreeSecurity};
 
@@ -156,11 +157,11 @@ impl Render for SecurityModal {
                     )
                     .map(|this| match trust_label {
                         Some(trust_label) => this.child(
-                            Checkbox::new("trust-parents", ToggleState::from(self.trust_parents))
-                                .label(trust_label)
-                                .on_click(cx.listener(
-                                    |security_modal, state: &ToggleState, _, cx| {
-                                        security_modal.trust_parents = state.selected();
+                            native_checkbox("trust-parents", trust_label)
+                                .checked(self.trust_parents)
+                                .on_change(cx.listener(
+                                    |security_modal, event: &CheckboxChangeEvent, _, cx| {
+                                        security_modal.trust_parents = event.checked;
                                         cx.notify();
                                         cx.stop_propagation();
                                     },

@@ -5,11 +5,11 @@ use edit_prediction::{
     sweep_ai::{SWEEP_CREDENTIALS_URL, sweep_api_token},
 };
 use edit_prediction_ui::{get_available_providers, set_completion_provider};
-use gpui::{Entity, ScrollHandle, prelude::*};
+use gpui::{DropdownSelectEvent, Entity, ScrollHandle, native_dropdown, prelude::*};
 use language::language_settings::AllLanguageSettings;
 
 use settings::Settings as _;
-use ui::{ButtonLink, ConfiguredApiCard, ContextMenu, DropdownMenu, DropdownStyle, prelude::*};
+use ui::{ButtonLink, ConfiguredApiCard, prelude::*};
 use workspace::AppState;
 
 const OLLAMA_API_URL_PLACEHOLDER: &str = "http://localhost:11434";
@@ -105,31 +105,23 @@ pub(crate) fn render_edit_prediction_setup_page(
         .into_any_element()
 }
 
-fn render_provider_dropdown(window: &mut Window, cx: &mut App) -> AnyElement {
+fn render_provider_dropdown(_window: &mut Window, cx: &mut App) -> AnyElement {
     let current_provider = AllLanguageSettings::get_global(cx)
         .edit_predictions
         .provider;
-    let current_provider_name = current_provider.display_name().unwrap_or("No provider set");
-
-    let menu = ContextMenu::build(window, cx, move |mut menu, _, cx| {
-        let available_providers = get_available_providers(cx);
-        let fs = <dyn fs::Fs>::global(cx);
-
-        for provider in available_providers {
-            let Some(name) = provider.display_name() else {
-                continue;
-            };
-            let is_current = provider == current_provider;
-
-            menu = menu.toggleable_entry(name, is_current, IconPosition::Start, None, {
-                let fs = fs.clone();
-                move |_, cx| {
-                    set_completion_provider(fs.clone(), cx, provider);
-                }
-            });
-        }
-        menu
-    });
+    let fs = <dyn fs::Fs>::global(cx);
+    let providers: Vec<_> = get_available_providers(cx)
+        .into_iter()
+        .filter_map(|provider| provider.display_name().map(|name| (provider, name)))
+        .collect();
+    let provider_names: Vec<_> = providers
+        .iter()
+        .map(|(_, provider_name)| *provider_name)
+        .collect();
+    let selected_provider_index = providers
+        .iter()
+        .position(|(provider, _)| *provider == current_provider)
+        .unwrap_or(0);
 
     v_flex()
         .id("provider-selector")
@@ -153,9 +145,13 @@ fn render_provider_dropdown(window: &mut Window, cx: &mut App) -> AnyElement {
                         ),
                 )
                 .child(
-                    DropdownMenu::new("provider-dropdown", current_provider_name, menu)
-                        .tab_index(0)
-                        .style(DropdownStyle::Outlined),
+                    native_dropdown("provider-dropdown", &provider_names)
+                        .selected_index(selected_provider_index)
+                        .on_select(move |event: &DropdownSelectEvent, _window, cx| {
+                            if let Some((provider, _)) = providers.get(event.index) {
+                                set_completion_provider(fs.clone(), cx, *provider);
+                            }
+                        }),
                 ),
         )
         .into_any_element()
