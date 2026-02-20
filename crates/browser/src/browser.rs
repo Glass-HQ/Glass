@@ -12,7 +12,7 @@ mod display_handler;
 mod download_handler;
 mod events;
 mod find_handler;
-mod history;
+pub mod history;
 mod input;
 mod keycodes;
 mod life_span_handler;

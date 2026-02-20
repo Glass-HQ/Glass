@@ -15,7 +15,7 @@ use gpui::{
 };
 use language::File as _;
 use persistence::IMAGE_VIEWER;
-use project::{ImageItem, Project, ProjectPath, image_store::ImageItemEvent};
+use project::{ImageItem, Project, ProjectPath, image_store::{ImageItemEvent, ImageMetadata}};
 use settings::Settings;
 use theme::ThemeSettings;
 use ui::{Tooltip, prelude::*};
@@ -64,6 +64,10 @@ pub struct ImageView {
 }
 
 impl ImageView {
+    pub fn image_metadata(&self, cx: &App) -> Option<ImageMetadata> {
+        self.image_item.read(cx).image_metadata
+    }
+
     fn is_dragging(&self) -> bool {
         self.last_mouse_position.is_some()
     }

@@ -8,12 +8,20 @@ use gpui::{
     Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
     FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
     ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
-    deferred, div, native_icon_button, px,
+    actions, deferred, div, native_icon_button, px,
 };
 use settings::SettingsStore;
 use std::sync::Arc;
 use theme::ActiveTheme;
 use ui::{ContextMenu, IconButton, Tab, Tooltip, prelude::*, right_click_menu};
+
+actions!(
+    workspace,
+    [
+        /// Opens the project diagnostics view from the dock button bar.
+        DeployProjectDiagnostics
+    ]
+);
 
 pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 
@@ -22,11 +30,32 @@ pub(crate) const RESIZE_HANDLE_SIZE: Pixels = px(6.);
 /// state during render - when this entity renders, the workspace update is complete.
 pub struct DockButtonBar {
     workspace: WeakEntity<Workspace>,
+    _subscriptions: Vec<Subscription>,
 }
 
 impl DockButtonBar {
-    pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
-        cx.new(|_| Self { workspace })
+    pub fn new(
+        workspace: WeakEntity<Workspace>,
+        project: &Entity<project::Project>,
+        cx: &mut App,
+    ) -> Entity<Self> {
+        let project = project.clone();
+        cx.new(|cx| {
+            let subscription = cx.subscribe(&project, |_this, _project, event, cx| {
+                if matches!(
+                    event,
+                    project::Event::DiagnosticsUpdated { .. }
+                        | project::Event::DiskBasedDiagnosticsFinished { .. }
+                        | project::Event::LanguageServerRemoved(_)
+                ) {
+                    cx.notify();
+                }
+            });
+            Self {
+                workspace,
+                _subscriptions: vec![subscription],
+            }
+        })
     }
 }
 
@@ -153,6 +182,27 @@ impl Render for DockButtonBar {
                 }
             });
 
+        let summary = workspace_read.project().read(cx).diagnostic_summary(false, cx);
+        let diagnostics_icon = if summary.error_count > 0 {
+            IconName::XCircle
+        } else if summary.warning_count > 0 {
+            IconName::Warning
+        } else {
+            IconName::Check
+        };
+        let diagnostics_button = IconButton::new("diagnostics-button", diagnostics_icon)
+            .icon_size(IconSize::Small)
+            .when(summary.error_count > 0, |this| {
+                this.icon_color(Color::Error)
+            })
+            .when(summary.error_count == 0 && summary.warning_count > 0, |this| {
+                this.icon_color(Color::Warning)
+            })
+            .tooltip(Tooltip::text("Project Diagnostics"))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(Box::new(DeployProjectDiagnostics), cx);
+            });
+
         div()
             .w_full()
             .flex()
@@ -166,6 +216,7 @@ impl Render for DockButtonBar {
             .bg(cx.theme().colors().panel_background)
             .children(buttons)
             .child(search_button)
+            .child(diagnostics_button)
             .into_any_element()
     }
 }

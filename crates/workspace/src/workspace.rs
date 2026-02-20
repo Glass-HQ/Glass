@@ -20,7 +20,7 @@ pub mod welcome;
 mod workspace_settings;
 
 pub use crate::notifications::NotificationFrame;
-pub use dock::Panel;
+pub use dock::{DeployProjectDiagnostics, Panel};
 pub use multi_workspace::{
     DraggedSidebar, FocusWorkspaceSidebar, MultiWorkspace, NewWorkspaceInWindow,
     NextWorkspaceInWindow, PreviousWorkspaceInWindow, Sidebar, SidebarEvent, SidebarHandle,
@@ -1475,7 +1475,7 @@ impl Workspace {
         )
         .detach();
 
-        let dock_button_bar = DockButtonBar::new(weak_handle.clone(), cx);
+        let dock_button_bar = DockButtonBar::new(weak_handle.clone(), &project, cx);
         let left_dock = Dock::new(
             DockPosition::Left,
             modal_layer.clone(),

@@ -15,6 +15,11 @@ use gpui::{
     Focusable, IntoElement, ParentElement, Render, Subscription, WeakEntity, actions, div,
     ease_in_out, pulsating_between,
 };
+#[cfg(target_os = "macos")]
+use gpui::{
+    NativePopover, NativePopoverAnchor, NativePopoverCheckbox, NativePopoverClickableRow,
+    NativePopoverContentItem, NativePopoverProgress, NativePopoverToggle,
+};
 use indoc::indoc;
 use language::{
     EditPredictionsMode, File, Language,
@@ -1335,6 +1340,229 @@ impl EditPredictionButton {
         self.editor_focus_handle = Some(editor.focus_handle(cx));
 
         cx.notify();
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl EditPredictionButton {
+    pub fn show_native_popover(&self, window: &mut Window, cx: &mut Context<Self>) {
+        if DisableAiSettings::get_global(cx).disable_ai {
+            return;
+        }
+
+        let language_settings = all_language_settings(None, cx);
+        let provider = language_settings.edit_predictions.provider;
+        let globally_enabled = language_settings.show_edit_predictions(None, cx);
+        let current_mode = language_settings.edit_predictions_mode();
+
+        let mut items: Vec<NativePopoverContentItem> = Vec::new();
+        let mut row_count: usize = 0;
+
+        let provider_name = provider
+            .display_name()
+            .unwrap_or("Edit Predictions");
+
+        items.push(NativePopoverContentItem::heading(provider_name));
+        row_count += 1;
+
+        // Usage section for Zed/Experimental providers
+        let user = self.user_store.read(cx).current_user();
+        let needs_sign_in = user.is_none()
+            && matches!(
+                provider,
+                EditPredictionProvider::None | EditPredictionProvider::Zed
+            );
+
+        if needs_sign_in {
+            items.push(
+                NativePopoverClickableRow::new("Sign In & Start Using")
+                    .icon("person.crop.circle")
+                    .on_click(|window, cx| {
+                        let client = Client::global(cx);
+                        window
+                            .spawn(cx, async move |cx| {
+                                client
+                                    .sign_in_with_optional_connect(true, &cx)
+                                    .await
+                                    .log_err();
+                            })
+                            .detach();
+                    })
+                    .into(),
+            );
+            row_count += 1;
+        } else if let Some(usage) = self
+            .edit_prediction_provider
+            .as_ref()
+            .and_then(|p| p.usage(cx))
+        {
+            items.push(NativePopoverContentItem::separator());
+            items.push(NativePopoverContentItem::heading("Usage"));
+            row_count += 2;
+
+            let label = match usage.limit {
+                UsageLimit::Limited(limit) => format!("{} / {}", usage.amount, limit),
+                UsageLimit::Unlimited => format!("{} / \u{221e}", usage.amount),
+            };
+
+            if let UsageLimit::Limited(limit) = usage.limit {
+                items.push(
+                    NativePopoverProgress::new(usage.amount as f64, limit as f64)
+                        .label(label)
+                        .into(),
+                );
+            } else {
+                items.push(NativePopoverContentItem::small_label(label));
+            }
+            row_count += 1;
+
+            if usage.over_limit() {
+                items.push(
+                    NativePopoverClickableRow::new("Subscribe to increase your limit")
+                        .on_click(|_window, cx| {
+                            cx.open_url(&zed_urls::account_url(cx));
+                        })
+                        .into(),
+                );
+                row_count += 1;
+            }
+        }
+
+        // Show predictions toggle
+        items.push(NativePopoverContentItem::separator());
+        items.push(NativePopoverContentItem::heading("Show Edit Predictions For"));
+        row_count += 2;
+
+        {
+            let fs = self.fs.clone();
+            items.push(
+                NativePopoverToggle::new("All Files", globally_enabled)
+                    .on_change(move |_checked, window, cx| {
+                        window.dispatch_action(
+                            workspace::ToggleEditPrediction.boxed_clone(),
+                            cx,
+                        );
+                    })
+                    .into(),
+            );
+            row_count += 1;
+
+            if let Some(language) = &self.language {
+                let language_enabled =
+                    language_settings::language_settings(Some(language.name()), None, cx)
+                        .show_edit_predictions;
+                let language_name_str = language.name().to_string();
+                let lang = language.clone();
+                items.push(
+                    NativePopoverToggle::new(language_name_str, language_enabled)
+                        .on_change({
+                            let fs = fs.clone();
+                            move |_checked, _window, cx| {
+                                toggle_show_edit_predictions_for_language(
+                                    lang.clone(),
+                                    fs.clone(),
+                                    cx,
+                                );
+                            }
+                        })
+                        .into(),
+                );
+                row_count += 1;
+            }
+        }
+
+        // Display modes
+        items.push(NativePopoverContentItem::separator());
+        items.push(NativePopoverContentItem::heading("Display Mode"));
+        row_count += 2;
+
+        let eager_mode = matches!(current_mode, EditPredictionsMode::Eager);
+        let subtle_mode = matches!(current_mode, EditPredictionsMode::Subtle);
+
+        {
+            let fs = self.fs.clone();
+            items.push(
+                NativePopoverCheckbox::new("Eager", eager_mode)
+                    .on_change({
+                        let fs = fs.clone();
+                        move |_checked, _window, cx| {
+                            toggle_edit_prediction_mode(
+                                fs.clone(),
+                                EditPredictionsMode::Eager,
+                                cx,
+                            );
+                        }
+                    })
+                    .into(),
+            );
+            row_count += 1;
+
+            items.push(
+                NativePopoverCheckbox::new("Subtle", subtle_mode)
+                    .on_change(move |_checked, _window, cx| {
+                        toggle_edit_prediction_mode(
+                            fs.clone(),
+                            EditPredictionsMode::Subtle,
+                            cx,
+                        );
+                    })
+                    .into(),
+            );
+            row_count += 1;
+        }
+
+        // Provider switching
+        let available_providers = get_available_providers(cx);
+        let other_providers: Vec<_> = available_providers
+            .into_iter()
+            .filter(|p| *p != EditPredictionProvider::None && *p != provider)
+            .collect();
+
+        if !other_providers.is_empty() {
+            items.push(NativePopoverContentItem::separator());
+            items.push(NativePopoverContentItem::heading("Switch Provider"));
+            row_count += 2;
+
+            for other_provider in other_providers {
+                if let Some(name) = other_provider.display_name() {
+                    let fs = self.fs.clone();
+                    items.push(
+                        NativePopoverClickableRow::new(name)
+                            .on_click(move |_window, cx| {
+                                set_completion_provider(fs.clone(), cx, other_provider);
+                            })
+                            .into(),
+                    );
+                    row_count += 1;
+                }
+            }
+        }
+
+        // Configure row
+        items.push(NativePopoverContentItem::separator());
+        items.push(
+            NativePopoverClickableRow::new("Configure Providers")
+                .icon("gearshape")
+                .on_click(move |window, cx| {
+                    window.dispatch_action(
+                        zed_actions::OpenSettingsAt {
+                            path: "edit_predictions.providers".to_string(),
+                        }
+                        .boxed_clone(),
+                        cx,
+                    );
+                })
+                .into(),
+        );
+        row_count += 2;
+
+        let height = (row_count as f64 * 28.0) + 32.0;
+        let popover = NativePopover::new(300.0, height).items(items);
+
+        window.show_native_popover(
+            popover,
+            NativePopoverAnchor::ToolbarItem("glass.status.predictions".into()),
+        );
     }
 }
 

@@ -223,8 +223,12 @@ impl BrowserView {
         this
     }
 
-    fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
+    pub fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
         self.tabs.get(self.active_tab_index)
+    }
+
+    pub fn history(&self) -> &Entity<BrowserHistory> {
+        &self.history
     }
 
     fn request_context_for_new_tab(&self) -> Option<cef::RequestContext> {

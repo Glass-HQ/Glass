@@ -14,6 +14,11 @@ use client::proto;
 use collections::HashSet;
 use editor::{Editor, EditorEvent};
 use gpui::{Corner, Entity, Subscription, Task, WeakEntity, actions};
+#[cfg(target_os = "macos")]
+use gpui::{
+    NativeColor, NativePopover, NativePopoverAnchor, NativePopoverClickableRow,
+    NativePopoverColorDot, NativePopoverContentItem,
+};
 use language::{BinaryStatus, BufferId, ServerHealth};
 use lsp::{LanguageServerId, LanguageServerName, LanguageServerSelector};
 use project::{
@@ -1159,6 +1164,181 @@ impl LspButton {
                     .ok();
             });
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl LspButton {
+    pub fn show_native_popover(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.regenerate_items(cx);
+
+        let lsp_logs = cx
+            .try_global::<GlobalLogStore>()
+            .map(|lsp_logs| lsp_logs.0.clone());
+
+        // Extract all data from state before doing any mutable borrows on cx.
+        let (server_infos, lsp_store, workspace, process_memory_cache) = {
+            let state = self.server_state.read(cx);
+            let infos: Vec<ServerInfo> = state
+                .items
+                .iter()
+                .filter_map(|item| item.server_info())
+                .collect();
+            (
+                infos,
+                state.lsp_store.clone(),
+                state.workspace.clone(),
+                state.process_memory_cache.clone(),
+            )
+        };
+
+        let server_metadata = lsp_store
+            .update(cx, |lsp_store, _| {
+                lsp_store
+                    .language_server_statuses()
+                    .map(|(server_id, status)| {
+                        (
+                            server_id,
+                            (
+                                status.server_version.clone(),
+                                status.process_id,
+                            ),
+                        )
+                    })
+                    .collect::<HashMap<_, _>>()
+            })
+            .unwrap_or_default();
+
+        let is_remote = lsp_store
+            .update(cx, |lsp_store, _| lsp_store.as_remote().is_some())
+            .unwrap_or(false);
+
+        let mut items: Vec<NativePopoverContentItem> = Vec::new();
+        items.push(NativePopoverContentItem::heading("Language Servers"));
+
+        let server_count = server_infos.len();
+        for server_info in &server_infos {
+
+            let (native_color, status_label) = server_info
+                .binary_status
+                .as_ref()
+                .and_then(|binary_status| match binary_status.status {
+                    BinaryStatus::None => None,
+                    BinaryStatus::CheckingForUpdate
+                    | BinaryStatus::Downloading
+                    | BinaryStatus::Starting => Some((NativeColor::Yellow, "Starting\u{2026}")),
+                    BinaryStatus::Stopping | BinaryStatus::Stopped => {
+                        Some((NativeColor::Gray, "Stopped"))
+                    }
+                    BinaryStatus::Failed { .. } => Some((NativeColor::Red, "Error")),
+                })
+                .or_else(|| {
+                    Some(match server_info.health? {
+                        ServerHealth::Ok => (NativeColor::Green, "Running"),
+                        ServerHealth::Warning => (NativeColor::Yellow, "Warning"),
+                        ServerHealth::Error => (NativeColor::Red, "Error"),
+                    })
+                })
+                .unwrap_or((NativeColor::Green, "Running"));
+
+            let (server_version, process_id) = server_metadata
+                .get(&server_info.id)
+                .map(|(version, pid)| (version.clone(), *pid))
+                .unwrap_or((None, None));
+
+            let memory_label = process_id.map(|pid| {
+                let bytes = process_memory_cache.borrow_mut().get_memory_usage(pid);
+                if bytes >= 1024 * 1024 * 1024 {
+                    format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+                } else {
+                    format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+                }
+            });
+
+            let detail = match (&server_version, &memory_label) {
+                (Some(version), Some(memory)) => {
+                    Some(SharedString::from(format!("v{} \u{2022} {}", version.as_ref(), memory)))
+                }
+                (Some(version), None) => {
+                    Some(SharedString::from(format!("v{}", version.as_ref())))
+                }
+                (None, Some(memory)) => Some(SharedString::from(memory.clone())),
+                (None, None) => Some(SharedString::from(status_label)),
+            };
+
+            let server_name = server_info.name.0.clone();
+            let server_selector = server_info.server_selector();
+            let has_logs = lsp_logs.as_ref().is_some_and(|logs| {
+                is_remote || logs.read(cx).has_server_logs(&server_selector)
+            });
+
+            let mut dot = NativePopoverColorDot::new(server_name, native_color);
+            if let Some(detail) = detail {
+                dot = dot.detail(detail);
+            }
+
+            if has_logs {
+                let lsp_logs = lsp_logs.clone();
+                let workspace = workspace.clone();
+                let server_selector = server_info.server_selector();
+                dot = dot.on_click(move |window, cx| {
+                    if let Some(lsp_logs) = &lsp_logs {
+                        crate::lsp_log_view::open_server_trace(
+                            lsp_logs,
+                            workspace.clone(),
+                            server_selector.clone(),
+                            window,
+                            cx,
+                        );
+                    }
+                });
+            }
+
+            items.push(dot.into());
+        }
+
+        if server_count == 0 {
+            items.push(NativePopoverContentItem::small_label("No language servers"));
+        }
+
+        items.push(NativePopoverContentItem::separator());
+
+        let lsp_store_for_restart = lsp_store.clone();
+        let lsp_store_for_stop = lsp_store.clone();
+        items.push(
+            NativePopoverClickableRow::new("Restart All Servers")
+                .icon("arrow.clockwise")
+                .on_click(move |_window, cx| {
+                    lsp_store_for_restart
+                        .update(cx, |lsp_store, cx| {
+                            lsp_store.restart_all_language_servers(cx);
+                        })
+                        .ok();
+                })
+                .into(),
+        );
+        items.push(
+            NativePopoverClickableRow::new("Stop All Servers")
+                .icon("stop.circle")
+                .on_click(move |_window, cx| {
+                    lsp_store_for_stop
+                        .update(cx, |lsp_store, cx| {
+                            lsp_store.stop_all_language_servers(cx);
+                        })
+                        .ok();
+                })
+                .into(),
+        );
+
+        // heading(24) + servers(38 each with detail) + separator(8) + 2 rows(28 each) + padding(32)
+        let server_rows = server_count.max(1);
+        let height = 24.0 + (server_rows as f64 * 38.0) + 8.0 + (2.0 * 28.0) + 32.0;
+        let popover = NativePopover::new(300.0, height).items(items);
+
+        window.show_native_popover(
+            popover,
+            NativePopoverAnchor::ToolbarItem("glass.status.lsp".into()),
+        );
     }
 }
 
