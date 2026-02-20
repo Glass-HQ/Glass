@@ -417,13 +417,27 @@ pub fn initialize_workspace(
             }
         }
 
-        if let Some(title_bar) = workspace
-            .titlebar_item()
-            .and_then(|item| item.downcast::<title_bar::TitleBar>().ok())
+        #[cfg(target_os = "macos")]
         {
-            title_bar.update(cx, |title_bar, cx| {
-                title_bar.set_active_pane(&workspace.active_pane().clone(), window, cx);
-            });
+            if let Some(controller) = workspace
+                .titlebar_item()
+                .and_then(|item| item.downcast::<title_bar::NativeToolbarController>().ok())
+            {
+                controller.update(cx, |controller, cx| {
+                    controller.set_active_pane(&workspace.active_pane().clone(), window, cx);
+                });
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            if let Some(title_bar) = workspace
+                .titlebar_item()
+                .and_then(|item| item.downcast::<title_bar::TitleBar>().ok())
+            {
+                title_bar.update(cx, |title_bar, cx| {
+                    title_bar.set_active_pane(&workspace.active_pane().clone(), window, cx);
+                });
+            }
         }
 
         workspace.register_action(
@@ -525,17 +539,17 @@ pub fn initialize_workspace(
             }
         }
 
-        // On macOS, add LSP and edit prediction to right_items for active
-        // pane tracking (set_active_pane_item). They are not rendered.
+        // On macOS, add LSP and edit prediction to the native toolbar controller
+        // for active pane tracking (set_active_pane_item). They are not rendered.
         #[cfg(target_os = "macos")]
         {
-            if let Some(title_bar) = workspace
+            if let Some(controller) = workspace
                 .titlebar_item()
-                .and_then(|item| item.downcast::<title_bar::TitleBar>().ok())
+                .and_then(|item| item.downcast::<title_bar::NativeToolbarController>().ok())
             {
-                title_bar.update(cx, |title_bar, cx| {
-                    title_bar.add_right_item(lsp_button, window, cx);
-                    title_bar.add_right_item(edit_prediction_ui, window, cx);
+                controller.update(cx, |controller, cx| {
+                    controller.add_right_item(lsp_button, window, cx);
+                    controller.add_right_item(edit_prediction_ui, window, cx);
                 });
             }
         }
