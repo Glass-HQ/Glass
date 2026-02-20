@@ -515,8 +515,6 @@ impl NativeToolbarController {
             ));
         }
 
-        toolbar = toolbar.item(self.build_settings_item(cx));
-
         if let Some(connection_item) = self.build_connection_status_item(cx) {
             toolbar = toolbar.item(connection_item);
         }
@@ -546,7 +544,7 @@ impl NativeToolbarController {
     fn build_sidebar_toggle_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
         let workspace = self.workspace.clone();
         NativeToolbarItem::Button(
-            NativeToolbarButton::new("glass.sidebar_toggle", "Sidebar")
+            NativeToolbarButton::new("glass.sidebar_toggle", "")
                 .tool_tip("Toggle Sidebar")
                 .icon("sidebar.leading")
                 .on_click(move |_event, window, cx| {
@@ -732,17 +730,6 @@ impl NativeToolbarController {
                             }
                         });
                     }
-                }),
-        )
-    }
-
-    fn build_settings_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
-        NativeToolbarItem::Button(
-            NativeToolbarButton::new("glass.settings", "Settings")
-                .tool_tip("Settings")
-                .icon("gearshape")
-                .on_click(move |_event, window, cx| {
-                    window.dispatch_action(zed_actions::OpenSettings.boxed_clone(), cx);
                 }),
         )
     }
