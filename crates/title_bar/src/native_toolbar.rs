@@ -515,6 +515,8 @@ impl NativeToolbarController {
             ));
         }
 
+        toolbar = toolbar.item(NativeToolbarItem::Space);
+
         if let Some(connection_item) = self.build_connection_status_item(cx) {
             toolbar = toolbar.item(connection_item);
         }
