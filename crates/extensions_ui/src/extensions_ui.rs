@@ -15,7 +15,7 @@ use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
     Action, AnyElement, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
-    InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedStyle,
+    InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedShape,
     ParentElement, Point, Render, SegmentSelectEvent, Styled, Task, TextStyle,
     UniformListScrollHandle, WeakEntity, Window, actions, native_button, native_toggle_group,
     point, uniform_list,
@@ -1656,7 +1656,7 @@ impl Render for ExtensionsPage {
                                     ExtensionFilter::Installed => 1,
                                     ExtensionFilter::NotInstalled => 2,
                                 })
-                                .segment_style(NativeSegmentedStyle::Rounded)
+                                .border_shape(NativeSegmentedShape::Capsule)
                                 .on_select(cx.listener(
                                     |this, event: &SegmentSelectEvent, _, cx| {
                                         this.filter = match event.index {

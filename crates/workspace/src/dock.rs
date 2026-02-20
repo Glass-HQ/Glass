@@ -5,15 +5,15 @@ use anyhow::Context as _;
 use client::proto;
 
 use gpui::{
-    Action, AnyElement, AnyView, App, Axis, Context, Corner, Entity, EntityId, EventEmitter,
-    FocusHandle, Focusable, IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent,
-    ParentElement, Render, SharedString, StyleRefinement, Styled, Subscription, WeakEntity, Window,
-    actions, deferred, div, native_icon_button, px,
+    Action, AnyView, App, Axis, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
+    IntoElement, KeyContext, MouseButton, MouseDownEvent, MouseUpEvent, NativeSegmentedShape,
+    ParentElement, Render, SegmentSelectEvent, SharedString, StyleRefinement, Styled, Subscription,
+    WeakEntity, Window, actions, deferred, div, native_toggle_group,
 };
 use settings::SettingsStore;
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::{ContextMenu, IconButton, Tab, Tooltip, prelude::*, right_click_menu};
+use ui::{Tab, prelude::*};
 
 actions!(
     workspace,
@@ -76,11 +76,13 @@ impl Render for DockButtonBar {
             (&workspace_read.right_dock, DockPosition::Right),
         ];
 
-        let (menu_anchor, menu_attach) = (Corner::BottomLeft, Corner::TopLeft);
+        // Collect all panels from all docks for the segmented control
+        let mut panel_labels: Vec<SharedString> = Vec::new();
+        let mut panel_symbols: Vec<SharedString> = Vec::new();
+        let mut panel_ids: Vec<EntityId> = Vec::new();
+        let mut selected_segment: Option<usize> = None;
 
-        let mut buttons: Vec<AnyElement> = Vec::new();
-
-        for (dock_entity, dock_position) in all_docks {
+        for (dock_entity, _dock_position) in &all_docks {
             let dock = dock_entity.read(cx);
             let active_index = dock.active_panel_index();
             let is_open = dock.is_open();
@@ -90,118 +92,73 @@ impl Render for DockButtonBar {
                 let Some(icon) = panel.icon(window, cx) else {
                     continue;
                 };
-                let name = panel.persistent_name();
-                let panel_clone = panel.clone();
-                let icon_tooltip: SharedString =
-                    panel.icon_tooltip(window, cx).unwrap_or(name).into();
-                let panel_id = panel.panel_id();
+                let name = panel.icon_tooltip(window, cx).unwrap_or(panel.persistent_name());
+                let segment_idx = panel_labels.len();
 
-                let is_active_button = Some(i) == active_index && is_open;
-                let tooltip: SharedString = if is_active_button {
-                    format!("Close {} Dock", dock_position.label()).into()
-                } else {
-                    icon_tooltip.clone()
-                };
-                let workspace = self.workspace.clone();
+                // Track the first active+visible panel as the selected segment
+                if is_open && Some(i) == active_index && selected_segment.is_none() {
+                    selected_segment = Some(segment_idx);
+                }
 
-                buttons.push(
-                    right_click_menu(name)
-                        .menu({
-                            let panel = panel_clone.clone();
-                            move |window, cx| {
-                                let panel_position = panel.position(window, cx);
-                                const POSITIONS: [DockPosition; 3] = [
-                                    DockPosition::Left,
-                                    DockPosition::Right,
-                                    DockPosition::Bottom,
-                                ];
-
-                                ContextMenu::build(window, cx, |mut menu, _, cx| {
-                                    for position in POSITIONS {
-                                        if position != panel_position
-                                            && panel.position_is_valid(position, cx)
-                                        {
-                                            let panel = panel.clone();
-                                            menu = menu.entry(
-                                                format!("Dock {}", position.label()),
-                                                None,
-                                                move |window, cx| {
-                                                    panel.set_position(position, window, cx);
-                                                },
-                                            )
-                                        }
-                                    }
-                                    menu
-                                })
-                            }
-                        })
-                        .anchor(menu_anchor)
-                        .attach(menu_attach)
-                        .trigger({
-                            let tooltip = tooltip.clone();
-                            move |is_active, _window, _cx| {
-                                IconButton::new((name, is_active_button as u64), icon)
-                                    .icon_size(IconSize::Small)
-                                    .toggle_state(is_active_button)
-                                    .on_click({
-                                        let workspace = workspace.clone();
-                                        move |_, window, cx| {
-                                            let Some(workspace) = workspace.upgrade() else {
-                                                return;
-                                            };
-                                            workspace.update(cx, |workspace, cx| {
-                                                workspace.toggle_panel_for_id(panel_id, window, cx);
-                                            });
-                                        }
-                                    })
-                                    .when(!is_active, |this| {
-                                        this.tooltip(Tooltip::text(tooltip.clone()))
-                                    })
-                            }
-                        })
-                        .into_any_element(),
-                );
+                panel_labels.push(name.into());
+                panel_symbols.push(icon_to_sf_symbol(icon).into());
+                panel_ids.push(panel.panel_id());
             }
         }
 
-        if buttons.is_empty() {
+        if panel_ids.is_empty() {
             return div().into_any_element();
         }
 
-        let workspace_weak = self.workspace.clone();
-        let search_button = native_icon_button("search-button", "magnifyingglass")
-            .tooltip("Project Search")
-            .on_click(move |_, window, cx| {
-                if let Some(workspace) = workspace_weak.upgrade() {
-                    workspace.update(cx, |_workspace, cx| {
-                        window.dispatch_action(
-                            Box::new(crate::DeploySearch::default()),
-                            cx,
-                        );
-                    });
-                }
-            });
+        // Add search and diagnostics as extra segments
+        let search_segment_index = panel_labels.len();
+        panel_labels.push("Project Search".into());
+        panel_symbols.push("magnifyingglass".into());
 
         let summary = workspace_read.project().read(cx).diagnostic_summary(false, cx);
-        let diagnostics_icon = if summary.error_count > 0 {
-            IconName::XCircle
+        let diagnostics_segment_index = panel_labels.len();
+        let diagnostics_symbol = if summary.error_count > 0 {
+            "xmark.circle"
         } else if summary.warning_count > 0 {
-            IconName::Warning
+            "exclamationmark.triangle"
         } else {
-            IconName::Check
+            "checkmark.circle"
         };
-        let diagnostics_button = IconButton::new("diagnostics-button", diagnostics_icon)
-            .icon_size(IconSize::Small)
-            .when(summary.error_count > 0, |this| {
-                this.icon_color(Color::Error)
-            })
-            .when(summary.error_count == 0 && summary.warning_count > 0, |this| {
-                this.icon_color(Color::Warning)
-            })
-            .tooltip(Tooltip::text("Project Diagnostics"))
-            .on_click(|_, window, cx| {
-                window.dispatch_action(Box::new(DeployProjectDiagnostics), cx);
-            });
+        panel_labels.push("Project Diagnostics".into());
+        panel_symbols.push(diagnostics_symbol.into());
+
+        // Build the segmented control with all panels + search + diagnostics
+        let callback_panel_ids = panel_ids.clone();
+        let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
+        let symbol_strs: Vec<&str> = panel_symbols.iter().map(|s| s.as_ref()).collect();
+
+        let mut group = native_toggle_group("dock-panels", &label_strs)
+            .sf_symbols(&symbol_strs)
+            .border_shape(NativeSegmentedShape::Capsule)
+            .on_select(cx.listener(move |this, event: &SegmentSelectEvent, window, cx| {
+                if event.index == search_segment_index {
+                    if let Some(workspace) = this.workspace.upgrade() {
+                        workspace.update(cx, |_workspace, cx| {
+                            window.dispatch_action(
+                                Box::new(crate::DeploySearch::default()),
+                                cx,
+                            );
+                        });
+                    }
+                } else if event.index == diagnostics_segment_index {
+                    window.dispatch_action(Box::new(DeployProjectDiagnostics), cx);
+                } else if let Some(panel_id) = callback_panel_ids.get(event.index).copied() {
+                    if let Some(workspace) = this.workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            workspace.toggle_panel_for_id(panel_id, window, cx);
+                        });
+                    }
+                }
+            }));
+
+        if let Some(index) = selected_segment {
+            group = group.selected_index(index);
+        }
 
         div()
             .w_full()
@@ -214,10 +171,19 @@ impl Render for DockButtonBar {
             .border_b_1()
             .border_color(cx.theme().colors().border)
             .bg(cx.theme().colors().panel_background)
-            .children(buttons)
-            .child(search_button)
-            .child(diagnostics_button)
+            .child(group)
             .into_any_element()
+    }
+}
+
+fn icon_to_sf_symbol(icon: IconName) -> &'static str {
+    match icon {
+        IconName::FileTree => "folder",
+        IconName::TerminalAlt => "terminal",
+        IconName::GitBranchAlt => "arrow.triangle.branch",
+        IconName::Screen => "iphone",
+        IconName::ZedAssistant => "sparkles",
+        _ => "square.grid.2x2",
     }
 }
 
