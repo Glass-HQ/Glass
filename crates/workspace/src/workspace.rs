@@ -4769,6 +4769,15 @@ impl Workspace {
             .map(|v| v.view.clone())
     }
 
+    /// Get an already-created mode view without lazily creating it.
+    /// Use this when you only need to read the view and can't call `mode_view`
+    /// (e.g. when the workspace entity is already leased).
+    pub fn get_mode_view(&self, mode_id: ModeId) -> Option<AnyView> {
+        self.per_workspace_mode_views
+            .get(&mode_id)
+            .map(|v| v.view.clone())
+    }
+
     /// Switch to a specific mode
     pub fn switch_to_mode(&mut self, mode_id: ModeId, window: &mut Window, cx: &mut Context<Self>) {
         if self.active_mode != mode_id {

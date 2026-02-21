@@ -353,13 +353,28 @@ impl NativeToolbarController {
         };
         let show_update = self.update_version.read(cx).show_update_in_menu_bar();
 
+        // Show/update the suggestion panel on every render (independent of toolbar rebuild)
+        // so that typing and search results don't cause the NSSearchField to be recreated.
+        if is_browser_mode && self.is_user_typing && !self.omnibox_text.is_empty() {
+            self.show_suggestion_panel(window);
+        }
+
+        // Omnibox text and suggestion count are excluded from the toolbar key so that
+        // keystrokes and search-history results don't rebuild the NSSearchField (which
+        // would steal focus). When the user isn't typing, include the URL so that
+        // programmatic navigation (e.g. clicking a link) updates the search field text.
+        let omnibox_key = if self.is_user_typing {
+            String::new()
+        } else {
+            self.omnibox_text.clone()
+        };
+
         let toolbar_key = format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}:{:?}:{:?}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}:{:?}:{:?}",
             active_mode.0,
             project_name,
             branch_name,
-            self.omnibox_text,
-            self.omnibox_suggestions.len(),
+            omnibox_key,
             has_restricted,
             is_remote,
             title_bar_settings.show_project_items,
@@ -543,10 +558,6 @@ impl NativeToolbarController {
         }
 
         window.set_native_toolbar(Some(toolbar));
-
-        if is_browser_mode && self.is_user_typing && !self.omnibox_text.is_empty() {
-            self.show_suggestion_panel(window);
-        }
     }
 
     fn build_sidebar_toggle_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
@@ -676,18 +687,17 @@ impl NativeToolbarController {
                 .on_change(move |event: &NativeToolbarSearchEvent, window, cx| {
                     let text = event.text.clone();
                     if let Some(workspace) = workspace_for_change.upgrade() {
-                        workspace.update(cx, |workspace, cx| {
-                            if let Some(controller) = workspace
-                                .titlebar_item()
-                                .and_then(|item| item.downcast::<NativeToolbarController>().ok())
-                            {
-                                controller.update(cx, |controller, cx| {
-                                    controller.is_user_typing = true;
-                                    controller.omnibox_text = text.to_string();
-                                    controller.search_history(text.to_string(), cx);
-                                });
-                            }
-                        });
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                controller.is_user_typing = true;
+                                controller.omnibox_text = text.to_string();
+                                controller.search_history(text.to_string(), cx);
+                            });
+                        }
                     }
                     if text.is_empty() {
                         window.dismiss_native_panel();
@@ -697,16 +707,15 @@ impl NativeToolbarController {
                     let text = event.text.clone();
                     window.dismiss_native_panel();
                     if let Some(workspace) = workspace_for_submit.upgrade() {
-                        workspace.update(cx, |workspace, cx| {
-                            if let Some(controller) = workspace
-                                .titlebar_item()
-                                .and_then(|item| item.downcast::<NativeToolbarController>().ok())
-                            {
-                                controller.update(cx, |controller, cx| {
-                                    controller.navigate_omnibox(&text, cx);
-                                });
-                            }
-                        });
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                controller.navigate_omnibox(&text, cx);
+                            });
+                        }
                     }
                 }),
         )
@@ -721,6 +730,38 @@ impl NativeToolbarController {
         let workspace = self.workspace.clone();
         let mut items: Vec<NativePopoverContentItem> = Vec::new();
         let mut row_count = 0usize;
+        let has_search_row = !self.omnibox_text.is_empty();
+
+        // "Search Google" row first
+        if has_search_row {
+            let query = self.omnibox_text.clone();
+            let search_workspace = workspace.clone();
+            items.push(
+                NativePopoverClickableRow::new(format!("Search \"{}\"", query))
+                    .icon("magnifyingglass")
+                    .detail("Google")
+                    .on_click(move |window, cx| {
+                        window.dismiss_native_panel();
+                        let url = text_to_url(&query);
+                        if let Some(workspace) = search_workspace.upgrade() {
+                            if let Some(controller) = workspace
+                                .read(cx)
+                                .titlebar_item()
+                                .and_then(|item| {
+                                    item.downcast::<NativeToolbarController>().ok()
+                                })
+                            {
+                                controller.update(cx, |controller, cx| {
+                                    controller.navigate_omnibox(&url, cx);
+                                });
+                            }
+                        }
+                    })
+                    .into(),
+            );
+            row_count += 1;
+            items.push(NativePopoverContentItem::separator());
+        }
 
         items.push(NativePopoverContentItem::heading("History"));
         for suggestion in &self.omnibox_suggestions {
@@ -739,50 +780,17 @@ impl NativeToolbarController {
                     .on_click(move |window, cx| {
                         window.dismiss_native_panel();
                         if let Some(workspace) = navigate_workspace.upgrade() {
-                            workspace.update(cx, |workspace, cx| {
-                                if let Some(controller) = workspace
-                                    .titlebar_item()
-                                    .and_then(|item| {
-                                        item.downcast::<NativeToolbarController>().ok()
-                                    })
-                                {
-                                    controller.update(cx, |controller, cx| {
-                                        controller.navigate_omnibox(&url, cx);
-                                    });
-                                }
-                            });
-                        }
-                    })
-                    .into(),
-            );
-            row_count += 1;
-        }
-
-        // "Search Google" row
-        if !self.omnibox_text.is_empty() {
-            items.push(NativePopoverContentItem::separator());
-            let query = self.omnibox_text.clone();
-            let search_workspace = workspace.clone();
-            items.push(
-                NativePopoverClickableRow::new(format!("Search \"{}\"", query))
-                    .icon("magnifyingglass")
-                    .detail("Google")
-                    .on_click(move |window, cx| {
-                        window.dismiss_native_panel();
-                        let url = text_to_url(&query);
-                        if let Some(workspace) = search_workspace.upgrade() {
-                            workspace.update(cx, |workspace, cx| {
-                                if let Some(controller) = workspace
-                                    .titlebar_item()
-                                    .and_then(|item| {
-                                        item.downcast::<NativeToolbarController>().ok()
-                                    })
-                                {
-                                    controller.update(cx, |controller, cx| {
-                                        controller.navigate_omnibox(&url, cx);
-                                    });
-                                }
-                            });
+                            if let Some(controller) = workspace
+                                .read(cx)
+                                .titlebar_item()
+                                .and_then(|item| {
+                                    item.downcast::<NativeToolbarController>().ok()
+                                })
+                            {
+                                controller.update(cx, |controller, cx| {
+                                    controller.navigate_omnibox(&url, cx);
+                                });
+                            }
                         }
                     })
                     .into(),
@@ -796,7 +804,7 @@ impl NativeToolbarController {
         let separator_height = 12.0;
         let content_height = (row_count as f64 * row_height)
             + heading_height
-            + if !self.omnibox_text.is_empty() {
+            + if has_search_row {
                 separator_height
             } else {
                 0.0
@@ -1042,11 +1050,9 @@ impl NativeToolbarController {
 
     // -- Browser / omnibox helpers --
 
-    fn browser_view(&self, cx: &mut App) -> Option<Entity<browser::BrowserView>> {
+    fn browser_view(&self, cx: &App) -> Option<Entity<browser::BrowserView>> {
         let workspace = self.workspace.upgrade()?;
-        let view = workspace.update(cx, |workspace, cx| {
-            workspace.mode_view(ModeId::BROWSER, cx)
-        })?;
+        let view = workspace.read(cx).get_mode_view(ModeId::BROWSER)?;
         view.downcast::<browser::BrowserView>().ok()
     }
 
