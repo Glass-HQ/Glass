@@ -6,9 +6,11 @@ use browser;
 use client::{Client, UserStore};
 use editor::Editor;
 use gpui::{
-    Action, App, AppContext as _, Context, Entity, IntoElement, NativeToolbar,
-    NativeToolbarButton, NativeToolbarComboBox, NativeToolbarDisplayMode, NativeToolbarItem,
-    NativeToolbarLabel, NativeToolbarMenuButton, NativeToolbarMenuItem, NativeToolbarSegment,
+    Action, App, AppContext as _, Context, Entity, IntoElement, NativePanel, NativePanelAnchor,
+    NativePanelLevel, NativePanelMaterial, NativePanelStyle, NativePopoverClickableRow,
+    NativePopoverContentItem, NativeToolbar, NativeToolbarButton, NativeToolbarDisplayMode,
+    NativeToolbarItem, NativeToolbarLabel, NativeToolbarMenuButton, NativeToolbarMenuItem,
+    NativeToolbarSearchEvent, NativeToolbarSearchField, NativeToolbarSegment,
     NativeToolbarSegmentedControl, NativeToolbarSizeMode, Render, SharedString, Subscription,
     WeakEntity, Window, px,
 };
@@ -541,6 +543,10 @@ impl NativeToolbarController {
         }
 
         window.set_native_toolbar(Some(toolbar));
+
+        if is_browser_mode && self.is_user_typing && !self.omnibox_text.is_empty() {
+            self.show_suggestion_panel(window);
+        }
     }
 
     fn build_sidebar_toggle_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
@@ -660,30 +666,16 @@ impl NativeToolbarController {
     fn build_omnibox_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
         let workspace_for_submit = self.workspace.clone();
         let workspace_for_change = self.workspace.clone();
-        let workspace_for_select = self.workspace.clone();
 
-        let suggestion_items: Vec<SharedString> = self
-            .omnibox_suggestions
-            .iter()
-            .map(|m| {
-                if m.title.is_empty() {
-                    SharedString::from(m.url.clone())
-                } else {
-                    SharedString::from(format!("{} — {}", m.title, m.url))
-                }
-            })
-            .collect();
-
-        NativeToolbarItem::ComboBox(
-            NativeToolbarComboBox::new("glass.omnibox")
+        NativeToolbarItem::SearchField(
+            NativeToolbarSearchField::new("glass.omnibox")
                 .placeholder("Search or enter URL")
                 .text(SharedString::from(self.omnibox_text.clone()))
-                .items(suggestion_items)
                 .min_width(px(300.0))
                 .max_width(px(600.0))
-                .on_change(move |event, _window, cx| {
+                .on_change(move |event: &NativeToolbarSearchEvent, window, cx| {
+                    let text = event.text.clone();
                     if let Some(workspace) = workspace_for_change.upgrade() {
-                        let text = event.text.clone();
                         workspace.update(cx, |workspace, cx| {
                             if let Some(controller) = workspace
                                 .titlebar_item()
@@ -697,30 +689,14 @@ impl NativeToolbarController {
                             }
                         });
                     }
-                })
-                .on_select(move |event, _window, cx| {
-                    if let Some(workspace) = workspace_for_select.upgrade() {
-                        let index = event.selected_index;
-                        workspace.update(cx, |workspace, cx| {
-                            if let Some(controller) = workspace
-                                .titlebar_item()
-                                .and_then(|item| item.downcast::<NativeToolbarController>().ok())
-                            {
-                                controller.update(cx, |controller, cx| {
-                                    if let Some(suggestion) =
-                                        controller.omnibox_suggestions.get(index)
-                                    {
-                                        let url = suggestion.url.clone();
-                                        controller.navigate_omnibox(&url, cx);
-                                    }
-                                });
-                            }
-                        });
+                    if text.is_empty() {
+                        window.dismiss_native_panel();
                     }
                 })
-                .on_submit(move |event, _window, cx| {
+                .on_submit(move |event: &NativeToolbarSearchEvent, window, cx| {
+                    let text = event.text.clone();
+                    window.dismiss_native_panel();
                     if let Some(workspace) = workspace_for_submit.upgrade() {
-                        let text = event.text.clone();
                         workspace.update(cx, |workspace, cx| {
                             if let Some(controller) = workspace
                                 .titlebar_item()
@@ -734,6 +710,114 @@ impl NativeToolbarController {
                     }
                 }),
         )
+    }
+
+    fn show_suggestion_panel(&self, window: &mut Window) {
+        if self.omnibox_suggestions.is_empty() {
+            window.dismiss_native_panel();
+            return;
+        }
+
+        let workspace = self.workspace.clone();
+        let mut items: Vec<NativePopoverContentItem> = Vec::new();
+        let mut row_count = 0usize;
+
+        items.push(NativePopoverContentItem::heading("History"));
+        for suggestion in &self.omnibox_suggestions {
+            let url = suggestion.url.clone();
+            let navigate_workspace = workspace.clone();
+            let title = if suggestion.title.is_empty() {
+                suggestion.url.clone()
+            } else {
+                suggestion.title.clone()
+            };
+            let detail = extract_domain(&suggestion.url);
+            items.push(
+                NativePopoverClickableRow::new(title)
+                    .icon("clock")
+                    .detail(detail)
+                    .on_click(move |window, cx| {
+                        window.dismiss_native_panel();
+                        if let Some(workspace) = navigate_workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                if let Some(controller) = workspace
+                                    .titlebar_item()
+                                    .and_then(|item| {
+                                        item.downcast::<NativeToolbarController>().ok()
+                                    })
+                                {
+                                    controller.update(cx, |controller, cx| {
+                                        controller.navigate_omnibox(&url, cx);
+                                    });
+                                }
+                            });
+                        }
+                    })
+                    .into(),
+            );
+            row_count += 1;
+        }
+
+        // "Search Google" row
+        if !self.omnibox_text.is_empty() {
+            items.push(NativePopoverContentItem::separator());
+            let query = self.omnibox_text.clone();
+            let search_workspace = workspace.clone();
+            items.push(
+                NativePopoverClickableRow::new(format!("Search \"{}\"", query))
+                    .icon("magnifyingglass")
+                    .detail("Google")
+                    .on_click(move |window, cx| {
+                        window.dismiss_native_panel();
+                        let url = text_to_url(&query);
+                        if let Some(workspace) = search_workspace.upgrade() {
+                            workspace.update(cx, |workspace, cx| {
+                                if let Some(controller) = workspace
+                                    .titlebar_item()
+                                    .and_then(|item| {
+                                        item.downcast::<NativeToolbarController>().ok()
+                                    })
+                                {
+                                    controller.update(cx, |controller, cx| {
+                                        controller.navigate_omnibox(&url, cx);
+                                    });
+                                }
+                            });
+                        }
+                    })
+                    .into(),
+            );
+            row_count += 1;
+        }
+
+        let padding = 16.0;
+        let row_height = 28.0;
+        let heading_height = 28.0;
+        let separator_height = 12.0;
+        let content_height = (row_count as f64 * row_height)
+            + heading_height
+            + if !self.omnibox_text.is_empty() {
+                separator_height
+            } else {
+                0.0
+            }
+            + padding * 2.0;
+        let panel_height = content_height.min(400.0);
+
+        let panel = NativePanel::new(450.0, panel_height)
+            .style(NativePanelStyle::Borderless)
+            .level(NativePanelLevel::PopUpMenu)
+            .non_activating(true)
+            .has_shadow(true)
+            .corner_radius(10.0)
+            .material(NativePanelMaterial::Popover)
+            .on_close(|_, _, _| {})
+            .items(items);
+
+        window.show_native_panel(
+            panel,
+            NativePanelAnchor::ToolbarItem("glass.omnibox".into()),
+        );
     }
 
     fn build_restricted_mode_item(&self, cx: &Context<Self>) -> Option<NativeToolbarItem> {
@@ -1175,4 +1259,14 @@ fn text_to_url(text: &str) -> String {
         let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
         format!("https://www.google.com/search?q={}", encoded)
     }
+}
+
+fn extract_domain(url: &str) -> String {
+    url.strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url)
+        .split('/')
+        .next()
+        .unwrap_or(url)
+        .to_string()
 }
