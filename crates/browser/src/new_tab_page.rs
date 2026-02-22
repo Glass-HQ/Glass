@@ -1,13 +1,19 @@
-use crate::omnibox::Omnibox;
-use gpui::{App, Entity, IntoElement, Styled, prelude::*};
-use ui::{Icon, IconName, IconSize, prelude::*};
+use crate::browser_view::BrowserView;
+use gpui::{
+    App, Entity, IntoElement, SearchChangeEvent, SearchSubmitEvent, Styled, native_search_field,
+    prelude::*, px,
+};
+use ui::prelude::*;
 
 pub fn render_new_tab_page(
-    omnibox: Option<&Entity<Omnibox>>,
+    browser_view: Entity<BrowserView>,
+    search_text: String,
     is_incognito_window: bool,
     cx: &App,
 ) -> impl IntoElement {
     let theme = cx.theme();
+    let browser_view_for_change = browser_view.downgrade();
+    let browser_view_for_submit = browser_view.downgrade();
 
     div()
         .size_full()
@@ -22,11 +28,6 @@ pub fn render_new_tab_page(
                 .flex_col()
                 .items_center()
                 .gap_6()
-                .child(
-                    Icon::new(IconName::Globe)
-                        .size(IconSize::Custom(rems(4.0)))
-                        .color(Color::Muted),
-                )
                 .when(is_incognito_window, |this| {
                     this.child(
                         div()
@@ -49,8 +50,31 @@ pub fn render_new_tab_page(
                             .child("Your browsing activity in this window is not saved to browser history or session restore."),
                     )
                 })
-                .when_some(omnibox.cloned(), |this, omnibox| {
-                    this.child(div().w(px(500.)).child(omnibox))
-                }),
+                .child(
+                    native_search_field("new-tab-search")
+                        .placeholder("Search or enter URL")
+                        .value(search_text)
+                        .on_change(move |event: &SearchChangeEvent, _window, cx| {
+                            if let Err(error) = browser_view_for_change.update(cx, |browser_view, cx| {
+                                browser_view.set_new_tab_search_text(event.text.clone(), cx);
+                            }) {
+                                log::debug!(
+                                    "[browser] failed to update new tab search text: {}",
+                                    error
+                                );
+                            }
+                        })
+                        .on_submit(move |event: &SearchSubmitEvent, _window, cx| {
+                            if let Err(error) = browser_view_for_submit.update(cx, |browser_view, cx| {
+                                browser_view.submit_new_tab_search(&event.text, cx);
+                            }) {
+                                log::debug!(
+                                    "[browser] failed to submit new tab search text: {}",
+                                    error
+                                );
+                            }
+                        })
+                        .w(px(500.)),
+                ),
         )
 }

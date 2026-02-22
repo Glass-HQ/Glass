@@ -3,7 +3,7 @@ use editor::{Editor, actions::SelectAll};
 use gpui::{
     App, Bounds, Context, Corner, Entity, EventEmitter, FocusHandle, Focusable, IntoElement,
     ParentElement, Pixels, Render, SharedString, Styled, Subscription, Task, Window, anchored,
-    canvas, deferred, div, point, prelude::*, px,
+    canvas, deferred, div, native_image_view, point, prelude::*, px,
 };
 use std::time::Duration;
 use ui::{Icon, IconName, IconSize, h_flex, prelude::*, v_flex};
@@ -91,12 +91,13 @@ impl Omnibox {
     }
 
     pub fn set_url(&mut self, url: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let display_url = display_url(url);
         self.navigation_started = false;
-        self.current_page_url = url.to_string();
+        self.current_page_url = display_url.clone();
         self.close_dropdown(cx);
         self.suppress_search = true;
         self.url_editor.update(cx, |editor, cx| {
-            editor.set_text(url.to_string(), window, cx);
+            editor.set_text(display_url, window, cx);
         });
     }
 
@@ -166,7 +167,10 @@ impl Omnibox {
 
             let (query_for_search, current_url) = this
                 .read_with(cx, |this, cx| {
-                    (this.url_editor.read(cx).text(cx), this.current_page_url.clone())
+                    (
+                        this.url_editor.read(cx).text(cx),
+                        this.current_page_url.clone(),
+                    )
                 })
                 .ok()
                 .unwrap_or_default();
@@ -312,18 +316,32 @@ impl Omnibox {
             .enumerate()
             .map(|(index, suggestion)| {
                 let is_selected = index == self.selected_index;
-                let (icon_name, title, subtitle) = match suggestion {
+                let (leading_icon, title, subtitle) = match suggestion {
                     OmniboxSuggestion::HistoryItem { url, title, .. } => {
                         let display_title: SharedString = if title.is_empty() {
                             url.clone().into()
                         } else {
                             title.clone().into()
                         };
-                        (IconName::HistoryRerun, display_title, Some(url.clone()))
+                        (
+                            Icon::new(IconName::HistoryRerun)
+                                .size(IconSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element(),
+                            display_title,
+                            Some(url.clone()),
+                        )
                     }
                     OmniboxSuggestion::RawUrl(url) => {
                         let display: SharedString = url.clone().into();
-                        (IconName::Globe, display, None)
+                        (
+                            native_image_view(format!("omnibox-suggestion-globe-{index}"))
+                                .sf_symbol("globe")
+                                .size(px(14.0))
+                                .into_any_element(),
+                            display,
+                            None,
+                        )
                     }
                     OmniboxSuggestion::SearchQuery(query) => {
                         let truncated = if query.len() > 80 {
@@ -333,7 +351,14 @@ impl Omnibox {
                         };
                         let display: SharedString =
                             format!("Search Google for \"{}\"", truncated).into();
-                        (IconName::MagnifyingGlass, display, None)
+                        (
+                            Icon::new(IconName::MagnifyingGlass)
+                                .size(IconSize::Small)
+                                .color(Color::Muted)
+                                .into_any_element(),
+                            display,
+                            None,
+                        )
                     }
                 };
 
@@ -353,23 +378,22 @@ impl Omnibox {
                         this.hover(|style| style.bg(theme.colors().ghost_element_hover))
                     })
                     .cursor_pointer()
-                    .on_mouse_down(gpui::MouseButton::Left, cx.listener(move |this, _, window, cx| {
-                        this.selected_index = index;
-                        if let Some(suggestion) = this.suggestions.get(index) {
-                            let url = suggestion.url_or_search();
-                            this.navigate(url, window, cx);
-                        }
-                    }))
+                    .on_mouse_down(
+                        gpui::MouseButton::Left,
+                        cx.listener(move |this, _, window, cx| {
+                            this.selected_index = index;
+                            if let Some(suggestion) = this.suggestions.get(index) {
+                                let url = suggestion.url_or_search();
+                                this.navigate(url, window, cx);
+                            }
+                        }),
+                    )
                     .child(
                         h_flex()
                             .gap_2()
                             .items_center()
                             .overflow_hidden()
-                            .child(
-                                Icon::new(icon_name)
-                                    .size(IconSize::Small)
-                                    .color(Color::Muted),
-                            )
+                            .child(leading_icon)
                             .child(
                                 div()
                                     .flex_1()
@@ -491,4 +515,12 @@ fn looks_like_url(input: &str) -> bool {
         return true;
     }
     false
+}
+
+fn display_url(url: &str) -> String {
+    if url == "glass://newtab" {
+        return String::new();
+    }
+
+    url.to_string()
 }

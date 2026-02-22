@@ -107,10 +107,6 @@ impl BrowserToolbar {
         cx.notify();
     }
 
-    pub fn omnibox(&self) -> &Entity<Omnibox> {
-        &self.omnibox
-    }
-
     pub fn focus_omnibox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.omnibox.update(cx, |omnibox, cx| {
             omnibox.focus_and_select_all(window, cx);
@@ -151,9 +147,9 @@ impl Focusable for BrowserToolbar {
 impl Render for BrowserToolbar {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_new_tab_page = self.tab.read(cx).is_new_tab_page();
-        let can_go_back = self.tab.read(cx).can_go_back() && !is_new_tab_page;
-        let can_go_forward = self.tab.read(cx).can_go_forward() && !is_new_tab_page;
-        let is_loading = self.tab.read(cx).is_loading() && !is_new_tab_page;
+        let can_go_back = self.tab.read(cx).can_go_back();
+        let can_go_forward = self.tab.read(cx).can_go_forward();
+        let is_loading = self.tab.read(cx).is_loading();
 
         h_flex()
             .w_full()

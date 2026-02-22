@@ -305,6 +305,7 @@ impl NativeToolbarController {
             .unwrap_or(ModeId::BROWSER);
 
         let is_browser_mode = active_mode == ModeId::BROWSER;
+        let is_new_tab_page = self.active_tab_is_new_tab_page(cx);
         let title_bar_settings = *TitleBarSettings::get_global(cx);
 
         self.sync_omnibox_url(cx);
@@ -370,11 +371,12 @@ impl NativeToolbarController {
         };
 
         let toolbar_key = format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}:{:?}:{:?}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}:{:?}:{:?}",
             active_mode.0,
             project_name,
             branch_name,
             omnibox_key,
+            is_new_tab_page,
             has_restricted,
             is_remote,
             title_bar_settings.show_project_items,
@@ -426,7 +428,12 @@ impl NativeToolbarController {
         toolbar = toolbar.item(NativeToolbarItem::FlexibleSpace);
 
         if is_browser_mode {
-            toolbar = toolbar.item(self.build_omnibox_item(cx));
+            if !is_new_tab_page {
+                toolbar = toolbar.item(self.build_back_item());
+                toolbar = toolbar.item(self.build_forward_item());
+                toolbar = toolbar.item(self.build_reload_item());
+                toolbar = toolbar.item(self.build_omnibox_item(cx));
+            }
             toolbar = toolbar.item(NativeToolbarItem::FlexibleSpace);
         }
 
@@ -437,10 +444,8 @@ impl NativeToolbarController {
                         .tool_tip("Go to Line/Column")
                         .icon("line.3.horizontal")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                editor::actions::ToggleGoToLine.boxed_clone(),
-                                cx,
-                            );
+                            window
+                                .dispatch_action(editor::actions::ToggleGoToLine.boxed_clone(), cx);
                         }),
                 ));
             }
@@ -449,10 +454,7 @@ impl NativeToolbarController {
                     NativeToolbarButton::new("glass.status.language", language.clone())
                         .tool_tip("Select Language")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                language_selector::Toggle.boxed_clone(),
-                                cx,
-                            );
+                            window.dispatch_action(language_selector::Toggle.boxed_clone(), cx);
                         }),
                 ));
             }
@@ -461,10 +463,7 @@ impl NativeToolbarController {
                     NativeToolbarButton::new("glass.status.toolchain", toolchain.clone())
                         .tool_tip("Select Toolchain")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                toolchain_selector::Select.boxed_clone(),
-                                cx,
-                            );
+                            window.dispatch_action(toolchain_selector::Select.boxed_clone(), cx);
                         }),
                 ));
             }
@@ -473,10 +472,7 @@ impl NativeToolbarController {
                     NativeToolbarButton::new("glass.status.encoding", encoding.clone())
                         .tool_tip("Select Encoding")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                encoding_selector::Toggle.boxed_clone(),
-                                cx,
-                            );
+                            window.dispatch_action(encoding_selector::Toggle.boxed_clone(), cx);
                         }),
                 ));
             }
@@ -485,17 +481,15 @@ impl NativeToolbarController {
                     NativeToolbarButton::new("glass.status.line_ending", line_ending.clone())
                         .tool_tip("Select Line Ending")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                line_ending_selector::Toggle.boxed_clone(),
-                                cx,
-                            );
+                            window.dispatch_action(line_ending_selector::Toggle.boxed_clone(), cx);
                         }),
                 ));
             }
             if let Some(ref image_info) = self.status_image_info {
-                toolbar = toolbar.item(NativeToolbarItem::Label(
-                    NativeToolbarLabel::new("glass.status.image_info", image_info.clone()),
-                ));
+                toolbar = toolbar.item(NativeToolbarItem::Label(NativeToolbarLabel::new(
+                    "glass.status.image_info",
+                    image_info.clone(),
+                )));
             }
 
             toolbar = toolbar.item(NativeToolbarItem::Button(
@@ -524,10 +518,7 @@ impl NativeToolbarController {
                     .tool_tip("Edit Predictions")
                     .icon("sparkles")
                     .on_click(|_event, window, cx| {
-                        window.dispatch_action(
-                            edit_prediction_ui::ToggleMenu.boxed_clone(),
-                            cx,
-                        );
+                        window.dispatch_action(edit_prediction_ui::ToggleMenu.boxed_clone(), cx);
                     }),
             ));
         }
@@ -569,10 +560,7 @@ impl NativeToolbarController {
                 .on_click(move |_event, window, cx| {
                     if let Some(workspace) = workspace.upgrade() {
                         workspace.update(cx, |_workspace, cx| {
-                            window.dispatch_action(
-                                ToggleWorkspaceSidebar.boxed_clone(),
-                                cx,
-                            );
+                            window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
                         });
                     }
                 }),
@@ -636,10 +624,7 @@ impl NativeToolbarController {
             NativeToolbarButton::new("glass.project_name", display_name)
                 .icon("folder")
                 .on_click(move |_event, window, cx| {
-                    window.dispatch_action(
-                        zed_actions::OpenRecent::default().boxed_clone(),
-                        cx,
-                    );
+                    window.dispatch_action(zed_actions::OpenRecent::default().boxed_clone(), cx);
                 }),
         ))
     }
@@ -721,6 +706,81 @@ impl NativeToolbarController {
         )
     }
 
+    fn build_back_item(&self) -> NativeToolbarItem {
+        let workspace = self.workspace.clone();
+        NativeToolbarItem::Button(
+            NativeToolbarButton::new("glass.browser.back", "")
+                .tool_tip("Go Back")
+                .icon("chevron.left")
+                .on_click(move |_event, _window, cx| {
+                    if let Some(workspace) = workspace.upgrade()
+                        && let Some(browser_view) = workspace
+                            .read(cx)
+                            .get_mode_view(ModeId::BROWSER)
+                            .and_then(|view| view.downcast::<browser::BrowserView>().ok())
+                    {
+                        browser_view.update(cx, |browser_view, cx| {
+                            if let Some(tab) = browser_view.active_tab() {
+                                tab.update(cx, |tab, _| {
+                                    tab.go_back();
+                                });
+                            }
+                        });
+                    }
+                }),
+        )
+    }
+
+    fn build_forward_item(&self) -> NativeToolbarItem {
+        let workspace = self.workspace.clone();
+        NativeToolbarItem::Button(
+            NativeToolbarButton::new("glass.browser.forward", "")
+                .tool_tip("Go Forward")
+                .icon("chevron.right")
+                .on_click(move |_event, _window, cx| {
+                    if let Some(workspace) = workspace.upgrade()
+                        && let Some(browser_view) = workspace
+                            .read(cx)
+                            .get_mode_view(ModeId::BROWSER)
+                            .and_then(|view| view.downcast::<browser::BrowserView>().ok())
+                    {
+                        browser_view.update(cx, |browser_view, cx| {
+                            if let Some(tab) = browser_view.active_tab() {
+                                tab.update(cx, |tab, _| {
+                                    tab.go_forward();
+                                });
+                            }
+                        });
+                    }
+                }),
+        )
+    }
+
+    fn build_reload_item(&self) -> NativeToolbarItem {
+        let workspace = self.workspace.clone();
+        NativeToolbarItem::Button(
+            NativeToolbarButton::new("glass.browser.reload", "")
+                .tool_tip("Reload")
+                .icon("arrow.clockwise")
+                .on_click(move |_event, _window, cx| {
+                    if let Some(workspace) = workspace.upgrade()
+                        && let Some(browser_view) = workspace
+                            .read(cx)
+                            .get_mode_view(ModeId::BROWSER)
+                            .and_then(|view| view.downcast::<browser::BrowserView>().ok())
+                    {
+                        browser_view.update(cx, |browser_view, cx| {
+                            if let Some(tab) = browser_view.active_tab() {
+                                tab.update(cx, |tab, _| {
+                                    tab.reload();
+                                });
+                            }
+                        });
+                    }
+                }),
+        )
+    }
+
     fn show_suggestion_panel(&self, window: &mut Window) {
         if self.omnibox_suggestions.is_empty() {
             window.dismiss_native_panel();
@@ -747,9 +807,7 @@ impl NativeToolbarController {
                             if let Some(controller) = workspace
                                 .read(cx)
                                 .titlebar_item()
-                                .and_then(|item| {
-                                    item.downcast::<NativeToolbarController>().ok()
-                                })
+                                .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                             {
                                 controller.update(cx, |controller, cx| {
                                     controller.navigate_omnibox(&url, cx);
@@ -783,9 +841,7 @@ impl NativeToolbarController {
                             if let Some(controller) = workspace
                                 .read(cx)
                                 .titlebar_item()
-                                .and_then(|item| {
-                                    item.downcast::<NativeToolbarController>().ok()
-                                })
+                                .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                             {
                                 controller.update(cx, |controller, cx| {
                                     controller.navigate_omnibox(&url, cx);
@@ -968,10 +1024,8 @@ impl NativeToolbarController {
         }
 
         if show_update {
-            menu_items.push(
-                NativeToolbarMenuItem::action("Restart to Update")
-                    .icon("arrow.down.circle"),
-            );
+            menu_items
+                .push(NativeToolbarMenuItem::action("Restart to Update").icon("arrow.down.circle"));
             menu_items.push(NativeToolbarMenuItem::separator());
         }
 
@@ -979,8 +1033,7 @@ impl NativeToolbarController {
         menu_items.push(NativeToolbarMenuItem::action("Keymap").icon("keyboard"));
         menu_items.push(NativeToolbarMenuItem::action("Themes…").icon("paintbrush"));
         menu_items.push(NativeToolbarMenuItem::action("Icon Themes…").icon("photo"));
-        menu_items
-            .push(NativeToolbarMenuItem::action("Extensions").icon("puzzlepiece.extension"));
+        menu_items.push(NativeToolbarMenuItem::action("Extensions").icon("puzzlepiece.extension"));
 
         if is_signed_in {
             menu_items.push(NativeToolbarMenuItem::separator());
@@ -990,62 +1043,63 @@ impl NativeToolbarController {
             );
         }
 
-        let mut menu_button = NativeToolbarMenuButton::new(
-            "glass.user_menu",
-            "Account",
-            menu_items,
-        )
-        .tool_tip("User Menu")
-        .shows_indicator(false);
+        let mut menu_button =
+            NativeToolbarMenuButton::new("glass.user_menu", "Account", menu_items)
+                .tool_tip("User Menu")
+                .shows_indicator(false);
 
-        menu_button = menu_button.icon("person.crop.circle");
+        let show_user_picture = TitleBarSettings::get_global(cx).show_user_picture;
+        let user_avatar_url = user.as_ref().map(|u| u.avatar_uri.to_string());
+        if show_user_picture
+            && let Some(user_avatar_url) = user_avatar_url
+            && !user_avatar_url.is_empty()
+        {
+            menu_button = menu_button.image_url(user_avatar_url).image_circular(true);
+        } else {
+            menu_button = menu_button.icon("person.crop.circle");
+        }
 
         let workspace = self.workspace.clone();
         let client = self.client.clone();
-        NativeToolbarItem::MenuButton(
-            menu_button.on_select(move |event, window, cx| {
-                let show_update_offset = if show_update { 1 } else { 0 };
-                let signed_in_offset = if is_signed_in { 1 } else { 0 };
-                let base = signed_in_offset + show_update_offset;
+        NativeToolbarItem::MenuButton(menu_button.on_select(move |event, window, cx| {
+            let show_update_offset = if show_update { 1 } else { 0 };
+            let signed_in_offset = if is_signed_in { 1 } else { 0 };
+            let base = signed_in_offset + show_update_offset;
 
-                if is_signed_in && event.index == 0 {
-                    cx.open_url(&client::zed_urls::account_url(cx));
-                    return;
-                }
+            if is_signed_in && event.index == 0 {
+                cx.open_url(&client::zed_urls::account_url(cx));
+                return;
+            }
 
-                if show_update && event.index == signed_in_offset {
-                    workspace::reload(cx);
-                    return;
-                }
+            if show_update && event.index == signed_in_offset {
+                workspace::reload(cx);
+                return;
+            }
 
-                match event.index.saturating_sub(base) {
-                    0 => window.dispatch_action(zed_actions::OpenSettings.boxed_clone(), cx),
-                    1 => window.dispatch_action(zed_actions::OpenKeymap.boxed_clone(), cx),
-                    2 => window.dispatch_action(
-                        zed_actions::theme_selector::Toggle::default().boxed_clone(),
-                        cx,
-                    ),
-                    3 => window.dispatch_action(
-                        zed_actions::icon_theme_selector::Toggle::default().boxed_clone(),
-                        cx,
-                    ),
-                    4 => window.dispatch_action(
-                        zed_actions::Extensions::default().boxed_clone(),
-                        cx,
-                    ),
-                    5 if is_signed_in => {
-                        let client = client.clone();
-                        let _workspace = workspace.clone();
-                        window
-                            .spawn(cx, async move |mut cx| {
-                                client.sign_out(&mut cx).await;
-                            })
-                            .detach();
-                    }
-                    _ => {}
+            match event.index.saturating_sub(base) {
+                0 => window.dispatch_action(zed_actions::OpenSettings.boxed_clone(), cx),
+                1 => window.dispatch_action(zed_actions::OpenKeymap.boxed_clone(), cx),
+                2 => window.dispatch_action(
+                    zed_actions::theme_selector::Toggle::default().boxed_clone(),
+                    cx,
+                ),
+                3 => window.dispatch_action(
+                    zed_actions::icon_theme_selector::Toggle::default().boxed_clone(),
+                    cx,
+                ),
+                4 => window.dispatch_action(zed_actions::Extensions::default().boxed_clone(), cx),
+                5 if is_signed_in => {
+                    let client = client.clone();
+                    let _workspace = workspace.clone();
+                    window
+                        .spawn(cx, async move |mut cx| {
+                            client.sign_out(&mut cx).await;
+                        })
+                        .detach();
                 }
-            }),
-        )
+                _ => {}
+            }
+        }))
     }
 
     // -- Browser / omnibox helpers --
@@ -1056,21 +1110,31 @@ impl NativeToolbarController {
         view.downcast::<browser::BrowserView>().ok()
     }
 
+    fn active_tab_is_new_tab_page(&self, cx: &App) -> bool {
+        self.browser_view(cx)
+            .and_then(|browser_view| {
+                let browser_view = browser_view.read(cx);
+                browser_view
+                    .active_tab()
+                    .map(|tab| tab.read(cx).is_new_tab_page())
+            })
+            .unwrap_or(false)
+    }
+
     fn sync_omnibox_url(&mut self, cx: &mut App) {
         if self.is_user_typing {
             return;
         }
 
-        let url = self
-            .browser_view(cx)
-            .and_then(|bv| {
-                let bv = bv.read(cx);
-                bv.active_tab().map(|tab| tab.read(cx).url().to_string())
-            });
+        let url = self.browser_view(cx).and_then(|bv| {
+            let bv = bv.read(cx);
+            bv.active_tab().map(|tab| tab.read(cx).url().to_string())
+        });
 
         if let Some(url) = url {
-            if self.omnibox_text != url {
-                self.omnibox_text = url;
+            let omnibox_text = display_omnibox_text(&url);
+            if self.omnibox_text != omnibox_text {
+                self.omnibox_text = omnibox_text;
             }
         }
     }
@@ -1117,19 +1181,18 @@ impl NativeToolbarController {
 
         if let Some(ref item) = active_pane_item {
             if let Some(editor) = item.act_as::<Editor>(cx) {
-                self.active_editor_subscription = Some(cx.subscribe_in(
-                    &editor,
-                    window,
-                    |_this, _editor, event, _window, cx| {
-                        if matches!(
-                            event,
-                            editor::EditorEvent::SelectionsChanged { .. }
-                                | editor::EditorEvent::BufferEdited
-                        ) {
-                            cx.notify();
-                        }
-                    },
-                ));
+                self.active_editor_subscription =
+                    Some(
+                        cx.subscribe_in(&editor, window, |_this, _editor, event, _window, cx| {
+                            if matches!(
+                                event,
+                                editor::EditorEvent::SelectionsChanged { .. }
+                                    | editor::EditorEvent::BufferEdited
+                            ) {
+                                cx.notify();
+                            }
+                        }),
+                    );
 
                 let (cursor, language, encoding, line_ending) =
                     editor.update(cx, |editor_ref, cx| {
@@ -1141,9 +1204,7 @@ impl NativeToolbarController {
                         if matches!(editor_ref.mode(), editor::EditorMode::Full { .. }) {
                             let snapshot = editor_ref.display_snapshot(cx);
                             if snapshot.buffer_snapshot().excerpts().count() > 0 {
-                                let newest = editor_ref
-                                    .selections
-                                    .newest::<text::Point>(&snapshot);
+                                let newest = editor_ref.selections.newest::<text::Point>(&snapshot);
                                 let head = newest.head();
                                 if let Some((buffer_snapshot, point, _)) =
                                     snapshot.buffer_snapshot().point_to_buffer_point(head)
@@ -1153,9 +1214,9 @@ impl NativeToolbarController {
                                         .text_summary_for_range::<text::TextSummary, _>(
                                             line_start..point,
                                         )
-                                        .chars as u32;
-                                    cursor =
-                                        Some(format!("{}:{}", point.row + 1, chars + 1));
+                                        .chars
+                                        as u32;
+                                    cursor = Some(format!("{}:{}", point.row + 1, chars + 1));
                                 }
                             }
                         }
@@ -1214,7 +1275,10 @@ impl NativeToolbarController {
         let mut components = Vec::new();
         components.push(format!("{}x{}", metadata.width, metadata.height));
         let use_decimal = matches!(settings.unit, image_viewer::ImageFileSizeUnit::Decimal);
-        components.push(util::size::format_file_size(metadata.file_size, use_decimal));
+        components.push(util::size::format_file_size(
+            metadata.file_size,
+            use_decimal,
+        ));
         components.push(
             match metadata.format {
                 ImageFormat::Png => "PNG",
@@ -1265,6 +1329,14 @@ fn text_to_url(text: &str) -> String {
         let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
         format!("https://www.google.com/search?q={}", encoded)
     }
+}
+
+fn display_omnibox_text(url: &str) -> String {
+    if url == "glass://newtab" {
+        return String::new();
+    }
+
+    url.to_string()
 }
 
 fn extract_domain(url: &str) -> String {

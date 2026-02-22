@@ -1,8 +1,9 @@
 use gpui::{
-    Context, Corner, IntoElement, MouseButton, ObjectFit, ParentElement, Styled, anchored, canvas,
-    deferred, div, native_icon_button, prelude::*, surface,
+    Context, Corner, IntoElement, MouseButton, NativeImageScaling, NativeImageSymbolWeight,
+    ObjectFit, ParentElement, Styled, anchored, canvas, deferred, div, native_icon_button,
+    native_image_view, prelude::*, px, surface,
 };
-use ui::{Icon, IconName, IconSize, prelude::*};
+use ui::prelude::*;
 
 use super::BrowserView;
 use super::swipe::{SWIPE_INDICATOR_SIZE, SwipePhase};
@@ -26,9 +27,10 @@ impl BrowserView {
                     .items_center()
                     .gap_4()
                     .child(
-                        Icon::new(IconName::Globe)
-                            .size(IconSize::Custom(rems(6.0)))
-                            .color(Color::Muted),
+                        native_image_view("browser-placeholder-globe")
+                            .sf_symbol_config("globe", 96.0, NativeImageSymbolWeight::Regular)
+                            .scaling(NativeImageScaling::ScaleUpOrDown)
+                            .size(px(96.0)),
                     )
                     .child(
                         div()
@@ -331,17 +333,15 @@ impl BrowserView {
             .unwrap_or(false);
 
         if is_new_tab_page {
-            let omnibox = self
-                .toolbar
-                .as_ref()
-                .map(|toolbar| toolbar.read(cx).omnibox().clone());
+            let browser_view = cx.entity();
             return div()
                 .id("browser-content")
                 .relative()
                 .flex_1()
                 .w_full()
                 .child(new_tab_page::render_new_tab_page(
-                    omnibox.as_ref(),
+                    browser_view,
+                    self.new_tab_search_text().to_string(),
                     self.is_incognito_window,
                     cx,
                 ))

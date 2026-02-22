@@ -23,7 +23,7 @@ use editor::Editor;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, Pixels, Render, Styled, Subscription, Task, Window, actions, div,
-    prelude::*,
+    prelude::*, px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_modes::{ModeId, ModeViewRegistry};
@@ -142,6 +142,7 @@ pub struct BrowserView {
     message_pump_started: bool,
     last_viewport: Option<(u32, u32, u32)>,
     pending_new_tab_urls: Vec<String>,
+    new_tab_search_text: String,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     is_incognito_window: bool,
@@ -155,6 +156,12 @@ pub struct BrowserView {
     download_center_visible: bool,
     downloads: Vec<DownloadItemState>,
     tab_bar_mode: TabBarMode,
+    hovered_top_tab_index: Option<usize>,
+    hovered_top_tab_close_index: Option<usize>,
+    hovered_top_new_tab_button: bool,
+    hovered_sidebar_tab_index: Option<usize>,
+    hovered_sidebar_tab_close_index: Option<usize>,
+    hovered_sidebar_new_tab_button: bool,
     toast_layer: Entity<toast::ToastLayer>,
     swipe_state: SwipeNavigationState,
     _swipe_dismiss_task: Option<Task<()>>,
@@ -186,6 +193,7 @@ impl BrowserView {
             message_pump_started: false,
             last_viewport: None,
             pending_new_tab_urls: Vec::new(),
+            new_tab_search_text: String::new(),
             context_menu: None,
             pending_context_menu: None,
             is_incognito_window: false,
@@ -199,6 +207,12 @@ impl BrowserView {
             download_center_visible: false,
             downloads: Vec::new(),
             tab_bar_mode: TabBarMode::default(),
+            hovered_top_tab_index: None,
+            hovered_top_tab_close_index: None,
+            hovered_top_new_tab_button: false,
+            hovered_sidebar_tab_index: None,
+            hovered_sidebar_tab_close_index: None,
+            hovered_sidebar_new_tab_button: false,
             toast_layer,
             swipe_state: SwipeNavigationState::default(),
             _swipe_dismiss_task: None,
@@ -229,6 +243,36 @@ impl BrowserView {
 
     pub fn history(&self) -> &Entity<BrowserHistory> {
         &self.history
+    }
+
+    pub(crate) fn new_tab_search_text(&self) -> &str {
+        &self.new_tab_search_text
+    }
+
+    pub(crate) fn set_new_tab_search_text(&mut self, text: String, cx: &mut Context<Self>) {
+        if self.new_tab_search_text == text {
+            return;
+        }
+
+        self.new_tab_search_text = text;
+        cx.notify();
+    }
+
+    pub(crate) fn submit_new_tab_search(&mut self, text: &str, cx: &mut Context<Self>) {
+        let query = text.trim();
+        if query.is_empty() {
+            return;
+        }
+
+        let url = text_to_url(query);
+        self.new_tab_search_text.clear();
+        if let Some(tab) = self.active_tab().cloned() {
+            tab.update(cx, |tab, cx| {
+                tab.navigate(&url, cx);
+                tab.set_focus(true);
+            });
+        }
+        cx.notify();
     }
 
     fn request_context_for_new_tab(&self) -> Option<cef::RequestContext> {
@@ -305,17 +349,13 @@ impl BrowserView {
         self.sync_bookmark_bar_visibility(cx);
     }
 
-    fn focus_omnibox_if_new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_omnibox_if_new_tab(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         let is_new_tab = self
             .active_tab()
             .map(|t| t.read(cx).is_new_tab_page())
             .unwrap_or(false);
-        if is_new_tab {
-            if let Some(toolbar) = self.toolbar.clone() {
-                toolbar.update(cx, |toolbar, cx| {
-                    toolbar.focus_omnibox(window, cx);
-                });
-            }
+        if !is_new_tab {
+            return;
         }
     }
 
@@ -435,6 +475,17 @@ impl BrowserView {
     }
 }
 
+fn text_to_url(text: &str) -> String {
+    if text.starts_with("http://") || text.starts_with("https://") {
+        text.to_string()
+    } else if text.contains('.') && !text.contains(' ') {
+        format!("https://{}", text)
+    } else {
+        let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
+        format!("https://www.google.com/search?q={}", encoded)
+    }
+}
+
 impl EventEmitter<()> for BrowserView {}
 
 impl Focusable for BrowserView {
@@ -549,7 +600,7 @@ impl Render for BrowserView {
         let element = match self.tab_bar_mode {
             TabBarMode::Horizontal => element
                 .flex_col()
-                .child(self.render_tab_strip(cx))
+                .child(div().mt(px(-1.)).child(self.render_tab_strip(cx)))
                 .child(self.bookmark_bar.clone())
                 .child(self.render_browser_content(cx))
                 .into_any_element(),
