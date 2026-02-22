@@ -170,6 +170,7 @@ impl Render for BrowserSidebarPanel {
         let collapse_view = browser_view.clone().downgrade();
         v_flex()
             .size_full()
+            .bg(theme.colors().editor_background)
             .child(
                 div()
                     .flex()
