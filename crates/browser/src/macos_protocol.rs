@@ -28,12 +28,7 @@ unsafe extern "C" {
     fn class_getSuperclass(cls: ObjcClass) -> ObjcClass;
     fn objc_getProtocol(name: *const c_char) -> ObjcProtocol;
     fn class_addProtocol(cls: ObjcClass, protocol: ObjcProtocol) -> bool;
-    fn class_addMethod(
-        cls: ObjcClass,
-        name: ObjcSel,
-        imp: ObjcImp,
-        types: *const c_char,
-    ) -> bool;
+    fn class_addMethod(cls: ObjcClass, name: ObjcSel, imp: ObjcImp, types: *const c_char) -> bool;
     fn sel_registerName(name: *const c_char) -> ObjcSel;
     // Declared with concrete signature to avoid ARM64 variadic ABI issues.
     // On ARM64, variadic function args go on the stack but ObjC messages
@@ -116,11 +111,7 @@ pub fn add_cef_protocols_to_nsapp() {
             c"v@:@".as_ptr(),
         );
 
-        for proto_name in [
-            c"CrAppProtocol",
-            c"CrAppControlProtocol",
-            c"CefAppProtocol",
-        ] {
+        for proto_name in [c"CrAppProtocol", c"CrAppControlProtocol", c"CefAppProtocol"] {
             let proto = objc_getProtocol(proto_name.as_ptr());
             if !proto.is_null() {
                 class_addProtocol(cls, proto);
@@ -131,6 +122,5 @@ pub fn add_cef_protocols_to_nsapp() {
                 );
             }
         }
-
     }
 }

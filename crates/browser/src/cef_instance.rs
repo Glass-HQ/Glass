@@ -8,11 +8,10 @@
 //!    initialization. This handles CEF subprocess execution.
 //! 2. `initialize()` - Called later to complete CEF setup for the browser process.
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use cef::{
-    api_hash, rc::Rc as _, sys, wrap_app, wrap_browser_process_handler, App,
-    BrowserProcessHandler, ImplApp, ImplBrowserProcessHandler, ImplCommandLine, WrapApp,
-    WrapBrowserProcessHandler,
+    App, BrowserProcessHandler, ImplApp, ImplBrowserProcessHandler, ImplCommandLine, WrapApp,
+    WrapBrowserProcessHandler, api_hash, rc::Rc as _, sys, wrap_app, wrap_browser_process_handler,
 };
 use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -88,8 +87,7 @@ struct GlassApp {
 
 impl GlassApp {
     fn new() -> Self {
-        let handler =
-            GlassBrowserProcessHandlerBuilder::build(GlassBrowserProcessHandler::new());
+        let handler = GlassBrowserProcessHandlerBuilder::build(GlassBrowserProcessHandler::new());
         Self {
             browser_process_handler: handler,
         }
@@ -199,7 +197,11 @@ impl CefInstance {
         let args = cef::args::Args::new();
         let mut app = GlassAppBuilder::build(GlassApp::new());
 
-        let ret = cef::execute_process(Some(args.as_main_args()), Some(&mut app), std::ptr::null_mut());
+        let ret = cef::execute_process(
+            Some(args.as_main_args()),
+            Some(&mut app),
+            std::ptr::null_mut(),
+        );
 
         if ret >= 0 {
             std::process::exit(ret);
@@ -262,8 +264,7 @@ impl CefInstance {
                         .join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
                     if let Ok(canonical) = helper_path.canonicalize() {
                         if let Some(path_str) = canonical.to_str() {
-                            settings.browser_subprocess_path =
-                                cef::CefString::from(path_str);
+                            settings.browser_subprocess_path = cef::CefString::from(path_str);
                         }
                     }
                 }
@@ -272,7 +273,10 @@ impl CefInstance {
 
         let cache_dir = paths::data_dir().join("browser_cache");
         if let Err(e) = std::fs::create_dir_all(&cache_dir) {
-            log::warn!("[browser::cef_instance] Failed to create browser cache directory: {}", e);
+            log::warn!(
+                "[browser::cef_instance] Failed to create browser cache directory: {}",
+                e
+            );
         }
         if let Some(cache_path_str) = cache_dir.to_str() {
             settings.cache_path = cef::CefString::from(cache_path_str);

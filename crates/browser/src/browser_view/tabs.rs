@@ -449,11 +449,33 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.tab_bar_mode = match self.tab_bar_mode {
-            TabBarMode::Horizontal => TabBarMode::Sidebar,
-            TabBarMode::Sidebar => TabBarMode::Horizontal,
-        };
+        match self.tab_bar_mode {
+            TabBarMode::Horizontal => {
+                self.tab_bar_mode = TabBarMode::Sidebar;
+                self.sidebar_collapsed = false;
+            }
+            TabBarMode::Sidebar => {
+                self.tab_bar_mode = TabBarMode::Horizontal;
+                self.sidebar_collapsed = false;
+            }
+        }
+        self.hovered_top_tab_index = None;
+        self.hovered_top_tab_close_index = None;
+        self.hovered_top_new_tab_button = false;
+        self.hovered_sidebar_tab_index = None;
+        self.hovered_sidebar_tab_close_index = None;
+        self.hovered_sidebar_new_tab_button = false;
+        if let Some(native_sidebar_panel) = &self.native_sidebar_panel {
+            native_sidebar_panel.update(cx, |sidebar_panel, cx| {
+                sidebar_panel.clear_hover_state(cx);
+            });
+        }
         self.schedule_save(cx);
+        cx.notify();
+    }
+
+    pub(super) fn toggle_sidebar_collapsed(&mut self, cx: &mut Context<Self>) {
+        self.sidebar_collapsed = !self.sidebar_collapsed;
         cx.notify();
     }
 
@@ -506,6 +528,24 @@ impl BrowserView {
                 self.active_tab_index = self.tabs.len() - 1;
             }
             self.activate_tab_for_close(cx);
+        }
+
+        if self.hovered_top_tab_index == Some(index) {
+            self.hovered_top_tab_index = None;
+        }
+        if self.hovered_top_tab_close_index == Some(index) {
+            self.hovered_top_tab_close_index = None;
+        }
+        if self.hovered_sidebar_tab_index == Some(index) {
+            self.hovered_sidebar_tab_index = None;
+        }
+        if self.hovered_sidebar_tab_close_index == Some(index) {
+            self.hovered_sidebar_tab_close_index = None;
+        }
+        if let Some(native_sidebar_panel) = &self.native_sidebar_panel {
+            native_sidebar_panel.update(cx, |sidebar_panel, cx| {
+                sidebar_panel.clear_hover_state(cx);
+            });
         }
 
         self.sync_bookmark_bar_visibility(cx);

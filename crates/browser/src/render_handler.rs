@@ -7,8 +7,8 @@
 
 use crate::events::{BrowserEvent, EventSender};
 use cef::{
-    rc::Rc as _, wrap_render_handler, AcceleratedPaintInfo, Browser, ImplRenderHandler,
-    PaintElementType, Rect, RenderHandler, ScreenInfo, WrapRenderHandler,
+    AcceleratedPaintInfo, Browser, ImplRenderHandler, PaintElementType, Rect, RenderHandler,
+    ScreenInfo, WrapRenderHandler, rc::Rc as _, wrap_render_handler,
 };
 use core_foundation::base::TCFType;
 use core_video::pixel_buffer::CVPixelBuffer;

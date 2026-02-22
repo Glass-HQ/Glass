@@ -8,8 +8,8 @@ use crate::keycodes::{key_to_macos_keycode, key_to_windows_keycode};
 use crate::tab::BrowserTab;
 use cef::{KeyEvent, KeyEventType, MouseButtonType};
 use gpui::{
-    Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels,
-    Point, ScrollDelta, ScrollWheelEvent,
+    Keystroke, Modifiers, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point,
+    ScrollDelta, ScrollWheelEvent,
 };
 
 const EVENTFLAG_SHIFT_DOWN: u32 = 1 << 1;
@@ -53,12 +53,13 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
     let y = f32::from(position.y) as i32;
 
     let (delta_x, delta_y) = match event.delta {
-        ScrollDelta::Pixels(delta) => {
-            (f32::from(delta.x) as i32, f32::from(delta.y) as i32)
-        }
+        ScrollDelta::Pixels(delta) => (f32::from(delta.x) as i32, f32::from(delta.y) as i32),
         ScrollDelta::Lines(delta) => {
             let line_height = 40;
-            ((delta.x * line_height as f32) as i32, (delta.y * line_height as f32) as i32)
+            (
+                (delta.x * line_height as f32) as i32,
+                (delta.y * line_height as f32) as i32,
+            )
         }
     };
 
@@ -76,16 +77,15 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     // For text input, send a CHAR event after the KEYDOWN event.
     // Do NOT send CHAR events for non-character keys (enter, backspace, arrows, etc.)
     // or when platform/control modifiers are held (those are shortcuts, not text).
-    let char_to_send: Option<u16> = if keystroke.modifiers.platform
-        || keystroke.modifiers.control
-    {
+    let char_to_send: Option<u16> = if keystroke.modifiers.platform || keystroke.modifiers.control {
         None
     } else {
         match keystroke.key.as_str() {
             "enter" | "backspace" | "tab" | "delete" | "escape" => None,
             "space" => Some(' ' as u16),
             "left" | "right" | "up" | "down" | "home" | "end" | "pageup" | "pagedown" => None,
-            "f1" | "f2" | "f3" | "f4" | "f5" | "f6" | "f7" | "f8" | "f9" | "f10" | "f11" | "f12" => None,
+            "f1" | "f2" | "f3" | "f4" | "f5" | "f6" | "f7" | "f8" | "f9" | "f10" | "f11"
+            | "f12" => None,
             _ => {
                 if let Some(key_char) = &keystroke.key_char {
                     key_char.chars().next().map(|c| c as u16)

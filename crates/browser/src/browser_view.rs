@@ -162,6 +162,8 @@ pub struct BrowserView {
     hovered_sidebar_tab_index: Option<usize>,
     hovered_sidebar_tab_close_index: Option<usize>,
     hovered_sidebar_new_tab_button: bool,
+    sidebar_collapsed: bool,
+    native_sidebar_panel: Option<Entity<tab_strip::BrowserSidebarPanel>>,
     toast_layer: Entity<toast::ToastLayer>,
     swipe_state: SwipeNavigationState,
     _swipe_dismiss_task: Option<Task<()>>,
@@ -213,6 +215,8 @@ impl BrowserView {
             hovered_sidebar_tab_index: None,
             hovered_sidebar_tab_close_index: None,
             hovered_sidebar_new_tab_button: false,
+            sidebar_collapsed: false,
+            native_sidebar_panel: None,
             toast_layer,
             swipe_state: SwipeNavigationState::default(),
             _swipe_dismiss_task: None,
@@ -604,19 +608,54 @@ impl Render for BrowserView {
                 .child(self.bookmark_bar.clone())
                 .child(self.render_browser_content(cx))
                 .into_any_element(),
-            TabBarMode::Sidebar => element
-                .flex_row()
-                .child(self.render_sidebar(cx))
-                .child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .overflow_hidden()
-                        .child(self.bookmark_bar.clone())
-                        .child(self.render_browser_content(cx)),
-                )
-                .into_any_element(),
+            TabBarMode::Sidebar => {
+                #[cfg(target_os = "macos")]
+                {
+                    let native_sidebar_panel = self.ensure_native_sidebar_panel(cx);
+                    let sidebar_collapsed = self.sidebar_collapsed;
+                    element
+                        .flex_row()
+                        .child(
+                            gpui::native_sidebar("browser-native-sidebar", &[""; 0])
+                                .sidebar_view(native_sidebar_panel)
+                                .sidebar_width(200.0)
+                                .min_sidebar_width(160.0)
+                                .max_sidebar_width(420.0)
+                                .manage_window_chrome(false)
+                                .collapsed(sidebar_collapsed)
+                                .size_full(),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .overflow_hidden()
+                                .when(sidebar_collapsed, |this| {
+                                    this.child(self.render_sidebar_expand_button(cx))
+                                })
+                                .child(self.bookmark_bar.clone())
+                                .child(self.render_browser_content(cx)),
+                        )
+                        .into_any_element()
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    element
+                        .flex_row()
+                        .child(self.render_sidebar(cx))
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .overflow_hidden()
+                                .child(self.bookmark_bar.clone())
+                                .child(self.render_browser_content(cx)),
+                        )
+                        .into_any_element()
+                }
+            }
         };
 
         div()

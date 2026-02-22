@@ -1,11 +1,10 @@
 use crate::session;
 use gpui::{
-    Context, DismissEvent, Entity, EventEmitter, IntoElement, MouseButton, ParentElement, Pixels,
-    Point, Render, SharedString, SharedUri, Styled, Subscription, Task, Window, anchored, deferred,
-    div, img, prelude::*,
+    Context, EventEmitter, IntoElement, MouseButton, NativeMenuItem, ParentElement, Render,
+    SharedString, Styled, Task, Window, div, native_image_view, prelude::*, show_native_popup_menu,
 };
 use serde::{Deserialize, Serialize};
-use ui::{Icon, IconName, IconSize, prelude::*};
+use ui::prelude::*;
 use util::ResultExt as _;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -123,13 +122,6 @@ pub struct BookmarkBar {
     store: BookmarkStore,
     is_active_tab_new_tab_page: bool,
     _save_task: Option<Task<()>>,
-    bar_menu: Option<BarContextMenu>,
-}
-
-struct BarContextMenu {
-    menu: Entity<ui::ContextMenu>,
-    position: Point<Pixels>,
-    _dismiss_subscription: Subscription,
 }
 
 impl EventEmitter<BookmarkBarEvent> for BookmarkBar {}
@@ -142,7 +134,6 @@ impl BookmarkBar {
             store,
             is_active_tab_new_tab_page: true,
             _save_task: None,
-            bar_menu: None,
         }
     }
 
@@ -195,22 +186,13 @@ impl BookmarkBar {
         cx.notify();
     }
 
-    pub fn move_to_folder(
-        &mut self,
-        url: &str,
-        folder_id: Option<u64>,
-        cx: &mut Context<Self>,
-    ) {
+    pub fn move_to_folder(&mut self, url: &str, folder_id: Option<u64>, cx: &mut Context<Self>) {
         self.store.move_to_folder(url, folder_id);
         self.save(cx);
         cx.notify();
     }
 
-    fn set_visibility(
-        &mut self,
-        visibility: BookmarkBarVisibility,
-        cx: &mut Context<Self>,
-    ) {
+    fn set_visibility(&mut self, visibility: BookmarkBarVisibility, cx: &mut Context<Self>) {
         self.store.visibility = visibility;
         self.save(cx);
         cx.notify();
@@ -220,17 +202,19 @@ impl BookmarkBar {
         let position = window.mouse_position();
         let is_always = self.store.visibility == BookmarkBarVisibility::Always;
         let view = cx.entity().downgrade();
+        let menu_items = vec![NativeMenuItem::action(if is_always {
+            "Show Only on New Tab"
+        } else {
+            "Show on All Tabs"
+        })];
 
-        let menu = ui::ContextMenu::build(window, cx, move |mut menu, _window, _cx| {
-            let view = view.clone();
-            menu = menu.entry(
-                if is_always {
-                    "Show Only on New Tab"
-                } else {
-                    "Show on All Tabs"
-                },
-                None,
-                move |_window, cx| {
+        show_native_popup_menu(
+            &menu_items,
+            position,
+            window,
+            cx,
+            move |action_index, _window, cx| {
+                if action_index == 0 {
                     let new_visibility = if is_always {
                         BookmarkBarVisibility::NewTabOnly
                     } else {
@@ -240,21 +224,9 @@ impl BookmarkBar {
                         this.set_visibility(new_visibility, cx);
                     })
                     .ok();
-                },
-            );
-            menu
-        });
-
-        let dismiss_subscription = cx.subscribe_in(&menu, window, |this, _, _: &DismissEvent, _window, _cx| {
-            this.bar_menu = None;
-        });
-
-        self.bar_menu = Some(BarContextMenu {
-            menu,
-            position,
-            _dismiss_subscription: dismiss_subscription,
-        });
-        cx.notify();
+                }
+            },
+        );
     }
 
     fn save(&mut self, cx: &mut Context<Self>) {
@@ -278,21 +250,14 @@ impl Render for BookmarkBar {
         }
 
         let theme = cx.theme();
-        let bg_color = theme.colors().title_bar_background;
-        let border_color = theme.colors().border;
+        let hover_background = theme.colors().text.opacity(0.09);
 
         let top_level = self.store.top_level_bookmarks();
         let folders = self.store.folders.clone();
 
         let bookmark_data: Vec<_> = top_level
             .into_iter()
-            .map(|b| {
-                (
-                    b.url.clone(),
-                    b.title.clone(),
-                    b.favicon_url.clone(),
-                )
-            })
+            .map(|b| (b.url.clone(), b.title.clone(), b.favicon_url.clone()))
             .collect();
 
         let folder_data: Vec<_> = folders
@@ -330,125 +295,109 @@ impl Render for BookmarkBar {
                     let navigate_url = url.clone();
                     let delete_url = url.clone();
                     let new_tab_url = url.clone();
-                    let open_new_tab_url = url.clone();
-                    let view_for_ctx = view.clone();
-                    let view_for_open = view.clone();
+                    let bookmark_chip_id = navigate_url.clone();
+                    let fallback_icon_id = navigate_url.clone();
+                    let view_for_click = view.clone();
+                    let view_for_menu = view.clone();
+                    let navigate_url_for_click = navigate_url.clone();
+                    let new_tab_url_for_click = new_tab_url.clone();
+                    let new_tab_url_for_menu = new_tab_url.clone();
+                    let delete_url_for_menu = delete_url.clone();
 
-                    ui::right_click_menu(SharedString::from(format!(
-                        "bookmark-ctx-{}",
-                        url
-                    )))
-                    .trigger({
-                        let view = view.clone();
-                        move |_, _, _| {
-                            let navigate_url = navigate_url.clone();
-                            let new_tab_url = new_tab_url.clone();
-                            let view = view.clone();
-                            let view_cmd = view.clone();
+                    let favicon_element = favicon_url.as_ref().map(|url| {
+                        native_image_view(SharedString::from(format!(
+                            "bookmark-favicon-{navigate_url}"
+                        )))
+                        .image_uri(url.clone())
+                        .size(px(14.))
+                        .rounded_sm()
+                        .flex_shrink_0()
+                        .into_any_element()
+                    });
 
-                            let favicon_element = favicon_url.as_ref().map(|url| {
-                                img(SharedUri::from(url.clone()))
-                                    .size(px(14.))
-                                    .rounded_sm()
-                                    .flex_shrink_0()
-                                    .into_any_element()
-                            });
-
-                            div()
-                                .id(SharedString::from(format!(
-                                    "bookmark-chip-{}",
-                                    navigate_url
-                                )))
-                                .flex()
-                                .gap_1()
-                                .items_center()
-                                .px_1p5()
-                                .py_0p5()
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|style| {
-                                    style.bg(gpui::hsla(0., 0., 0.5, 0.1))
-                                })
-                                .on_click(move |event, _window, cx| {
-                                    let cmd_held = event.modifiers().platform;
-                                    if cmd_held {
-                                        let url = new_tab_url.clone();
-                                        view_cmd
+                    div()
+                        .id(SharedString::from(format!(
+                            "bookmark-chip-{bookmark_chip_id}"
+                        )))
+                        .flex()
+                        .gap_1()
+                        .items_center()
+                        .h(px(22.))
+                        .px_2()
+                        .rounded(px(7.))
+                        .cursor_pointer()
+                        .hover(move |style| style.bg(hover_background))
+                        .on_click(move |event, _window, cx| {
+                            let cmd_held = event.modifiers().platform;
+                            if cmd_held {
+                                let url = new_tab_url_for_click.clone();
+                                view_for_click
+                                    .update(cx, |_, cx| {
+                                        cx.emit(BookmarkBarEvent::OpenInNewTab(url));
+                                    })
+                                    .ok();
+                            } else {
+                                let url = navigate_url_for_click.clone();
+                                view_for_click
+                                    .update(cx, |_, cx| {
+                                        cx.emit(BookmarkBarEvent::NavigateToUrl(url));
+                                    })
+                                    .ok();
+                            }
+                        })
+                        .on_mouse_down(MouseButton::Right, move |event, window, cx| {
+                            let menu_items = vec![
+                                NativeMenuItem::action("Open in New Tab"),
+                                NativeMenuItem::action("Delete"),
+                            ];
+                            let open_url = new_tab_url_for_menu.clone();
+                            let delete_url = delete_url_for_menu.clone();
+                            let view_for_menu = view_for_menu.clone();
+                            show_native_popup_menu(
+                                &menu_items,
+                                event.position,
+                                window,
+                                cx,
+                                move |action_index, _window, cx| {
+                                    if action_index == 0 {
+                                        view_for_menu
                                             .update(cx, |_, cx| {
-                                                cx.emit(
-                                                    BookmarkBarEvent::OpenInNewTab(url),
-                                                );
+                                                cx.emit(BookmarkBarEvent::OpenInNewTab(
+                                                    open_url.clone(),
+                                                ));
                                             })
                                             .ok();
-                                    } else {
-                                        let url = navigate_url.clone();
-                                        view.update(cx, |_, cx| {
-                                            cx.emit(
-                                                BookmarkBarEvent::NavigateToUrl(url),
-                                            );
-                                        })
-                                        .ok();
-                                    }
-                                })
-                                .when_some(favicon_element, |this, f| this.child(f))
-                                .when(favicon_url.is_none(), |this| {
-                                    this.child(
-                                        Icon::new(IconName::Star)
-                                            .size(IconSize::XSmall)
-                                            .color(Color::Muted),
-                                    )
-                                })
-                                .child(
-                                    div()
-                                        .text_size(rems(0.6875))
-                                        .whitespace_nowrap()
-                                        .text_ellipsis()
-                                        .max_w(px(120.))
-                                        .overflow_hidden()
-                                        .child(display_title),
-                                )
-                        }
-                    })
-                    .menu(move |window, cx| {
-                        let delete_url = delete_url.clone();
-                        let open_url = open_new_tab_url.clone();
-                        let view = view_for_ctx.clone();
-                        let view_open = view_for_open.clone();
-                        ui::ContextMenu::build(
-                            window,
-                            cx,
-                            move |menu, _window, _cx| {
-                                let view_delete = view.clone();
-                                let del_url = delete_url;
-                                menu.entry(
-                                    "Open in New Tab",
-                                    None,
-                                    {
-                                        let view = view_open.clone();
-                                        let url = open_url;
-                                        move |_window, cx| {
-                                            view.update(cx, |_, cx| {
-                                                cx.emit(BookmarkBarEvent::OpenInNewTab(url.clone()));
-                                            })
-                                            .ok();
-                                        }
-                                    },
-                                )
-                                .entry(
-                                    "Delete",
-                                    None,
-                                    move |_window, cx| {
-                                        view_delete
+                                    } else if action_index == 1 {
+                                        view_for_menu
                                             .update(cx, |this, cx| {
-                                                this.remove_bookmark(&del_url, cx);
+                                                this.remove_bookmark(&delete_url, cx);
                                             })
                                             .ok();
-                                    },
-                                )
-                            },
+                                    }
+                                },
+                            );
+                        })
+                        .when_some(favicon_element, |this, f| this.child(f))
+                        .when(favicon_url.is_none(), |this| {
+                            this.child(
+                                native_image_view(SharedString::from(format!(
+                                    "bookmark-fallback-{fallback_icon_id}"
+                                )))
+                                .sf_symbol("globe")
+                                .size(px(14.))
+                                .flex_shrink_0(),
+                            )
+                        })
+                        .child(
+                            div()
+                                .text_size(rems(0.75))
+                                .whitespace_nowrap()
+                                .text_ellipsis()
+                                .max_w(px(132.))
+                                .overflow_hidden()
+                                .child(display_title),
                         )
-                    })
-                    .into_any_element()
+                        .into_any_element()
                 }
             })
             .collect();
@@ -462,19 +411,22 @@ impl Render for BookmarkBar {
                     .flex()
                     .gap_1()
                     .items_center()
-                    .px_1p5()
-                    .py_0p5()
-                    .rounded_sm()
+                    .h(px(22.))
+                    .px_2()
+                    .rounded(px(7.))
                     .cursor_pointer()
-                    .hover(|style| style.bg(gpui::hsla(0., 0., 0.5, 0.1)))
+                    .hover(move |style| style.bg(hover_background))
                     .child(
-                        Icon::new(IconName::FolderOpen)
-                            .size(IconSize::XSmall)
-                            .color(Color::Muted),
+                        native_image_view(SharedString::from(format!(
+                            "bookmark-folder-{folder_id}"
+                        )))
+                        .sf_symbol("folder")
+                        .size(px(14.))
+                        .flex_shrink_0(),
                     )
                     .child(
                         div()
-                            .text_size(rems(0.6875))
+                            .text_size(rems(0.75))
                             .whitespace_nowrap()
                             .child(folder_name),
                     )
@@ -482,31 +434,15 @@ impl Render for BookmarkBar {
             })
             .collect();
 
-        // Build the bar: bookmark chips + folders, right-click on empty space for settings
-        let bar_menu_element = self.bar_menu.as_ref().map(|bar_menu| {
-            let menu = bar_menu.menu.clone();
-            let position = bar_menu.position;
-            deferred(
-                anchored()
-                    .snap_to_window_with_margin(gpui::px(8.))
-                    .position(position)
-                    .child(div().occlude().child(menu)),
-            )
-            .with_priority(1)
-        });
-
         h_flex()
             .id("bookmark-bar")
             .w_full()
             .h(px(26.))
             .flex_shrink_0()
             .px_2()
-            .gap_0p5()
+            .gap_1()
             .items_center()
             .overflow_hidden()
-            .bg(bg_color)
-            .border_b_1()
-            .border_color(border_color)
             .on_mouse_down(
                 MouseButton::Right,
                 cx.listener(|this, _event, window, cx| {
@@ -515,7 +451,6 @@ impl Render for BookmarkBar {
             )
             .children(bookmark_chips)
             .children(folder_elements)
-            .children(bar_menu_element)
             .into_any_element()
     }
 }
