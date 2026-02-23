@@ -139,9 +139,6 @@ impl BrowserTab {
                     cx.emit(TabEvent::FrameReady);
                 }
                 BrowserEvent::BrowserCreated => {}
-                BrowserEvent::PopupRequested(url) => {
-                    cx.emit(TabEvent::OpenNewTab(url));
-                }
                 BrowserEvent::LoadError {
                     url,
                     error_code,

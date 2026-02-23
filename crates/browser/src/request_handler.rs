@@ -1,24 +1,19 @@
 //! CEF Request Handler
 //!
-//! Intercepts navigation requests. When the user cmd+clicks a link,
-//! CEF calls on_open_urlfrom_tab with a non-CURRENT_TAB disposition.
-//! We cancel that navigation and send a PopupRequested event so the
-//! browser view opens the URL in a new tab instead.
+//! Allows CEF to handle non-current-tab dispositions (new tab/window) so
+//! popup-based auth flows can use native opener semantics.
 
-use crate::events::{BrowserEvent, EventSender};
 use cef::{
     Browser, ImplRequestHandler, RequestHandler, WindowOpenDisposition, WrapRequestHandler,
     rc::Rc as _, wrap_request_handler,
 };
 
 #[derive(Clone)]
-pub struct OsrRequestHandler {
-    sender: EventSender,
-}
+pub struct OsrRequestHandler;
 
 impl OsrRequestHandler {
-    pub fn new(sender: EventSender) -> Self {
-        Self { sender }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -32,21 +27,11 @@ wrap_request_handler! {
             &self,
             _browser: Option<&mut Browser>,
             _frame: Option<&mut cef::Frame>,
-            target_url: Option<&cef::CefString>,
-            target_disposition: WindowOpenDisposition,
+            _target_url: Option<&cef::CefString>,
+            _target_disposition: WindowOpenDisposition,
             _user_gesture: ::std::os::raw::c_int,
         ) -> ::std::os::raw::c_int {
-            if *target_disposition.as_ref() != *WindowOpenDisposition::CURRENT_TAB.as_ref() {
-                if let Some(url) = target_url {
-                    let url_str = url.to_string();
-                    if !url_str.is_empty() {
-                        let _ = self.handler.sender.send(BrowserEvent::PopupRequested(url_str));
-                    }
-                }
-                1 // Cancel navigation in current tab
-            } else {
-                0 // Allow normal navigation
-            }
+            0 // Allow CEF default handling for current and non-current dispositions.
         }
     }
 }

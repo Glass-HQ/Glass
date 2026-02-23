@@ -283,12 +283,17 @@ impl BrowserView {
         cx.notify();
     }
 
+    fn new_tab_row_count(&self) -> usize {
+        let mut count = self.new_tab_suggestions.len();
+        if !self.new_tab_search_text.is_empty() {
+            count += 1; // "Search Google" row
+        }
+        count
+    }
+
     pub(crate) fn submit_new_tab_search(&mut self, text: &str, cx: &mut Context<Self>) {
-        // If a suggestion is selected via keyboard, navigate to it.
         let url = if let Some(index) = self.new_tab_selected_index {
-            self.new_tab_suggestions
-                .get(index)
-                .map(|s| s.url.clone())
+            self.url_for_new_tab_row(index)
                 .unwrap_or_else(|| text_to_url(text.trim()))
         } else {
             let query = text.trim();
@@ -312,32 +317,53 @@ impl BrowserView {
     }
 
     pub(crate) fn new_tab_move_up(&mut self, cx: &mut Context<Self>) {
-        if self.new_tab_suggestions.is_empty() {
+        let total = self.new_tab_row_count();
+        if total == 0 {
             return;
         }
-        self.new_tab_selected_index = match self.new_tab_selected_index {
-            None => Some(self.new_tab_suggestions.len() - 1),
-            Some(0) => None,
-            Some(i) => Some(i - 1),
-        };
+        self.new_tab_selected_index = Some(match self.new_tab_selected_index {
+            Some(0) | None => total.saturating_sub(1),
+            Some(i) => i - 1,
+        });
         cx.notify();
     }
 
     pub(crate) fn new_tab_move_down(&mut self, cx: &mut Context<Self>) {
-        if self.new_tab_suggestions.is_empty() {
+        let total = self.new_tab_row_count();
+        if total == 0 {
             return;
         }
-        self.new_tab_selected_index = match self.new_tab_selected_index {
-            None => Some(0),
-            Some(i) if i + 1 >= self.new_tab_suggestions.len() => None,
-            Some(i) => Some(i + 1),
-        };
+        self.new_tab_selected_index = Some(match self.new_tab_selected_index {
+            Some(i) => (i + 1) % total,
+            None => 0,
+        });
         cx.notify();
     }
 
     pub(crate) fn new_tab_cancel(&mut self, _cx: &mut Context<Self>) {
         self.new_tab_suggestions.clear();
         self.new_tab_selected_index = None;
+    }
+
+    pub(crate) fn new_tab_blur(&mut self, _cx: &mut Context<Self>) {
+        self.new_tab_suggestions.clear();
+        self.new_tab_selected_index = None;
+    }
+
+    fn url_for_new_tab_row(&self, index: usize) -> Option<String> {
+        let mut current = 0;
+
+        if !self.new_tab_search_text.is_empty() {
+            if current == index {
+                return Some(text_to_url(&self.new_tab_search_text));
+            }
+            current += 1;
+        }
+
+        let suggestion_index = index - current;
+        self.new_tab_suggestions
+            .get(suggestion_index)
+            .map(|s| s.url.clone())
     }
 
     fn search_new_tab_history(&mut self, query: String, cx: &mut Context<Self>) {
@@ -366,23 +392,20 @@ impl BrowserView {
             return;
         }
 
+        let selected = self.new_tab_selected_index;
         let mut items: Vec<NativePopoverContentItem> = Vec::new();
         let mut row_count = 0usize;
+        let mut row_index = 0usize;
         let has_search_row = !self.new_tab_search_text.is_empty();
 
         if has_search_row {
             let query = self.new_tab_search_text.clone();
-            let is_selected = self.new_tab_selected_index.is_none();
-            let label = if is_selected {
-                format!("\u{25B8} Search \"{}\"", query)
-            } else {
-                format!("Search \"{}\"", query)
-            };
             let bv = browser_view_weak.clone();
             items.push(
-                NativePopoverClickableRow::new(label)
+                NativePopoverClickableRow::new(format!("Search \"{}\"", query))
                     .icon("magnifyingglass")
                     .detail("Google")
+                    .selected(selected == Some(row_index))
                     .on_click(move |window, cx| {
                         window.dismiss_native_panel();
                         let url = text_to_url(&query);
@@ -402,22 +425,17 @@ impl BrowserView {
                     .into(),
             );
             row_count += 1;
+            row_index += 1;
             items.push(NativePopoverContentItem::separator());
         }
 
         items.push(NativePopoverContentItem::heading("History"));
-        for (idx, suggestion) in self.new_tab_suggestions.iter().enumerate() {
+        for suggestion in &self.new_tab_suggestions {
             let url = suggestion.url.clone();
-            let is_selected = self.new_tab_selected_index == Some(idx);
             let title = if suggestion.title.is_empty() {
                 suggestion.url.clone()
             } else {
                 suggestion.title.clone()
-            };
-            let title = if is_selected {
-                format!("\u{25B8} {}", title)
-            } else {
-                title
             };
             let detail = crate::new_tab_page::extract_domain(&suggestion.url);
             let bv = browser_view_weak.clone();
@@ -425,6 +443,7 @@ impl BrowserView {
                 NativePopoverClickableRow::new(title)
                     .icon("clock")
                     .detail(detail)
+                    .selected(selected == Some(row_index))
                     .on_click(move |window, cx| {
                         window.dismiss_native_panel();
                         let _ = bv.update(cx, |bv, cx| {
@@ -443,6 +462,7 @@ impl BrowserView {
                     .into(),
             );
             row_count += 1;
+            row_index += 1;
         }
 
         let padding = 16.0;
@@ -831,7 +851,9 @@ impl Render for BrowserView {
             }
         }
 
-        // Show suggestion panel for new tab page search
+        // Show/update suggestion panel for new tab page search.
+        // The panel is dismissed by on_blur/on_cancel handlers; here we only
+        // rebuild it when there are active suggestions to display.
         let is_new_tab = self
             .active_tab()
             .map(|t| t.read(cx).is_new_tab_page())
@@ -842,8 +864,6 @@ impl Render for BrowserView {
         {
             let weak = cx.entity().downgrade();
             self.show_new_tab_suggestion_panel(weak, window);
-        } else if is_new_tab && (self.new_tab_search_text.is_empty() || self.new_tab_suggestions.is_empty()) {
-            window.dismiss_native_panel();
         }
 
         let element = div()

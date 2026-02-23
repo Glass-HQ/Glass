@@ -1,14 +1,18 @@
 //! CEF Life Span Handler
 //!
 //! Handles browser lifecycle events: popup requests, browser creation,
-//! and browser close. Popups are cancelled and their URL is sent as an
-//! event so the tab can navigate to it instead.
+//! and browser close. Popup-based login flows rely on real popup windows,
+//! so we allow popup creation instead of rewriting to tab navigation.
 
+use crate::client::ClientBuilder;
 use crate::events::{BrowserEvent, EventSender};
+use crate::render_handler::RenderState;
 use cef::{
     Browser, ImplLifeSpanHandler, LifeSpanHandler, WrapLifeSpanHandler, rc::Rc as _,
     wrap_life_span_handler,
 };
+use parking_lot::Mutex;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct OsrLifeSpanHandler {
@@ -18,6 +22,12 @@ pub struct OsrLifeSpanHandler {
 impl OsrLifeSpanHandler {
     pub fn new(sender: EventSender) -> Self {
         Self { sender }
+    }
+
+    fn popup_client() -> cef::Client {
+        let render_state = Arc::new(Mutex::new(RenderState::default()));
+        let (popup_sender, _popup_receiver) = crate::events::event_channel();
+        ClientBuilder::build(render_state, popup_sender)
     }
 }
 
@@ -37,20 +47,31 @@ wrap_life_span_handler! {
             _target_disposition: cef::WindowOpenDisposition,
             _user_gesture: ::std::os::raw::c_int,
             _popup_features: Option<&cef::PopupFeatures>,
-            _window_info: Option<&mut cef::WindowInfo>,
-            _client: Option<&mut Option<cef::Client>>,
+            window_info: Option<&mut cef::WindowInfo>,
+            client: Option<&mut Option<cef::Client>>,
             _settings: Option<&mut cef::BrowserSettings>,
             _extra_info: Option<&mut Option<cef::DictionaryValue>>,
             _no_javascript_access: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            // Cancel popup, navigate in current tab instead
+            // Ensure popup is hosted as a real window and not as an off-screen
+            // rendering child tied to the parent tab's event/render pipeline.
+            if let Some(window_info) = window_info {
+                window_info.windowless_rendering_enabled = 0;
+                window_info.shared_texture_enabled = 0;
+            }
+
+            if let Some(client) = client {
+                *client = Some(OsrLifeSpanHandler::popup_client());
+            }
+
             if let Some(url) = target_url {
-                let url_str = url.to_string();
-                if !url_str.is_empty() {
-                    let _ = self.handler.sender.send(BrowserEvent::PopupRequested(url_str));
+                let url_string = url.to_string();
+                if !url_string.is_empty() {
+                    log::info!("[browser] allowing popup navigation: {}", url_string);
                 }
             }
-            1 // Return 1 to cancel the popup
+
+            0 // Allow popup creation.
         }
 
         fn on_after_created(&self, _browser: Option<&mut Browser>) {
