@@ -125,8 +125,6 @@ impl Render for Toolbar {
             .when(has_left_items || has_right_items, |this| {
                 this.gap(DynamicSpacing::Base06.rems(cx))
             })
-            .border_b_1()
-            .border_color(cx.theme().colors().border_variant)
             .bg(cx.theme().colors().toolbar_background)
             .when(has_left_items || has_right_items, |this| {
                 this.child(

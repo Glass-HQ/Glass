@@ -6880,7 +6880,6 @@ impl Render for Workspace {
                                 .flex()
                                 .flex_col()
                                 .overflow_hidden()
-                                .border_t_1()
                                 .border_b_1()
                                 .border_color(colors.border)
                                 .child({
