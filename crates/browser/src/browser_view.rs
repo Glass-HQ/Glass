@@ -601,8 +601,6 @@ impl Render for BrowserView {
             .size_full()
             .flex();
 
-
-
         let element = match self.tab_bar_mode {
             TabBarMode::Horizontal => element
                 .flex_col()
@@ -616,22 +614,29 @@ impl Render for BrowserView {
                     let native_sidebar_panel = self.ensure_native_sidebar_panel(cx);
                     let sidebar_collapsed = self.sidebar_collapsed;
                     element
-                        .flex_col()
+                        .flex_row()
                         .child(
                             gpui::native_sidebar("browser-native-sidebar", &[""; 0])
                                 .sidebar_view(native_sidebar_panel)
                                 .sidebar_width(200.0)
                                 .min_sidebar_width(160.0)
                                 .max_sidebar_width(420.0)
-                                .manage_window_chrome(true)
-                                .manage_toolbar(false)
-                                .collapsed(sidebar_collapsed),
+                                .manage_window_chrome(false)
+                                .collapsed(sidebar_collapsed)
+                                .size_full(),
                         )
-                        .when(sidebar_collapsed, |this| {
-                            this.child(self.render_sidebar_expand_button(cx))
-                        })
-                        .child(self.bookmark_bar.clone())
-                        .child(self.render_browser_content(cx))
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .overflow_hidden()
+                                .when(sidebar_collapsed, |this| {
+                                    this.child(self.render_sidebar_expand_button(cx))
+                                })
+                                .child(self.bookmark_bar.clone())
+                                .child(self.render_browser_content(cx)),
+                        )
                         .into_any_element()
                 }
                 #[cfg(not(target_os = "macos"))]
