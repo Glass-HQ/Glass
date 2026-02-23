@@ -459,6 +459,7 @@ impl BrowserView {
                 self.sidebar_collapsed = false;
             }
         }
+        self.sync_browser_sidebar_state(cx);
         self.hovered_top_tab_index = None;
         self.hovered_top_tab_close_index = None;
         self.hovered_top_new_tab_button = false;

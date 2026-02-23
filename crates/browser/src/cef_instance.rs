@@ -119,6 +119,10 @@ wrap_app! {
                 Some(&"autoplay-policy".into()),
                 Some(&"no-user-gesture-required".into()),
             );
+            command_line.append_switch_with_value(
+                Some(&"component-updater".into()),
+                Some(&"fast-update".into()),
+            );
 
             #[cfg(debug_assertions)]
             {

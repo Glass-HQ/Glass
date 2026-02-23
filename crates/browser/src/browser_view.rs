@@ -29,7 +29,7 @@ use gpui::{
     Render, Styled, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
-use workspace_modes::{ModeId, ModeViewRegistry};
+use workspace_modes::{BrowserSidebarState, ModeId, ModeViewRegistry};
 
 const MAX_CLOSED_TABS: usize = 20;
 
@@ -245,7 +245,14 @@ impl BrowserView {
             }
         }
 
+        this.sync_browser_sidebar_state(cx);
         this
+    }
+
+    pub(crate) fn sync_browser_sidebar_state(&self, cx: &mut App) {
+        cx.set_global(BrowserSidebarState {
+            sidebar_active: self.tab_bar_mode == TabBarMode::Sidebar,
+        });
     }
 
     pub fn active_tab(&self) -> Option<&Entity<BrowserTab>> {

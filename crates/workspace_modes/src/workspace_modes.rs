@@ -22,7 +22,7 @@ mod mode_view_registry;
 pub use mode_switcher::ModeSwitcher;
 pub use mode_view_registry::{ModeViewFactory, ModeViewRegistry, RegisteredModeView};
 
-use gpui::{App, actions};
+use gpui::{App, Global, actions};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -64,7 +64,18 @@ impl std::fmt::Display for ModeId {
     }
 }
 
+/// Tracks whether the browser's native sidebar should be visible.
+/// Set by the browser crate, read by the workspace crate.
+pub struct BrowserSidebarState {
+    pub sidebar_active: bool,
+}
+
+impl Global for BrowserSidebarState {}
+
 /// Initialize the workspace_modes crate
 pub fn init(cx: &mut App) {
     ModeViewRegistry::init(cx);
+    cx.set_global(BrowserSidebarState {
+        sidebar_active: false,
+    });
 }

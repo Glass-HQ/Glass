@@ -133,6 +133,8 @@ use util::{
     serde::default_true,
 };
 use uuid::Uuid;
+#[cfg(target_os = "macos")]
+use workspace_modes::BrowserSidebarState;
 use workspace_modes::{
     ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
 };
@@ -155,10 +157,14 @@ use crate::{
 /// the appropriate sidebar content for the current mode, avoiding teardown/rebuild
 /// of the NSSplitViewController on mode switches.
 #[cfg(target_os = "macos")]
+const DEFAULT_SIDEBAR_WIDTH: f64 = 240.0;
+
+#[cfg(target_os = "macos")]
 pub struct UnifiedSidebar {
     active_mode: ModeId,
     left_dock: Entity<Dock>,
     browser_sidebar_view: Option<AnyView>,
+    width: f64,
 }
 
 #[cfg(target_os = "macos")]
@@ -168,6 +174,7 @@ impl UnifiedSidebar {
             active_mode: ModeId::BROWSER,
             left_dock,
             browser_sidebar_view: None,
+            width: DEFAULT_SIDEBAR_WIDTH,
         }
     }
 
@@ -182,11 +189,22 @@ impl UnifiedSidebar {
         self.browser_sidebar_view = Some(view);
         cx.notify();
     }
+
+    pub fn set_width(&mut self, width: f64, cx: &mut Context<Self>) {
+        if (self.width - width).abs() > 0.5 {
+            self.width = width;
+            cx.notify();
+        }
+    }
+
+    pub fn width(&self) -> f64 {
+        self.width
+    }
 }
 
 #[cfg(target_os = "macos")]
 impl Render for UnifiedSidebar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         if self.active_mode == ModeId::BROWSER {
             if let Some(view) = &self.browser_sidebar_view {
                 return div().size_full().child(view.clone()).into_any_element();
@@ -1556,6 +1574,23 @@ impl Workspace {
         });
 
         let subscriptions = vec![
+            #[cfg(target_os = "macos")]
+            cx.observe_global::<BrowserSidebarState>(|_this, cx| {
+                cx.notify();
+            }),
+            #[cfg(target_os = "macos")]
+            cx.observe_in(&left_dock, window, |this, _, window, cx| {
+                let width = this
+                    .left_dock
+                    .read(cx)
+                    .visible_content_size(window, cx)
+                    .map(|s| f64::from(s));
+                if let Some(width) = width {
+                    this.unified_sidebar.update(cx, |sidebar, cx| {
+                        sidebar.set_width(width, cx);
+                    });
+                }
+            }),
             cx.observe_window_activation(window, Self::on_window_activation_changed),
             cx.observe_window_bounds(window, move |this, window, cx| {
                 if this.bounds_save_task_queued.is_some() {
@@ -6399,19 +6434,16 @@ impl Workspace {
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        let (sidebar_collapsed, sidebar_width) = {
-            let left_dock = self.left_dock.read(cx);
-            let dock_collapsed = !left_dock.has_visible_content(window, cx);
-            let width: f64 = left_dock
-                .visible_content_size(window, cx)
-                .map(|s| s.into())
-                .unwrap_or(240.0);
+        let sidebar_width = self.unified_sidebar.read(cx).width();
 
-            if self.active_mode == ModeId::BROWSER {
-                (false, 200.0)
-            } else {
-                (dock_collapsed, width)
-            }
+        let sidebar_collapsed = if self.active_mode == ModeId::BROWSER {
+            let sidebar_active = cx
+                .try_global::<BrowserSidebarState>()
+                .map(|s| s.sidebar_active)
+                .unwrap_or(false);
+            !sidebar_active
+        } else {
+            !self.left_dock.read(cx).has_visible_content(window, cx)
         };
 
         div()
@@ -6525,6 +6557,11 @@ impl Workspace {
 
     fn resize_left_dock(&mut self, new_size: Pixels, window: &mut Window, cx: &mut App) {
         let size = new_size.min(self.bounds.right() - RESIZE_HANDLE_SIZE);
+
+        #[cfg(target_os = "macos")]
+        self.unified_sidebar.update(cx, |sidebar, cx| {
+            sidebar.set_width(f64::from(size), cx);
+        });
 
         self.left_dock.update(cx, |left_dock, cx| {
             if left_dock.resize_workspace_sidebar_if_open(size, window, cx) {

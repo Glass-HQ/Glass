@@ -24,8 +24,8 @@
 
 set -euo pipefail
 
-# CEF branch corresponding to Chromium 144.0.7559.x (matches cef-rs v144.3.0+144.0.12)
-CEF_BRANCH="7559"
+# CEF branch corresponding to Chromium 145.0.7632.x (matches cef-rs v145.1.1+145.0.23)
+CEF_BRANCH="7632"
 BUILD_DIR="$HOME/cef_build"
 OUTPUT_DIR=""
 
@@ -147,8 +147,7 @@ python3 "$BUILD_DIR/automate/automate-git.py" \
     $ARCH_FLAG \
     --no-debug-build \
     --minimal-distrib-only \
-    --with-pgo-profiles \
-    --force-clean
+    --with-pgo-profiles
 
 echo ""
 echo "=== Build complete ==="

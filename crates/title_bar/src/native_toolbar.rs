@@ -43,7 +43,8 @@ pub struct NativeToolbarController {
     right_items: Vec<Box<dyn TitleBarItemViewHandle>>,
     active_pane: Option<Entity<Pane>>,
     omnibox_text: String,
-    is_user_typing: bool,
+    omnibox_focused: bool,
+    omnibox_panel_dirty: bool,
     omnibox_suggestions: Vec<browser::history::HistoryMatch>,
     omnibox_selected_index: Option<usize>,
     last_toolbar_key: String,
@@ -171,7 +172,8 @@ impl NativeToolbarController {
             right_items: Vec::new(),
             active_pane: None,
             omnibox_text: String::new(),
-            is_user_typing: false,
+            omnibox_focused: false,
+            omnibox_panel_dirty: false,
             omnibox_suggestions: Vec::new(),
             omnibox_selected_index: None,
             last_toolbar_key: String::new(),
@@ -356,17 +358,20 @@ impl NativeToolbarController {
         };
         let show_update = self.update_version.read(cx).show_update_in_menu_bar();
 
-        // Show/update the suggestion panel on every render (independent of toolbar rebuild)
-        // so that typing and search results don't cause the NSSearchField to be recreated.
-        if is_browser_mode && self.is_user_typing && !self.omnibox_text.is_empty() {
-            self.show_suggestion_panel(window);
+        // When async search results arrive, we need to update the suggestion panel.
+        // The search callback can't show the panel (no Window access), so it sets
+        // this flag and the panel is shown here (the only render-time panel logic).
+        if self.omnibox_panel_dirty {
+            self.omnibox_panel_dirty = false;
+            if self.omnibox_focused && !self.omnibox_text.is_empty() {
+                self.show_suggestion_panel(window);
+            }
         }
 
-        // Omnibox text and suggestion count are excluded from the toolbar key so that
-        // keystrokes and search-history results don't rebuild the NSSearchField (which
-        // would steal focus). When the user isn't typing, include the URL so that
-        // programmatic navigation (e.g. clicking a link) updates the search field text.
-        let omnibox_key = if self.is_user_typing {
+        // When the omnibox is focused, freeze the toolbar key so that no rebuilds
+        // happen (which would destroy the NSSearchField and end editing). Panel
+        // visibility is managed by event callbacks + the dirty flag above.
+        let omnibox_key = if self.omnibox_focused {
             String::new()
         } else {
             self.omnibox_text.clone()
@@ -655,6 +660,7 @@ impl NativeToolbarController {
         let workspace_for_move_up = self.workspace.clone();
         let workspace_for_move_down = self.workspace.clone();
         let workspace_for_cancel = self.workspace.clone();
+        let workspace_for_begin_editing = self.workspace.clone();
         let workspace_for_end_editing = self.workspace.clone();
 
         NativeToolbarItem::SearchField(
@@ -665,6 +671,9 @@ impl NativeToolbarController {
                 .max_width(px(600.0))
                 .on_change(move |event: &NativeToolbarSearchEvent, window, cx| {
                     let text = event.text.clone();
+                    if text.is_empty() {
+                        window.dismiss_native_panel();
+                    }
                     if let Some(workspace) = workspace_for_change.upgrade() {
                         if let Some(controller) = workspace
                             .read(cx)
@@ -672,15 +681,11 @@ impl NativeToolbarController {
                             .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                         {
                             controller.update(cx, |controller, cx| {
-                                controller.is_user_typing = true;
                                 controller.omnibox_text = text.to_string();
                                 controller.omnibox_selected_index = None;
                                 controller.search_history(text.to_string(), cx);
                             });
                         }
-                    }
-                    if text.is_empty() {
-                        window.dismiss_native_panel();
                     }
                 })
                 .on_submit(move |event: &NativeToolbarSearchEvent, window, cx| {
@@ -760,8 +765,22 @@ impl NativeToolbarController {
                             .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                         {
                             controller.update(cx, |controller, cx| {
+                                controller.omnibox_focused = false;
                                 controller.omnibox_selected_index = None;
                                 cx.notify();
+                            });
+                        }
+                    }
+                })
+                .on_begin_editing(move |_event: &NativeToolbarSearchEvent, _window, cx| {
+                    if let Some(workspace) = workspace_for_begin_editing.upgrade() {
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, _cx| {
+                                controller.omnibox_focused = true;
                             });
                         }
                     }
@@ -775,6 +794,7 @@ impl NativeToolbarController {
                             .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                         {
                             controller.update(cx, |controller, cx| {
+                                controller.omnibox_focused = false;
                                 controller.omnibox_selected_index = None;
                                 cx.notify();
                             });
@@ -1235,7 +1255,7 @@ impl NativeToolbarController {
     }
 
     fn sync_omnibox_url(&mut self, cx: &mut App) {
-        if self.is_user_typing {
+        if self.omnibox_focused {
             return;
         }
 
@@ -1259,7 +1279,7 @@ impl NativeToolbarController {
 
         let url = text_to_url(text);
         self.omnibox_text = url.clone();
-        self.is_user_typing = false;
+        self.omnibox_focused = false;
         self.omnibox_suggestions.clear();
 
         if let Some(browser_view) = self.browser_view(cx) {
@@ -1425,6 +1445,7 @@ impl NativeToolbarController {
             let _ = cx.update(|cx| {
                 let _ = this.update(cx, |this, cx| {
                     this.omnibox_suggestions = matches;
+                    this.omnibox_panel_dirty = true;
                     cx.notify();
                 });
             });
