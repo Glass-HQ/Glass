@@ -402,6 +402,7 @@ impl NativeToolbarController {
             .size_mode(NativeToolbarSizeMode::Regular)
             .shows_baseline_separator(false);
 
+        toolbar = toolbar.item(NativeToolbarItem::FlexibleSpace);
         toolbar = toolbar.item(NativeToolbarItem::SidebarToggle);
         toolbar = toolbar.item(NativeToolbarItem::SidebarTrackingSeparator);
         toolbar = toolbar.item(self.build_mode_switcher_item(active_mode, cx));
