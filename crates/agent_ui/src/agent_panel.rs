@@ -61,8 +61,8 @@ use search::{BufferSearchBar, buffer_search};
 use settings::{Settings, update_settings_file};
 use theme::ThemeSettings;
 use ui::{
-    Callout, ContextMenu, ContextMenuEntry, KeyBinding, PopoverMenu, PopoverMenuHandle, Tab,
-    Tooltip, prelude::*, utils::WithRemSize,
+    Callout, ContextMenu, KeyBinding, PopoverMenuHandle, Tab, Tooltip, prelude::*,
+    utils::WithRemSize,
 };
 use util::ResultExt as _;
 use workspace::{
@@ -2118,7 +2118,7 @@ impl AgentPanel {
         &self,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    ) -> AnyElement {
         let focus_handle = self.focus_handle(cx);
 
         let full_screen_label = if self.is_zoomed(window, cx) {
@@ -2158,6 +2158,133 @@ impl AgentPanel {
             _ => false,
         };
 
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let mut items = Vec::new();
+            let mut actions: Vec<Box<dyn Fn(&mut Window, &mut App)>> = Vec::new();
+
+            if thread_with_messages | text_thread_with_messages {
+                items.push(NativeMenuItem::action("Current Thread").enabled(false));
+
+                if let Some(text_thread_view) = text_thread_view.clone() {
+                    items.push(NativeMenuItem::action("Regenerate Thread Title"));
+                    actions.push(Box::new(move |_, cx| {
+                        Self::handle_regenerate_text_thread_title(text_thread_view.clone(), cx);
+                    }));
+                    items.push(NativeMenuItem::separator());
+                }
+
+                if let Some(thread_view) = thread_view.clone() {
+                    items.push(NativeMenuItem::action("Regenerate Thread Title"));
+                    actions.push(Box::new(move |_, cx| {
+                        Self::handle_regenerate_thread_title(thread_view.clone(), cx);
+                    }));
+                    items.push(NativeMenuItem::separator());
+                }
+            }
+
+            items.push(NativeMenuItem::action("MCP Servers").enabled(false));
+            items.push(NativeMenuItem::action("View Server Extensions"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(
+                        &zed_actions::Extensions {
+                            category_filter: Some(
+                                zed_actions::ExtensionCategoryFilter::ContextServers,
+                            ),
+                            id: None,
+                        },
+                        window,
+                        cx,
+                    );
+                }
+            }));
+            items.push(NativeMenuItem::action("Add Custom Server\u{2026}"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&AddContextServer, window, cx);
+                }
+            }));
+            items.push(NativeMenuItem::separator());
+            items.push(NativeMenuItem::action("Rules"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&OpenRulesLibrary::default(), window, cx);
+                }
+            }));
+            items.push(NativeMenuItem::action("Profiles"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&ManageProfiles::default(), window, cx);
+                }
+            }));
+            items.push(NativeMenuItem::action("Settings"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&OpenSettings, window, cx);
+                }
+            }));
+            items.push(NativeMenuItem::separator());
+            items.push(NativeMenuItem::action(full_screen_label));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&ToggleZoom, window, cx);
+                }
+            }));
+
+            if selected_agent == AgentType::Gemini {
+                items.push(NativeMenuItem::action("Reauthenticate"));
+                actions.push(Box::new({
+                    let focus_handle = focus_handle.clone();
+                    move |window, cx| {
+                        focus_handle.dispatch_action(&ReauthenticateAgent, window, cx);
+                    }
+                }));
+            }
+
+            let actions = std::rc::Rc::new(actions);
+            return div()
+                .child(
+                    IconButton::new("agent-options-menu", IconName::Ellipsis)
+                        .icon_size(IconSize::Small)
+                        .tooltip({
+                            let focus_handle = focus_handle.clone();
+                            move |_window, cx| {
+                                Tooltip::for_action_in(
+                                    "Toggle Agent Menu",
+                                    &ToggleOptionsMenu,
+                                    &focus_handle,
+                                    cx,
+                                )
+                            }
+                        }),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                    let actions = actions.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            if let Some(action) = actions.get(index) {
+                                action(window, cx);
+                            }
+                        },
+                    );
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
         PopoverMenu::new("agent-options-menu")
             .trigger_with_tooltip(
                 IconButton::new("agent-options-menu", IconName::Ellipsis)
@@ -2240,47 +2367,193 @@ impl AgentPanel {
                     }))
                 }
             })
+            .into_any_element()
     }
 
     fn render_recent_entries_menu(
         &self,
         icon: IconName,
-        corner: Corner,
+        _corner: Corner,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
+    ) -> AnyElement {
         let focus_handle = self.focus_handle(cx);
 
-        PopoverMenu::new("agent-nav-menu")
-            .trigger_with_tooltip(
-                IconButton::new("agent-nav-menu", icon).icon_size(IconSize::Small),
-                {
-                    move |_window, cx| {
-                        Tooltip::for_action_in(
-                            "Toggle Recently Updated Threads",
-                            &ToggleNavigationMenu,
-                            &focus_handle,
-                            cx,
-                        )
-                    }
-                },
-            )
-            .anchor(corner)
-            .with_handle(self.agent_navigation_menu_handle.clone())
-            .menu({
-                let menu = self.agent_navigation_menu.clone();
-                move |window, cx| {
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let entity = cx.entity().downgrade();
+
+            return div()
+                .child(
+                    IconButton::new("agent-nav-menu", icon)
+                        .icon_size(IconSize::Small)
+                        .tooltip({
+                            let focus_handle = focus_handle.clone();
+                            move |_window, cx| {
+                                Tooltip::for_action_in(
+                                    "Toggle Recently Updated Threads",
+                                    &ToggleNavigationMenu,
+                                    &focus_handle,
+                                    cx,
+                                )
+                            }
+                        }),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
                     telemetry::event!("View Thread History Clicked");
 
-                    if let Some(menu) = menu.as_ref() {
-                        menu.update(cx, |_, cx| {
-                            cx.defer_in(window, |menu, window, cx| {
-                                menu.rebuild(window, cx);
-                            });
-                        })
+                    let mut items = Vec::new();
+                    let mut actions: Vec<Box<dyn FnOnce(&mut Window, &mut App)>> = Vec::new();
+
+                    if let Some(entity) = entity.upgrade() {
+                        let panel = entity.read(cx);
+                        if let Some(kind) = panel.history_kind_for_selected_agent(cx) {
+                            match kind {
+                                HistoryKind::AgentThreads => {
+                                    let entries: Vec<_> = panel
+                                        .acp_history
+                                        .read(cx)
+                                        .sessions()
+                                        .iter()
+                                        .take(RECENTLY_UPDATED_MENU_LIMIT)
+                                        .cloned()
+                                        .collect();
+                                    if !entries.is_empty() {
+                                        items.push(
+                                            NativeMenuItem::action("Recently Updated")
+                                                .enabled(false),
+                                        );
+                                        for entry in entries {
+                                            let title = entry
+                                                .title
+                                                .as_ref()
+                                                .filter(|t| !t.is_empty())
+                                                .cloned()
+                                                .unwrap_or_else(|| {
+                                                    SharedString::new_static(DEFAULT_THREAD_TITLE)
+                                                });
+                                            items.push(NativeMenuItem::action(title));
+                                            let weak = entity.downgrade();
+                                            actions.push(Box::new(move |window, cx| {
+                                                weak.update(cx, |this, cx| {
+                                                    this.load_agent_thread(
+                                                        entry.clone(),
+                                                        window,
+                                                        cx,
+                                                    );
+                                                })
+                                                .ok();
+                                            }));
+                                        }
+                                        items.push(NativeMenuItem::separator());
+                                    }
+                                }
+                                HistoryKind::TextThreads => {
+                                    let entries: Vec<_> = panel
+                                        .text_thread_store
+                                        .read(cx)
+                                        .ordered_text_threads()
+                                        .take(RECENTLY_UPDATED_MENU_LIMIT)
+                                        .cloned()
+                                        .collect();
+                                    if !entries.is_empty() {
+                                        items.push(
+                                            NativeMenuItem::action("Recent Text Threads")
+                                                .enabled(false),
+                                        );
+                                        for entry in entries {
+                                            let title = if entry.title.is_empty() {
+                                                SharedString::new_static(DEFAULT_THREAD_TITLE)
+                                            } else {
+                                                entry.title.clone()
+                                            };
+                                            items.push(NativeMenuItem::action(title));
+                                            let weak = entity.downgrade();
+                                            actions.push(Box::new(move |window, cx| {
+                                                weak.update(cx, |this, cx| {
+                                                    this.open_saved_text_thread(
+                                                        entry.path.clone(),
+                                                        window,
+                                                        cx,
+                                                    )
+                                                    .detach_and_log_err(cx);
+                                                })
+                                                .ok();
+                                            }));
+                                        }
+                                        items.push(NativeMenuItem::separator());
+                                    }
+                                }
+                            }
+
+                            let view_all_label = match kind {
+                                HistoryKind::AgentThreads => "View All",
+                                HistoryKind::TextThreads => "View All Text Threads",
+                            };
+                            items.push(NativeMenuItem::action(view_all_label));
+                            actions.push(Box::new({
+                                let focus_handle = focus_handle.clone();
+                                move |window, cx| {
+                                    focus_handle.dispatch_action(&OpenHistory, window, cx);
+                                }
+                            }));
+                        }
                     }
-                    menu.clone()
-                }
-            })
+
+                    if !items.is_empty() {
+                        show_native_popup_menu(
+                            &items,
+                            event.position,
+                            window,
+                            cx,
+                            move |index, window, cx| {
+                                if let Some(action) = actions.into_iter().nth(index) {
+                                    action(window, cx);
+                                }
+                            },
+                        );
+                    }
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = _corner;
+            PopoverMenu::new("agent-nav-menu")
+                .trigger_with_tooltip(
+                    IconButton::new("agent-nav-menu", icon).icon_size(IconSize::Small),
+                    {
+                        move |_window, cx| {
+                            Tooltip::for_action_in(
+                                "Toggle Recently Updated Threads",
+                                &ToggleNavigationMenu,
+                                &focus_handle,
+                                cx,
+                            )
+                        }
+                    },
+                )
+                .anchor(_corner)
+                .with_handle(self.agent_navigation_menu_handle.clone())
+                .menu({
+                    let menu = self.agent_navigation_menu.clone();
+                    move |window, cx| {
+                        telemetry::event!("View Thread History Clicked");
+
+                        if let Some(menu) = menu.as_ref() {
+                            menu.update(cx, |_, cx| {
+                                cx.defer_in(window, |menu, window, cx| {
+                                    menu.rebuild(window, cx);
+                                });
+                            })
+                        }
+                        menu.clone()
+                    }
+                })
+                .into_any_element()
+        }
     }
 
     fn render_toolbar_back_button(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -2323,6 +2596,205 @@ impl AgentPanel {
             | ActiveView::Configuration => None,
         };
 
+        #[cfg(target_os = "macos")]
+        let new_thread_menu = {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let workspace = self.workspace.clone();
+            let focus_handle_clone = focus_handle.clone();
+
+            let mut items = Vec::new();
+            let mut actions: Vec<Box<dyn Fn(&mut Window, &mut App)>> = Vec::new();
+
+            if let Some(active_thread) = &active_thread {
+                let thread = active_thread.read(cx);
+                if !thread.is_empty() {
+                    let session_id = thread.id().clone();
+                    items.push(NativeMenuItem::action("New From Summary"));
+                    actions.push(Box::new({
+                        let focus_handle = focus_handle.clone();
+                        move |window, cx| {
+                            focus_handle.dispatch_action(
+                                &NewNativeAgentThreadFromSummary {
+                                    from_session_id: session_id.clone(),
+                                },
+                                window,
+                                cx,
+                            );
+                        }
+                    }));
+                }
+            }
+
+            items.push(NativeMenuItem::action("Zed Agent"));
+            actions.push(Box::new({
+                let workspace = workspace.clone();
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                panel.update(cx, |panel, cx| {
+                                    panel.new_agent_thread(AgentType::NativeAgent, window, cx);
+                                });
+                            }
+                        });
+                    }
+                }
+            }));
+
+            items.push(NativeMenuItem::action("Text Thread"));
+            actions.push(Box::new({
+                let workspace = workspace.clone();
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                panel.update(cx, |panel, cx| {
+                                    panel.new_agent_thread(AgentType::TextThread, window, cx);
+                                });
+                            }
+                        });
+                    }
+                }
+            }));
+
+            items.push(NativeMenuItem::separator());
+            items.push(NativeMenuItem::action("External Agents").enabled(false));
+
+            items.push(NativeMenuItem::action("Claude Code"));
+            actions.push(Box::new({
+                let workspace = workspace.clone();
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                panel.update(cx, |panel, cx| {
+                                    panel.new_agent_thread(AgentType::ClaudeCode, window, cx);
+                                });
+                            }
+                        });
+                    }
+                }
+            }));
+
+            items.push(NativeMenuItem::action("Codex CLI"));
+            actions.push(Box::new({
+                let workspace = workspace.clone();
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                panel.update(cx, |panel, cx| {
+                                    panel.new_agent_thread(AgentType::Codex, window, cx);
+                                });
+                            }
+                        });
+                    }
+                }
+            }));
+
+            items.push(NativeMenuItem::action("Gemini CLI"));
+            actions.push(Box::new({
+                let workspace = workspace.clone();
+                move |window, cx| {
+                    if let Some(workspace) = workspace.upgrade() {
+                        workspace.update(cx, |workspace, cx| {
+                            if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                panel.update(cx, |panel, cx| {
+                                    panel.new_agent_thread(AgentType::Gemini, window, cx);
+                                });
+                            }
+                        });
+                    }
+                }
+            }));
+
+            {
+                let store = agent_server_store.read(cx);
+                let agent_names: Vec<_> = store
+                    .external_agents()
+                    .filter(|name| {
+                        name.0 != GEMINI_NAME && name.0 != CLAUDE_CODE_NAME && name.0 != CODEX_NAME
+                    })
+                    .cloned()
+                    .collect();
+
+                for agent_name in agent_names {
+                    let display_name = store
+                        .agent_display_name(&agent_name)
+                        .unwrap_or_else(|| agent_name.0.clone());
+                    items.push(NativeMenuItem::action(display_name));
+                    actions.push(Box::new({
+                        let workspace = workspace.clone();
+                        let name = agent_name.0.clone();
+                        move |window, cx| {
+                            if let Some(workspace) = workspace.upgrade() {
+                                workspace.update(cx, |workspace, cx| {
+                                    if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
+                                        panel.update(cx, |panel, cx| {
+                                            panel.new_agent_thread(
+                                                AgentType::Custom {
+                                                    name: name.clone().into(),
+                                                },
+                                                window,
+                                                cx,
+                                            );
+                                        });
+                                    }
+                                });
+                            }
+                        }
+                    }));
+                }
+            }
+
+            items.push(NativeMenuItem::separator());
+            items.push(NativeMenuItem::action("Add More Agents"));
+            actions.push(Box::new({
+                let focus_handle = focus_handle.clone();
+                move |window, cx| {
+                    focus_handle.dispatch_action(&zed_actions::AcpRegistry, window, cx);
+                }
+            }));
+
+            div()
+                .child(
+                    IconButton::new("new_thread_menu_btn", IconName::Plus)
+                        .icon_size(IconSize::Small)
+                        .tooltip({
+                            let focus_handle = focus_handle_clone;
+                            move |_window, cx| {
+                                Tooltip::for_action_in(
+                                    "New Thread\u{2026}",
+                                    &ToggleNewThreadMenu,
+                                    &focus_handle,
+                                    cx,
+                                )
+                            }
+                        }),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, {
+                    let actions = std::rc::Rc::new(actions);
+                    move |event, window, cx| {
+                        telemetry::event!("New Thread Clicked");
+                        let actions = actions.clone();
+                        show_native_popup_menu(
+                            &items,
+                            event.position,
+                            window,
+                            cx,
+                            move |index, window, cx| {
+                                if let Some(action) = actions.get(index) {
+                                    action(window, cx);
+                                }
+                            },
+                        );
+                    }
+                })
+                .into_any_element()
+        };
+
+        #[cfg(not(target_os = "macos"))]
         let new_thread_menu = PopoverMenu::new("new_thread_menu")
             .trigger_with_tooltip(
                 IconButton::new("new_thread_menu_btn", IconName::Plus).icon_size(IconSize::Small),
@@ -2610,7 +3082,8 @@ impl AgentPanel {
                             )
                     }))
                 }
-            });
+            })
+            .into_any_element();
 
         let is_thread_loading = self
             .active_thread_view()

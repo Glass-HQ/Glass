@@ -504,47 +504,123 @@ impl TerminalView {
             .selection_text
             .as_ref()
             .is_some_and(|text| !text.is_empty());
-        let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
-            menu.context(self.focus_handle.clone())
-                .action("New Terminal", Box::new(NewTerminal::default()))
-                .separator()
-                .action("Copy", Box::new(Copy))
-                .action("Paste", Box::new(Paste))
-                .action("Select All", Box::new(SelectAll))
-                .action("Clear", Box::new(Clear))
-                .when(assistant_enabled, |menu| {
-                    menu.separator()
-                        .action("Inline Assist", Box::new(InlineAssist::default()))
-                        .when(has_selection, |menu| {
-                            menu.action("Add to Agent Thread", Box::new(AddSelectionToThread))
-                        })
-                })
-                .separator()
-                .action(
-                    "Close Terminal Tab",
-                    Box::new(CloseActiveItem {
-                        save_intent: None,
-                        close_pinned: true,
-                    }),
-                )
-        });
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
 
-        window.focus(&context_menu.focus_handle(cx), cx);
-        let subscription = cx.subscribe_in(
-            &context_menu,
-            window,
-            |this, _, _: &DismissEvent, window, cx| {
-                if this.context_menu.as_ref().is_some_and(|context_menu| {
-                    context_menu.0.focus_handle(cx).contains_focused(window, cx)
-                }) {
-                    cx.focus_self(window);
+            let mut items = vec![
+                NativeMenuItem::action("New Terminal"),
+                NativeMenuItem::Separator,
+                NativeMenuItem::action("Copy"),
+                NativeMenuItem::action("Paste"),
+                NativeMenuItem::action("Select All"),
+                NativeMenuItem::action("Clear"),
+            ];
+            if assistant_enabled {
+                items.push(NativeMenuItem::Separator);
+                items.push(NativeMenuItem::action("Inline Assist"));
+                if has_selection {
+                    items.push(NativeMenuItem::action("Add to Agent Thread"));
                 }
-                this.context_menu.take();
-                cx.notify();
-            },
-        );
+            }
+            items.push(NativeMenuItem::Separator);
+            items.push(NativeMenuItem::action("Close Terminal Tab"));
 
-        self.context_menu = Some((context_menu, position, subscription));
+            let focus_handle = self.focus_handle.clone();
+            show_native_popup_menu(
+                &items,
+                position,
+                window,
+                cx,
+                move |index, window, cx| {
+                    let action: Box<dyn Action> = match index {
+                        0 => Box::new(NewTerminal::default()),
+                        1 => Box::new(Copy),
+                        2 => Box::new(Paste),
+                        3 => Box::new(SelectAll),
+                        4 => Box::new(Clear),
+                        idx => {
+                            let mut offset = 5;
+                            if assistant_enabled {
+                                if idx == offset {
+                                    Box::new(InlineAssist::default())
+                                } else {
+                                    offset += 1;
+                                    if has_selection && idx == offset {
+                                        Box::new(AddSelectionToThread)
+                                    } else {
+                                        if has_selection {
+                                            offset += 1;
+                                        }
+                                        if idx == offset {
+                                            Box::new(CloseActiveItem {
+                                                save_intent: None,
+                                                close_pinned: true,
+                                            })
+                                        } else {
+                                            return;
+                                        }
+                                    }
+                                }
+                            } else if idx == offset {
+                                Box::new(CloseActiveItem {
+                                    save_intent: None,
+                                    close_pinned: true,
+                                })
+                            } else {
+                                return;
+                            }
+                        }
+                    };
+                    focus_handle.dispatch_action(action.as_ref(), window, cx);
+                },
+            );
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
+                menu.context(self.focus_handle.clone())
+                    .action("New Terminal", Box::new(NewTerminal::default()))
+                    .separator()
+                    .action("Copy", Box::new(Copy))
+                    .action("Paste", Box::new(Paste))
+                    .action("Select All", Box::new(SelectAll))
+                    .action("Clear", Box::new(Clear))
+                    .when(assistant_enabled, |menu| {
+                        menu.separator()
+                            .action("Inline Assist", Box::new(InlineAssist::default()))
+                            .when(has_selection, |menu| {
+                                menu.action("Add to Agent Thread", Box::new(AddSelectionToThread))
+                            })
+                    })
+                    .separator()
+                    .action(
+                        "Close Terminal Tab",
+                        Box::new(CloseActiveItem {
+                            save_intent: None,
+                            close_pinned: true,
+                        }),
+                    )
+            });
+
+            window.focus(&context_menu.focus_handle(cx), cx);
+            let subscription = cx.subscribe_in(
+                &context_menu,
+                window,
+                |this, _, _: &DismissEvent, window, cx| {
+                    if this.context_menu.as_ref().is_some_and(|context_menu| {
+                        context_menu.0.focus_handle(cx).contains_focused(window, cx)
+                    }) {
+                        cx.focus_self(window);
+                    }
+                    this.context_menu.take();
+                    cx.notify();
+                },
+            );
+
+            self.context_menu = Some((context_menu, position, subscription));
+        }
     }
 
     fn settings_changed(&mut self, cx: &mut Context<Self>) {

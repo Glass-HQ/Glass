@@ -17,9 +17,9 @@ use dap::{client::SessionId, debugger_settings::DebuggerSettings};
 use editor::{Editor, MultiBufferOffset, ToPoint};
 use feature_flags::{FeatureFlag, FeatureFlagAppExt as _};
 use gpui::{
-    Action, App, AsyncWindowContext, ClipboardItem, Context, Corner, DismissEvent, Entity,
-    EntityId, EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Point,
-    Subscription, Task, WeakEntity, anchored, deferred,
+    Action, App, AsyncWindowContext, ClipboardItem, Context, Corner, Entity, EntityId,
+    EventEmitter, FocusHandle, Focusable, MouseButton, MouseDownEvent, Point, Subscription, Task,
+    WeakEntity, anchored, deferred,
 };
 
 use itertools::Itertools as _;
@@ -545,11 +545,33 @@ impl DebugPanel {
             let pane_items_status = running_state.read(cx).pane_items_status(cx);
             let this = cx.weak_entity();
 
-            let context_menu = ContextMenu::build(window, cx, |mut menu, _window, _cx| {
+            #[cfg(target_os = "macos")]
+            {
+                use gpui::{NativeMenuItem, show_native_popup_menu};
+
+                use gpui::SharedString;
+                use crate::persistence::DebuggerPaneItem;
+
+                let mut items = Vec::new();
+                let mut toggle_data: Vec<(DebuggerPaneItem, bool)> = Vec::new();
                 for (item_kind, is_visible) in pane_items_status.into_iter() {
-                    menu = menu.toggleable_entry(item_kind, is_visible, IconPosition::End, None, {
-                        let this = this.clone();
-                        move |window, cx| {
+                    let label: SharedString = item_kind.into();
+                    let title = if is_visible {
+                        format!("\u{2713} {}", label)
+                    } else {
+                        label.to_string()
+                    };
+                    items.push(NativeMenuItem::action(title));
+                    toggle_data.push((item_kind, is_visible));
+                }
+
+                show_native_popup_menu(
+                    &items,
+                    position,
+                    window,
+                    cx,
+                    move |index, window, cx| {
+                        if let Some(&(item_kind, is_visible)) = toggle_data.get(index) {
                             this.update(cx, |this, cx| {
                                 if let Some(running_state) = this
                                     .active_session
@@ -560,25 +582,72 @@ impl DebugPanel {
                                         if is_visible {
                                             state.remove_pane_item(item_kind, window, cx);
                                         } else {
-                                            state.add_pane_item(item_kind, position, window, cx);
+                                            state.add_pane_item(
+                                                item_kind, position, window, cx,
+                                            );
                                         }
                                     })
                                 }
                             })
                             .ok();
                         }
-                    });
-                }
-
-                menu
-            });
-
-            window.focus(&context_menu.focus_handle(cx), cx);
-            let subscription = cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
-                this.context_menu.take();
+                    },
+                );
                 cx.notify();
-            });
-            self.context_menu = Some((context_menu, position, subscription));
+                return;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                use gpui::DismissEvent;
+                let context_menu =
+                    ContextMenu::build(window, cx, |mut menu, _window, _cx| {
+                        for (item_kind, is_visible) in pane_items_status.into_iter() {
+                            menu = menu.toggleable_entry(
+                                item_kind,
+                                is_visible,
+                                IconPosition::End,
+                                None,
+                                {
+                                    let this = this.clone();
+                                    move |window, cx| {
+                                        this.update(cx, |this, cx| {
+                                            if let Some(running_state) = this
+                                                .active_session
+                                                .as_ref()
+                                                .map(|session| {
+                                                    session.read(cx).running_state().clone()
+                                                })
+                                            {
+                                                running_state.update(cx, |state, cx| {
+                                                    if is_visible {
+                                                        state.remove_pane_item(
+                                                            item_kind, window, cx,
+                                                        );
+                                                    } else {
+                                                        state.add_pane_item(
+                                                            item_kind, position, window, cx,
+                                                        );
+                                                    }
+                                                })
+                                            }
+                                        })
+                                        .ok();
+                                    }
+                                },
+                            );
+                        }
+                        menu
+                    });
+
+                window.focus(&context_menu.focus_handle(cx), cx);
+                let subscription =
+                    cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
+                        this.context_menu.take();
+                        cx.notify();
+                    });
+                self.context_menu = Some((context_menu, position, subscription));
+            }
         }
     }
 

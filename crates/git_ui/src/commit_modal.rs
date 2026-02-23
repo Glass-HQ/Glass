@@ -264,6 +264,79 @@ impl CommitModal {
         id: impl Into<ElementId>,
         keybinding_target: Option<FocusHandle>,
     ) -> impl IntoElement {
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let _ = id;
+            let git_panel_entity = self.git_panel.clone();
+
+            div()
+                .child(
+                    ui::ButtonLike::new_rounded_right("commit-split-button-right")
+                        .layer(ui::ElevationIndex::ModalSurface)
+                        .size(ui::ButtonSize::None)
+                        .child(
+                            div()
+                                .px_1()
+                                .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
+                        ),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                    let git_panel = git_panel_entity.read(cx);
+                    let amend_enabled = git_panel.amend_pending();
+                    let signoff_enabled = git_panel.signoff_enabled();
+                    let has_previous_commit = git_panel.head_commit(cx).is_some();
+
+                    let mut items = Vec::new();
+                    let mut actions: Vec<Box<dyn Fn(&mut Window, &mut App)>> = Vec::new();
+
+                    if has_previous_commit {
+                        let amend_label = if amend_enabled {
+                            "\u{2713} Amend"
+                        } else {
+                            "Amend"
+                        };
+                        items.push(NativeMenuItem::action(amend_label));
+                        let git_panel = git_panel_entity.downgrade();
+                        actions.push(Box::new(move |_window, cx| {
+                            git_panel
+                                .update(cx, |git_panel, cx| {
+                                    git_panel.toggle_amend_pending(cx);
+                                })
+                                .ok();
+                        }));
+                    }
+
+                    let signoff_label = if signoff_enabled {
+                        "\u{2713} Sign-off"
+                    } else {
+                        "Sign-off"
+                    };
+                    items.push(NativeMenuItem::action(signoff_label));
+                    let git_panel = git_panel_entity.clone();
+                    actions.push(Box::new(move |window, cx| {
+                        git_panel.update(cx, |git_panel, cx| {
+                            git_panel.toggle_signoff_enabled(&Signoff, window, cx);
+                        })
+                    }));
+
+                    let actions = std::rc::Rc::new(actions);
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            if let Some(action) = actions.get(index) {
+                                action(window, cx);
+                            }
+                        },
+                    );
+                })
+        }
+
+        #[cfg(not(target_os = "macos"))]
         PopoverMenu::new(id.into())
             .trigger(
                 ui::ButtonLike::new_rounded_right("commit-split-button-right")
@@ -376,6 +449,15 @@ impl CommitModal {
             }))
             .style(ButtonStyle::Transparent);
 
+        #[cfg(target_os = "macos")]
+        let branch_picker = branch_picker_button
+            .tooltip(Tooltip::for_action_title(
+                "Switch Branch",
+                &zed_actions::git::Branch,
+            ))
+            .into_any_element();
+
+        #[cfg(not(target_os = "macos"))]
         let branch_picker = PopoverMenu::new("popover-button")
             .menu(move |window, cx| {
                 Some(branch_picker::popover(
@@ -395,7 +477,8 @@ impl CommitModal {
             .offset(gpui::Point {
                 x: px(0.0),
                 y: px(-2.0),
-            });
+            })
+            .into_any_element();
         let focus_handle = self.focus_handle(cx);
 
         let close_kb_hint = ui::KeyBinding::for_action(&menu::Cancel, cx).map(|close_kb| {

@@ -25,7 +25,7 @@ use workspace::{
     MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
     Workspace, notifications::NotifyResultExt,
 };
-use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode};
+use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode};
 use zed_actions::OpenRemote;
 
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
@@ -575,14 +575,12 @@ impl NativeToolbarController {
         let selected_index = match active_mode {
             ModeId::BROWSER => 0,
             ModeId::EDITOR => 1,
-            ModeId::TERMINAL => 2,
             _ => 0,
         };
 
         let segments = vec![
             NativeToolbarSegment::new("Browser").icon("globe"),
             NativeToolbarSegment::new("Editor").icon("doc.text"),
-            NativeToolbarSegment::new("Terminal").icon("terminal"),
         ];
 
         let workspace = self.workspace.clone();
@@ -597,9 +595,6 @@ impl NativeToolbarController {
                             }
                             1 => {
                                 window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
-                            }
-                            2 => {
-                                window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
                             }
                             _ => {}
                         });

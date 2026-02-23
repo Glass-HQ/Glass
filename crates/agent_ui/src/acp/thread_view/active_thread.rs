@@ -2938,7 +2938,7 @@ impl AcpThreadView {
         supported_effort_levels: Vec<LanguageModelEffortLevel>,
         selected_effort: Option<String>,
         cx: &Context<Self>,
-    ) -> impl IntoElement {
+    ) -> AnyElement {
         let weak_self = cx.weak_entity();
 
         let default_effort_level = supported_effort_levels
@@ -3002,6 +3002,84 @@ impl AcpThreadView {
             }
         });
 
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let mut items = vec![NativeMenuItem::action("Change Thinking Effort").enabled(false)];
+            let mut effort_values: Vec<String> = Vec::new();
+
+            for effort_level in supported_effort_levels.clone() {
+                let is_selected = selected
+                    .as_ref()
+                    .is_some_and(|s| s.value == effort_level.value);
+                let title = if is_selected {
+                    format!("\u{2713} {}", effort_level.name)
+                } else {
+                    effort_level.name.to_string()
+                };
+                items.push(NativeMenuItem::action(SharedString::from(title)));
+                effort_values.push(effort_level.value.to_string());
+            }
+
+            let effort_values = std::rc::Rc::new(effort_values);
+            return div()
+                .child(
+                    ButtonLike::new_rounded_right("effort-selector-trigger")
+                        .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                        .child(Label::new(label).size(LabelSize::Small).color(label_color))
+                        .child(Icon::new(icon).size(IconSize::XSmall).color(Color::Muted))
+                        .tooltip(tooltip),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, {
+                    move |event, window, cx| {
+                        let effort_values = effort_values.clone();
+                        let weak_self = weak_self.clone();
+                        show_native_popup_menu(
+                            &items,
+                            event.position,
+                            window,
+                            cx,
+                            move |index, _window, cx| {
+                                if let Some(effort) = effort_values.get(index) {
+                                    let effort = effort.clone();
+                                    weak_self
+                                        .update(cx, |this, cx| {
+                                            if let Some(thread) = this.as_native_thread(cx) {
+                                                thread.update(cx, |thread, cx| {
+                                                    thread.set_thinking_effort(
+                                                        Some(effort.to_string()),
+                                                        cx,
+                                                    );
+                                                    let fs =
+                                                        thread.project().read(cx).fs().clone();
+                                                    update_settings_file(
+                                                        fs,
+                                                        cx,
+                                                        move |settings, _| {
+                                                            if let Some(agent) =
+                                                                settings.agent.as_mut()
+                                                                && let Some(default_model) =
+                                                                    agent.default_model.as_mut()
+                                                            {
+                                                                default_model.effort =
+                                                                    Some(effort.to_string());
+                                                            }
+                                                        },
+                                                    );
+                                                });
+                                            }
+                                        })
+                                        .ok();
+                                }
+                            },
+                        );
+                    }
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
         PopoverMenu::new("effort-selector")
             .trigger_with_tooltip(
                 ButtonLike::new_rounded_right("effort-selector-trigger")
@@ -3062,6 +3140,7 @@ impl AcpThreadView {
                 y: px(-2.0),
             })
             .anchor(Corner::BottomLeft)
+            .into_any_element()
     }
 
     fn render_send_button(&self, cx: &mut Context<Self>) -> AnyElement {
@@ -3140,37 +3219,150 @@ impl AcpThreadView {
         }
     }
 
-    fn render_add_context_button(&mut self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_add_context_button(&mut self, cx: &mut Context<Self>) -> AnyElement {
         let focus_handle = self.message_editor.focus_handle(cx);
-        let weak_self = cx.weak_entity();
 
-        PopoverMenu::new("add-context-menu")
-            .trigger_with_tooltip(
-                IconButton::new("add-context", IconName::Plus)
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted),
-                {
-                    move |_window, cx| {
-                        Tooltip::for_action_in(
-                            "Add Context",
-                            &OpenAddContextMenu,
-                            &focus_handle,
-                            cx,
-                        )
-                    }
-                },
-            )
-            .anchor(Corner::BottomLeft)
-            .with_handle(self.add_context_menu_handle.clone())
-            .offset(gpui::Point {
-                x: px(0.0),
-                y: px(-2.0),
-            })
-            .menu(move |window, cx| {
-                weak_self
-                    .update(cx, |this, cx| this.build_add_context_menu(window, cx))
-                    .ok()
-            })
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let weak_self = cx.weak_entity();
+            let message_editor = self.message_editor.clone();
+            let workspace = self.workspace.clone();
+            let supports_images = self.prompt_capabilities.borrow().image;
+
+            return div()
+                .child(
+                    IconButton::new("add-context", IconName::Plus)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted)
+                        .tooltip({
+                            let focus_handle = focus_handle.clone();
+                            move |_window, cx| {
+                                Tooltip::for_action_in(
+                                    "Add Context",
+                                    &OpenAddContextMenu,
+                                    &focus_handle,
+                                    cx,
+                                )
+                            }
+                        }),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                    let has_editor_selection = workspace
+                        .upgrade()
+                        .and_then(|ws| {
+                            ws.read(cx)
+                                .active_item(cx)
+                                .and_then(|item| item.downcast::<Editor>())
+                        })
+                        .is_some_and(|editor| {
+                            editor.update(cx, |editor, cx| {
+                                editor.has_non_empty_selection(&editor.display_snapshot(cx))
+                            })
+                        });
+                    let has_terminal_selection = workspace
+                        .upgrade()
+                        .and_then(|ws| ws.read(cx).panel::<TerminalPanel>(cx))
+                        .is_some_and(|panel| {
+                            !panel.read(cx).terminal_selections(cx).is_empty()
+                        });
+                    let has_selection = has_editor_selection || has_terminal_selection;
+
+                    let items = vec![
+                        NativeMenuItem::action("Context").enabled(false),
+                        NativeMenuItem::action("Files & Directories"),
+                        NativeMenuItem::action("Symbols"),
+                        NativeMenuItem::action("Threads"),
+                        NativeMenuItem::action("Rules"),
+                        NativeMenuItem::action("Image").enabled(supports_images),
+                        NativeMenuItem::action("Selection").enabled(has_selection),
+                    ];
+
+                    let me = message_editor.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            match index {
+                                0 => {
+                                    me.focus_handle(cx).focus(window, cx);
+                                    me.update(cx, |editor, cx| {
+                                        editor.insert_context_type("file", window, cx);
+                                    });
+                                }
+                                1 => {
+                                    me.focus_handle(cx).focus(window, cx);
+                                    me.update(cx, |editor, cx| {
+                                        editor.insert_context_type("symbol", window, cx);
+                                    });
+                                }
+                                2 => {
+                                    me.focus_handle(cx).focus(window, cx);
+                                    me.update(cx, |editor, cx| {
+                                        editor.insert_context_type("thread", window, cx);
+                                    });
+                                }
+                                3 => {
+                                    me.focus_handle(cx).focus(window, cx);
+                                    me.update(cx, |editor, cx| {
+                                        editor.insert_context_type("rule", window, cx);
+                                    });
+                                }
+                                4 => {
+                                    me.focus_handle(cx).focus(window, cx);
+                                    me.update(cx, |editor, cx| {
+                                        editor.add_images_from_picker(window, cx);
+                                    });
+                                }
+                                5 => {
+                                    window.dispatch_action(
+                                        zed_actions::agent::AddSelectionToThread.boxed_clone(),
+                                        cx,
+                                    );
+                                }
+                                _ => {}
+                            }
+                        },
+                    );
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let weak_self = cx.weak_entity();
+            PopoverMenu::new("add-context-menu")
+                .trigger_with_tooltip(
+                    IconButton::new("add-context", IconName::Plus)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted),
+                    {
+                        move |_window, cx| {
+                            Tooltip::for_action_in(
+                                "Add Context",
+                                &OpenAddContextMenu,
+                                &focus_handle,
+                                cx,
+                            )
+                        }
+                    },
+                )
+                .anchor(Corner::BottomLeft)
+                .with_handle(self.add_context_menu_handle.clone())
+                .offset(gpui::Point {
+                    x: px(0.0),
+                    y: px(-2.0),
+                })
+                .menu(move |window, cx| {
+                    weak_self
+                        .update(cx, |this, cx| this.build_add_context_menu(window, cx))
+                        .ok()
+                })
+                .into_any_element()
+        }
     }
 
     fn build_add_context_menu(
@@ -4257,17 +4449,19 @@ impl AcpThreadView {
         message_body: AnyElement,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let entity = cx.entity();
-        let workspace = self.workspace.clone();
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
 
-        right_click_menu(format!("agent_context_menu-{}", entry_ix))
-            .trigger(move |_, _, _| message_body)
-            .menu(move |window, cx| {
-                let focus = window.focused(cx);
-                let entity = entity.clone();
-                let workspace = workspace.clone();
+            let entity = cx.entity();
+            let workspace = self.workspace.clone();
 
-                ContextMenu::build(window, cx, move |menu, _, cx| {
+            return div()
+                .child(message_body)
+                .on_mouse_down(gpui::MouseButton::Right, move |event, window, cx| {
+                    let entity = entity.clone();
+                    let workspace = workspace.clone();
+
                     let this = entity.read(cx);
                     let is_at_top = this.list_state.logical_scroll_top().item_ix == 0;
 
@@ -4291,10 +4485,36 @@ impl AcpThreadView {
                         })
                         .unwrap_or(false);
 
-                    let copy_this_agent_response =
-                        ContextMenuEntry::new("Copy This Agent Response").handler({
-                            let entity = entity.clone();
-                            move |_, cx| {
+                    let scroll_label = if is_at_top {
+                        "Scroll to Bottom"
+                    } else {
+                        "Scroll to Top"
+                    };
+
+                    let items = vec![
+                        NativeMenuItem::action("Copy Selection").enabled(has_selection),
+                        NativeMenuItem::action("Copy This Agent Response"),
+                        NativeMenuItem::separator(),
+                        NativeMenuItem::action(scroll_label),
+                        NativeMenuItem::action("Open Thread as Markdown"),
+                    ];
+
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| match index {
+                            0 => {
+                                if let Some(focus) = window.focused(cx) {
+                                    focus.dispatch_action(
+                                        &markdown::CopyAsMarkdown,
+                                        window,
+                                        cx,
+                                    );
+                                }
+                            }
+                            1 => {
                                 entity.update(cx, |this, cx| {
                                     let entries = this.thread.read(cx).entries();
                                     if let Some(text) =
@@ -4304,33 +4524,18 @@ impl AcpThreadView {
                                     }
                                 });
                             }
-                        });
-
-                    let scroll_item = if is_at_top {
-                        ContextMenuEntry::new("Scroll to Bottom").handler({
-                            let entity = entity.clone();
-                            move |_, cx| {
-                                entity.update(cx, |this, cx| {
-                                    this.scroll_to_bottom(cx);
-                                });
+                            2 => {
+                                if is_at_top {
+                                    entity.update(cx, |this, cx| {
+                                        this.scroll_to_bottom(cx);
+                                    });
+                                } else {
+                                    entity.update(cx, |this, cx| {
+                                        this.scroll_to_top(cx);
+                                    });
+                                }
                             }
-                        })
-                    } else {
-                        ContextMenuEntry::new("Scroll to Top").handler({
-                            let entity = entity.clone();
-                            move |_, cx| {
-                                entity.update(cx, |this, cx| {
-                                    this.scroll_to_top(cx);
-                                });
-                            }
-                        })
-                    };
-
-                    let open_thread_as_markdown = ContextMenuEntry::new("Open Thread as Markdown")
-                        .handler({
-                            let entity = entity.clone();
-                            let workspace = workspace.clone();
-                            move |window, cx| {
+                            3 => {
                                 if let Some(workspace) = workspace.upgrade() {
                                     entity
                                         .update(cx, |this, cx| {
@@ -4339,21 +4544,119 @@ impl AcpThreadView {
                                         .detach_and_log_err(cx);
                                 }
                             }
-                        });
-
-                    menu.when_some(focus, |menu, focus| menu.context(focus))
-                        .action_disabled_when(
-                            !has_selection,
-                            "Copy Selection",
-                            Box::new(markdown::CopyAsMarkdown),
-                        )
-                        .item(copy_this_agent_response)
-                        .separator()
-                        .item(scroll_item)
-                        .item(open_thread_as_markdown)
+                            _ => {}
+                        },
+                    );
                 })
-            })
-            .into_any_element()
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let entity = cx.entity();
+            let workspace = self.workspace.clone();
+
+            right_click_menu(format!("agent_context_menu-{}", entry_ix))
+                .trigger(move |_, _, _| message_body)
+                .menu(move |window, cx| {
+                    let focus = window.focused(cx);
+                    let entity = entity.clone();
+                    let workspace = workspace.clone();
+
+                    ContextMenu::build(window, cx, move |menu, _, cx| {
+                        let this = entity.read(cx);
+                        let is_at_top = this.list_state.logical_scroll_top().item_ix == 0;
+
+                        let has_selection = this
+                            .thread
+                            .read(cx)
+                            .entries()
+                            .get(entry_ix)
+                            .and_then(|entry| match &entry {
+                                AgentThreadEntry::AssistantMessage(msg) => Some(&msg.chunks),
+                                _ => None,
+                            })
+                            .map(|chunks| {
+                                chunks.iter().any(|chunk| {
+                                    let md = match chunk {
+                                        AssistantMessageChunk::Message { block } => {
+                                            block.markdown()
+                                        }
+                                        AssistantMessageChunk::Thought { block } => {
+                                            block.markdown()
+                                        }
+                                    };
+                                    md.map_or(false, |m| m.read(cx).selected_text().is_some())
+                                })
+                            })
+                            .unwrap_or(false);
+
+                        let copy_this_agent_response =
+                            ContextMenuEntry::new("Copy This Agent Response").handler({
+                                let entity = entity.clone();
+                                move |_, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        let entries = this.thread.read(cx).entries();
+                                        if let Some(text) =
+                                            Self::get_agent_message_content(entries, entry_ix, cx)
+                                        {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(text));
+                                        }
+                                    });
+                                }
+                            });
+
+                        let scroll_item = if is_at_top {
+                            ContextMenuEntry::new("Scroll to Bottom").handler({
+                                let entity = entity.clone();
+                                move |_, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        this.scroll_to_bottom(cx);
+                                    });
+                                }
+                            })
+                        } else {
+                            ContextMenuEntry::new("Scroll to Top").handler({
+                                let entity = entity.clone();
+                                move |_, cx| {
+                                    entity.update(cx, |this, cx| {
+                                        this.scroll_to_top(cx);
+                                    });
+                                }
+                            })
+                        };
+
+                        let open_thread_as_markdown =
+                            ContextMenuEntry::new("Open Thread as Markdown").handler({
+                                let entity = entity.clone();
+                                let workspace = workspace.clone();
+                                move |window, cx| {
+                                    if let Some(workspace) = workspace.upgrade() {
+                                        entity
+                                            .update(cx, |this, cx| {
+                                                this.open_thread_as_markdown(
+                                                    workspace, window, cx,
+                                                )
+                                            })
+                                            .detach_and_log_err(cx);
+                                    }
+                                }
+                            });
+
+                        menu.when_some(focus, |menu, focus| menu.context(focus))
+                            .action_disabled_when(
+                                !has_selection,
+                                "Copy Selection",
+                                Box::new(markdown::CopyAsMarkdown),
+                            )
+                            .item(copy_this_agent_response)
+                            .separator()
+                            .item(scroll_item)
+                            .item(open_thread_as_markdown)
+                    })
+                })
+                .into_any_element()
+        }
     }
 
     fn get_agent_message_content(
@@ -5268,6 +5571,67 @@ impl AcpThreadView {
 
         let permission_dropdown_handle = self.permission_dropdown_handle.clone();
 
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let items: Vec<NativeMenuItem> = menu_options
+                .iter()
+                .map(|(i, name)| {
+                    let title = if *i == selected_index {
+                        format!("\u{2713} {}", name)
+                    } else {
+                        name.to_string()
+                    };
+                    NativeMenuItem::action(SharedString::from(title))
+                })
+                .collect();
+
+            let options_rc = std::rc::Rc::new(menu_options);
+            return div()
+                .child(
+                    Button::new(("granularity-trigger", entry_ix), current_label)
+                        .icon(IconName::ChevronDown)
+                        .icon_size(IconSize::XSmall)
+                        .icon_color(Color::Muted)
+                        .label_size(LabelSize::Small)
+                        .when(is_first, |this| {
+                            this.key_binding(
+                                KeyBinding::for_action_in(
+                                    &crate::OpenPermissionDropdown as &dyn Action,
+                                    &self.focus_handle(cx),
+                                    cx,
+                                )
+                                .map(|kb| kb.size(rems_from_px(10.))),
+                            )
+                        }),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                    let tool_call_id = tool_call_id.clone();
+                    let options = options_rc.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            if let Some((original_index, _)) = options.get(index) {
+                                window.dispatch_action(
+                                    SelectPermissionGranularity {
+                                        tool_call_id: tool_call_id.0.to_string(),
+                                        index: *original_index,
+                                    }
+                                    .boxed_clone(),
+                                    cx,
+                                );
+                            }
+                        },
+                    );
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
         PopoverMenu::new(("permission-granularity", entry_ix))
             .with_handle(permission_dropdown_handle)
             .trigger(

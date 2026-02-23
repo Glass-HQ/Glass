@@ -14,9 +14,9 @@ use editor::{Editor, EditorElement, EditorStyle};
 use extension_host::{ExtensionManifest, ExtensionOperation, ExtensionStore};
 use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
-    Action, AnyElement, App, ClipboardItem, Context, Corner, Entity, EventEmitter, Focusable,
+    Action, AnyElement, App, ClipboardItem, Context, Entity, EventEmitter, Focusable,
     InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedShape,
-    ParentElement, Point, Render, SegmentSelectEvent, Styled, Task, TextStyle,
+    ParentElement, Render, SegmentSelectEvent, Styled, Task, TextStyle,
     UniformListScrollHandle, WeakEntity, Window, actions, native_button, native_toggle_group,
     point, uniform_list,
 };
@@ -27,7 +27,7 @@ use settings::Settings;
 use strum::IntoEnumIterator as _;
 use theme::ThemeSettings;
 use ui::{
-    Banner, Chip, ContextMenu, PopoverMenu, ScrollableHandle, Tooltip, WithScrollbar, prelude::*,
+    Banner, Chip, ScrollableHandle, Tooltip, WithScrollbar, prelude::*,
 };
 use workspace::{
     Workspace,
@@ -908,39 +908,112 @@ impl ExtensionsPage {
                                     },
                                 ))
                             })
-                            .child(
-                                PopoverMenu::new(SharedString::from(format!(
-                                    "more-{}",
-                                    extension.id
-                                )))
-                                .trigger(
-                                    IconButton::new(
-                                        SharedString::from(format!("more-{}", extension.id)),
-                                        IconName::Ellipsis,
-                                    )
-                                    .icon_size(IconSize::Small),
-                                )
-                                .anchor(Corner::TopRight)
-                                .offset(Point {
-                                    x: px(0.0),
-                                    y: px(2.0),
-                                })
-                                .menu(move |window, cx| {
-                                    this.upgrade().map(|this| {
-                                        Self::render_remote_extension_context_menu(
-                                            &this,
-                                            extension_id.clone(),
-                                            authors.clone(),
-                                            window,
-                                            cx,
+                            .child({
+                                #[cfg(target_os = "macos")]
+                                {
+                                    use gpui::{
+                                        div, InteractiveElement, NativeMenuItem, ParentElement,
+                                        show_native_popup_menu,
+                                    };
+
+                                    div()
+                                        .child(
+                                            IconButton::new(
+                                                SharedString::from(format!(
+                                                    "more-{}",
+                                                    extension.id
+                                                )),
+                                                IconName::Ellipsis,
+                                            )
+                                            .icon_size(IconSize::Small),
                                         )
+                                        .on_mouse_down(
+                                            gpui::MouseButton::Left,
+                                            move |event, window, cx| {
+                                                let items = vec![
+                                                    NativeMenuItem::action(
+                                                        "Install Another Version\u{2026}",
+                                                    ),
+                                                    NativeMenuItem::action("Copy Extension ID"),
+                                                    NativeMenuItem::action("Copy Author Info"),
+                                                ];
+                                                let this = this.clone();
+                                                let ext_id = extension_id.clone();
+                                                let auth = authors.clone();
+                                                show_native_popup_menu(
+                                                    &items,
+                                                    event.position,
+                                                    window,
+                                                    cx,
+                                                    move |index, window, cx| match index {
+                                                        0 => {
+                                                            let _ = this.update(cx, |this, cx| {
+                                                                this.show_extension_version_list(ext_id.clone(), window, cx);
+                                                            });
+                                                        }
+                                                        1 => {
+                                                            cx.write_to_clipboard(
+                                                                ClipboardItem::new_string(
+                                                                    ext_id.to_string(),
+                                                                ),
+                                                            );
+                                                        }
+                                                        2 => {
+                                                            cx.write_to_clipboard(
+                                                                ClipboardItem::new_string(
+                                                                    auth.join(", "),
+                                                                ),
+                                                            );
+                                                        }
+                                                        _ => {}
+                                                    },
+                                                );
+                                            },
+                                        )
+                                        .into_any_element()
+                                }
+                                #[cfg(not(target_os = "macos"))]
+                                {
+                                    use gpui::{Corner, Point};
+                                    use ui::{ContextMenu, PopoverMenu};
+                                    PopoverMenu::new(SharedString::from(format!(
+                                        "more-{}",
+                                        extension.id
+                                    )))
+                                    .trigger(
+                                        IconButton::new(
+                                            SharedString::from(format!(
+                                                "more-{}",
+                                                extension.id
+                                            )),
+                                            IconName::Ellipsis,
+                                        )
+                                        .icon_size(IconSize::Small),
+                                    )
+                                    .anchor(Corner::TopRight)
+                                    .offset(Point {
+                                        x: px(0.0),
+                                        y: px(2.0),
                                     })
-                                }),
-                            ),
+                                    .menu(move |window, cx| {
+                                        this.upgrade().map(|this| {
+                                            Self::render_remote_extension_context_menu(
+                                                &this,
+                                                extension_id.clone(),
+                                                authors.clone(),
+                                                window,
+                                                cx,
+                                            )
+                                        })
+                                    })
+                                    .into_any_element()
+                                }
+                            }),
                     ),
             )
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn render_remote_extension_context_menu(
         this: &Entity<Self>,
         extension_id: Arc<str>,

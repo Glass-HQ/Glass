@@ -494,7 +494,7 @@ fn render_remote_button(
 }
 
 mod remote_button {
-    use gpui::{Action, AnyView, ClickEvent, Corner, FocusHandle};
+    use gpui::{Action, AnyView, ClickEvent, Corner, FocusHandle, InteractiveElement};
     use ui::{
         App, ButtonCommon, Clickable, ContextMenu, ElementId, FluentBuilder, Icon, IconName,
         IconSize, IntoElement, Label, LabelCommon, LabelSize, LineHeightStyle, ParentElement,
@@ -655,6 +655,61 @@ mod remote_button {
         id: impl Into<ElementId>,
         keybinding_target: Option<FocusHandle>,
     ) -> impl IntoElement {
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let _ = id;
+            div()
+                .child(
+                    ui::ButtonLike::new_rounded_right("split-button-right")
+                        .layer(ui::ElevationIndex::ModalSurface)
+                        .size(ui::ButtonSize::None)
+                        .child(
+                            div()
+                                .px_1()
+                                .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
+                        ),
+                )
+                .on_mouse_down(gpui::MouseButton::Left, move |event, window, cx| {
+                    let items = vec![
+                        NativeMenuItem::action("Fetch"),
+                        NativeMenuItem::action("Fetch From"),
+                        NativeMenuItem::action("Pull"),
+                        NativeMenuItem::action("Pull (Rebase)"),
+                        NativeMenuItem::Separator,
+                        NativeMenuItem::action("Push"),
+                        NativeMenuItem::action("Push To"),
+                        NativeMenuItem::action("Force Push"),
+                    ];
+                    let keybinding_target = keybinding_target.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            let action: Box<dyn Action> = match index {
+                                0 => git::Fetch.boxed_clone(),
+                                1 => git::FetchFrom.boxed_clone(),
+                                2 => git::Pull.boxed_clone(),
+                                3 => git::PullRebase.boxed_clone(),
+                                4 => git::Push.boxed_clone(),
+                                5 => git::PushTo.boxed_clone(),
+                                6 => git::ForcePush.boxed_clone(),
+                                _ => return,
+                            };
+                            if let Some(handle) = &keybinding_target {
+                                handle.dispatch_action(action.as_ref(), window, cx);
+                            } else {
+                                window.dispatch_action(action, cx);
+                            }
+                        },
+                    );
+                })
+        }
+
+        #[cfg(not(target_os = "macos"))]
         PopoverMenu::new(id.into())
             .trigger(
                 ui::ButtonLike::new_rounded_right("split-button-right")

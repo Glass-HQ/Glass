@@ -82,7 +82,13 @@ impl Render for DockButtonBar {
         let mut panel_ids: Vec<EntityId> = Vec::new();
         let mut selected_segment: Option<usize> = None;
 
-        for (dock_entity, _dock_position) in &all_docks {
+        for (dock_entity, dock_position) in &all_docks {
+            // Skip bottom dock panels — they have their own dock and shouldn't
+            // appear in the sidebar segmented control.
+            if *dock_position == DockPosition::Bottom {
+                continue;
+            }
+
             let dock = dock_entity.read(cx);
             let active_index = dock.active_panel_index();
             let is_open = dock.is_open();

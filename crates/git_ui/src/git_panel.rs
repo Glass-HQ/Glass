@@ -29,7 +29,7 @@ use git::repository::{
 };
 use git::stash::GitStash;
 use git::status::StageStatus;
-use git::{Amend, Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
+use git::{Signoff, ToggleStaged, repository::RepoPath, status::FileStatus};
 use git::{
     ExpandCommitEditor, GitHostingProviderRegistry, RestoreTrackedFiles, StageAll, StashAll,
     StashApply, StashPop, TrashUntrackedFiles, UnstageAll,
@@ -151,6 +151,7 @@ struct GitMenuState {
     tree_view: bool,
 }
 
+#[cfg(not(target_os = "macos"))]
 fn git_panel_context_menu(
     focus_handle: FocusHandle,
     state: GitMenuState,
@@ -3844,7 +3845,7 @@ impl GitPanel {
         path + file_name + depth * 2
     }
 
-    fn render_overflow_menu(&self, id: impl Into<ElementId>) -> impl IntoElement {
+    fn render_overflow_menu(&self, id: impl Into<ElementId>) -> gpui::AnyElement {
         let focus_handle = self.focus_handle.clone();
         let has_tracked_changes = self.has_tracked_changes();
         let has_staged_changes = self.has_staged_changes();
@@ -3852,29 +3853,123 @@ impl GitPanel {
         let has_new_changes = self.new_count > 0;
         let has_stash_items = self.stash_entries.entries.len() > 0;
 
-        PopoverMenu::new(id.into())
-            .trigger(
-                IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted),
-            )
-            .menu(move |window, cx| {
-                Some(git_panel_context_menu(
-                    focus_handle.clone(),
-                    GitMenuState {
-                        has_tracked_changes,
-                        has_staged_changes,
-                        has_unstaged_changes,
-                        has_new_changes,
-                        sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
-                        has_stash_items,
-                        tree_view: GitPanelSettings::get_global(cx).tree_view,
-                    },
-                    window,
-                    cx,
-                ))
-            })
-            .anchor(Corner::TopRight)
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+            use gpui::{div, InteractiveElement, ParentElement};
+
+            let _ = id;
+            let focus = focus_handle;
+            return div()
+                .child(
+                    IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted),
+                )
+                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+                    let sort_by_path = GitPanelSettings::get_global(cx).sort_by_path;
+                    let tree_view = GitPanelSettings::get_global(cx).tree_view;
+
+                    let mut items = vec![
+                        NativeMenuItem::Action {
+                            title: "Stage All".into(),
+                            enabled: has_unstaged_changes,
+                        },
+                        NativeMenuItem::Action {
+                            title: "Unstage All".into(),
+                            enabled: has_staged_changes,
+                        },
+                        NativeMenuItem::separator(),
+                        NativeMenuItem::Action {
+                            title: "Stash All".into(),
+                            enabled: has_new_changes || has_tracked_changes,
+                        },
+                        NativeMenuItem::Action {
+                            title: "Stash Pop".into(),
+                            enabled: has_stash_items,
+                        },
+                        NativeMenuItem::action("View Stash"),
+                        NativeMenuItem::separator(),
+                        NativeMenuItem::action("Open Diff"),
+                        NativeMenuItem::separator(),
+                        NativeMenuItem::Action {
+                            title: "Discard Tracked Changes".into(),
+                            enabled: has_tracked_changes,
+                        },
+                        NativeMenuItem::Action {
+                            title: "Trash Untracked Files".into(),
+                            enabled: has_new_changes,
+                        },
+                        NativeMenuItem::separator(),
+                        NativeMenuItem::action(if tree_view {
+                            "Flat View"
+                        } else {
+                            "Tree View"
+                        }),
+                    ];
+                    let mut actions: Vec<Box<dyn gpui::Action>> = vec![
+                        StageAll.boxed_clone(),
+                        UnstageAll.boxed_clone(),
+                        StashAll.boxed_clone(),
+                        StashPop.boxed_clone(),
+                        zed_actions::git::ViewStash.boxed_clone(),
+                        project_diff::Diff.boxed_clone(),
+                        RestoreTrackedFiles.boxed_clone(),
+                        TrashUntrackedFiles.boxed_clone(),
+                        Box::new(ToggleTreeView),
+                    ];
+                    if !tree_view {
+                        items.push(NativeMenuItem::action(if sort_by_path {
+                            "Sort by Status"
+                        } else {
+                            "Sort by Path"
+                        }));
+                        actions.push(Box::new(ToggleSortByPath));
+                    }
+
+                    let f = focus.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            if let Some(action) = actions.into_iter().nth(index) {
+                                f.dispatch_action(&*action, window, cx);
+                            }
+                        },
+                    );
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            PopoverMenu::new(id.into())
+                .trigger(
+                    IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Muted),
+                )
+                .menu(move |window, cx| {
+                    Some(git_panel_context_menu(
+                        focus_handle.clone(),
+                        GitMenuState {
+                            has_tracked_changes,
+                            has_staged_changes,
+                            has_unstaged_changes,
+                            has_new_changes,
+                            sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
+                            has_stash_items,
+                            tree_view: GitPanelSettings::get_global(cx).tree_view,
+                        },
+                        window,
+                        cx,
+                    ))
+                })
+                .anchor(Corner::TopRight)
+                .into_any_element()
+        }
     }
 
     pub(crate) fn render_generate_commit_message_button(
@@ -3990,63 +4085,124 @@ impl GitPanel {
         id: impl Into<ElementId>,
         keybinding_target: Option<FocusHandle>,
         cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        PopoverMenu::new(id.into())
-            .trigger(
-                ui::ButtonLike::new_rounded_right("commit-split-button-right")
-                    .layer(ui::ElevationIndex::ModalSurface)
-                    .size(ButtonSize::None)
-                    .child(
-                        h_flex()
-                            .px_1()
-                            .h_full()
-                            .justify_center()
-                            .border_l_1()
-                            .border_color(cx.theme().colors().border)
-                            .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
-                    ),
-            )
-            .menu({
-                let git_panel = cx.entity();
-                let has_previous_commit = self.head_commit(cx).is_some();
-                let amend = self.amend_pending();
-                let signoff = self.signoff_enabled;
+    ) -> gpui::AnyElement {
+        let has_previous_commit = self.head_commit(cx).is_some();
+        let amend = self.amend_pending();
+        let signoff = self.signoff_enabled;
 
-                move |window, cx| {
-                    Some(ContextMenu::build(window, cx, |context_menu, _, _| {
-                        context_menu
-                            .when_some(keybinding_target.clone(), |el, keybinding_target| {
-                                el.context(keybinding_target)
-                            })
-                            .when(has_previous_commit, |this| {
-                                this.toggleable_entry(
-                                    "Amend",
-                                    amend,
+        let trigger = ui::ButtonLike::new_rounded_right("commit-split-button-right")
+            .layer(ui::ElevationIndex::ModalSurface)
+            .size(ButtonSize::None)
+            .child(
+                h_flex()
+                    .px_1()
+                    .h_full()
+                    .justify_center()
+                    .border_l_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(Icon::new(IconName::ChevronDown).size(IconSize::XSmall)),
+            );
+
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{IntoElement, NativeMenuItem, show_native_popup_menu};
+
+            let _ = (id, keybinding_target);
+            let git_panel = cx.entity().downgrade();
+            let focus = self.focus_handle.clone();
+            return gpui::div()
+                .child(trigger)
+                .on_mouse_down(MouseButton::Left, move |event, window, cx| {
+                    let mut items = Vec::new();
+                    let mut action_index = 0usize;
+                    let amend_idx;
+                    let signoff_idx;
+
+                    if has_previous_commit {
+                        let title = if amend { "\u{2713} Amend" } else { "Amend" };
+                        items.push(NativeMenuItem::action(title));
+                        amend_idx = Some(action_index);
+                        action_index += 1;
+                    } else {
+                        amend_idx = None;
+                    }
+
+                    let title = if signoff { "\u{2713} Signoff" } else { "Signoff" };
+                    items.push(NativeMenuItem::action(title));
+                    signoff_idx = action_index;
+
+                    let git_panel = git_panel.clone();
+                    let f = focus.clone();
+                    show_native_popup_menu(
+                        &items,
+                        event.position,
+                        window,
+                        cx,
+                        move |index, window, cx| {
+                            if amend_idx == Some(index) {
+                                git_panel
+                                    .update(cx, |git_panel, cx| {
+                                        git_panel.toggle_amend_pending(cx);
+                                    })
+                                    .ok();
+                            } else if index == signoff_idx {
+                                f.dispatch_action(&Signoff, window, cx);
+                            }
+                        },
+                    );
+                })
+                .into_any_element();
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            use git::Amend;
+
+            let git_panel = cx.entity();
+
+            PopoverMenu::new(id.into())
+                .trigger(trigger)
+                .menu({
+                    move |window, cx| {
+                        Some(ContextMenu::build(window, cx, |context_menu, _, _| {
+                            context_menu
+                                .when_some(
+                                    keybinding_target.clone(),
+                                    |el, keybinding_target| el.context(keybinding_target),
+                                )
+                                .when(has_previous_commit, |this| {
+                                    this.toggleable_entry(
+                                        "Amend",
+                                        amend,
+                                        IconPosition::Start,
+                                        Some(Box::new(Amend)),
+                                        {
+                                            let git_panel = git_panel.downgrade();
+                                            move |_, cx| {
+                                                git_panel
+                                                    .update(cx, |git_panel, cx| {
+                                                        git_panel.toggle_amend_pending(cx);
+                                                    })
+                                                    .ok();
+                                            }
+                                        },
+                                    )
+                                })
+                                .toggleable_entry(
+                                    "Signoff",
+                                    signoff,
                                     IconPosition::Start,
-                                    Some(Box::new(Amend)),
-                                    {
-                                        let git_panel = git_panel.downgrade();
-                                        move |_, cx| {
-                                            git_panel
-                                                .update(cx, |git_panel, cx| {
-                                                    git_panel.toggle_amend_pending(cx);
-                                                })
-                                                .ok();
-                                        }
+                                    Some(Box::new(Signoff)),
+                                    move |window, cx| {
+                                        window.dispatch_action(Box::new(Signoff), cx)
                                     },
                                 )
-                            })
-                            .toggleable_entry(
-                                "Signoff",
-                                signoff,
-                                IconPosition::Start,
-                                Some(Box::new(Signoff)),
-                                move |window, cx| window.dispatch_action(Box::new(Signoff), cx),
-                            )
-                    }))
-                }
-            })
-            .anchor(Corner::TopRight)
+                        }))
+                    }
+                })
+                .anchor(Corner::TopRight)
+                .into_any_element()
+        }
     }
 
     pub fn configure_commit_button(&self, cx: &mut Context<Self>) -> (bool, &'static str) {
@@ -5983,6 +6139,28 @@ impl RenderOnce for PanelRepoFooter {
             .size(ButtonSize::None)
             .label_size(LabelSize::Small);
 
+        #[cfg(target_os = "macos")]
+        let repo_selector = repo_selector_trigger
+            .when(single_repo, |this| this.disabled(true).color(Color::Muted))
+            .truncate(true)
+            .when(!single_repo, |this| {
+                this.on_click(|_, window, cx| {
+                    window.dispatch_action(
+                        zed_actions::git::SelectRepo.boxed_clone(),
+                        cx,
+                    );
+                })
+            })
+            .tooltip(move |_, cx| {
+                if single_repo {
+                    cx.new(|_| Empty).into()
+                } else {
+                    Tooltip::simple("Switch Active Repository", cx)
+                }
+            })
+            .into_any_element();
+
+        #[cfg(not(target_os = "macos"))]
         let repo_selector = PopoverMenu::new("repository-switcher")
             .menu({
                 let project = project;
@@ -6018,6 +6196,15 @@ impl RenderOnce for PanelRepoFooter {
                 window.dispatch_action(zed_actions::git::Switch.boxed_clone(), cx);
             });
 
+        #[cfg(target_os = "macos")]
+        let branch_selector = branch_selector_button
+            .tooltip(Tooltip::for_action_title(
+                "Switch Branch",
+                &zed_actions::git::Switch,
+            ))
+            .into_any_element();
+
+        #[cfg(not(target_os = "macos"))]
         let branch_selector = PopoverMenu::new("popover-button")
             .menu(move |window, cx| {
                 let workspace = workspace.clone()?;
@@ -6032,7 +6219,8 @@ impl RenderOnce for PanelRepoFooter {
             .offset(gpui::Point {
                 x: px(0.0),
                 y: px(-2.0),
-            });
+            })
+            .into_any_element();
 
         h_flex()
             .h(px(36.))
@@ -6385,6 +6573,7 @@ pub(crate) fn show_error_toast(
 
 #[cfg(test)]
 mod tests {
+    use git::Amend;
     use git::{
         repository::repo_path,
         status::{StatusCode, UnmergedStatus, UnmergedStatusCode},
