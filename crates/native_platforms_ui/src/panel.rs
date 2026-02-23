@@ -319,6 +319,8 @@ impl NativePlatformsPanel {
                 .and_then(|s| s.to_str())
                 .unwrap_or("Unknown");
             h_flex()
+                .w_full()
+                .min_w_0()
                 .gap_2()
                 .items_center()
                 .child(
@@ -327,9 +329,11 @@ impl NativePlatformsPanel {
                         .color(Color::Muted),
                 )
                 .child(Icon::new(IconName::Folder).size(IconSize::Small))
-                .child(Label::new(name.to_string()).size(LabelSize::Small))
+                .child(Label::new(name.to_string()).size(LabelSize::Small).truncate())
         } else {
             h_flex()
+                .w_full()
+                .min_w_0()
                 .gap_2()
                 .items_center()
                 .child(
@@ -340,12 +344,14 @@ impl NativePlatformsPanel {
                 .child(
                     Label::new("No Xcode project found")
                         .size(LabelSize::Small)
-                        .color(Color::Muted),
+                        .color(Color::Muted)
+                        .truncate(),
                 )
         };
 
         v_flex()
             .w_full()
+            .min_w_0()
             .p_2()
             .gap_2()
             .child(content)
@@ -362,6 +368,7 @@ impl NativePlatformsPanel {
 
         v_flex()
             .w_full()
+            .min_w_0()
             .p_2()
             .gap_2()
             .child(
@@ -430,10 +437,13 @@ impl NativePlatformsPanel {
 
         v_flex()
             .w_full()
+            .min_w_0()
             .p_2()
             .gap_2()
             .child(
                 h_flex()
+                    .w_full()
+                    .min_w_0()
                     .justify_between()
                     .child(
                         Label::new("Destination")
@@ -479,11 +489,14 @@ impl NativePlatformsPanel {
 
         v_flex()
             .w_full()
+            .min_w_0()
             .p_2()
             .gap_2()
             .child(Divider::horizontal())
             .child(
                 h_flex()
+                    .w_full()
+                    .flex_wrap()
                     .gap_2()
                     .child(
                         native_button("build", "Build")
@@ -551,12 +564,14 @@ impl Render for NativePlatformsPanel {
             .key_context("NativePlatformsPanel")
             .track_focus(&self.focus_handle)
             .size_full()
+            .min_w_0()
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
             .child(
                 v_flex()
                     .id("native-platforms-content")
                     .flex_1()
+                    .min_w_0()
                     .overflow_y_scroll()
                     .child(self.render_project_section(cx))
                     .child(self.render_scheme_section(cx))
@@ -587,7 +602,7 @@ impl Panel for NativePlatformsPanel {
     }
 
     fn size(&self, _: &Window, _cx: &App) -> Pixels {
-        self.width.unwrap_or(px(260.0))
+        self.width.unwrap_or(px(300.0))
     }
 
     fn set_size(&mut self, size: Option<Pixels>, _: &mut Window, cx: &mut Context<Self>) {

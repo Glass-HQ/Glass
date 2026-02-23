@@ -1001,9 +1001,6 @@ impl Render for Sidebar {
             .font(ui_font)
             .h_full()
             .w(self.width)
-            .bg(cx.theme().colors().surface_background)
-            .border_r_1()
-            .border_color(cx.theme().colors().border)
             .child(self.picker.clone())
     }
 }

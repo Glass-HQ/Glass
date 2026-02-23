@@ -45,6 +45,8 @@ use futures::{
     },
     future::Shared,
 };
+#[cfg(target_os = "macos")]
+use gpui::native_sidebar;
 use gpui::{
     Action, AnyEntity, AnyView, AnyWeakView, App, AsyncApp, AsyncWindowContext, Bounds, Context,
     CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle,
@@ -53,8 +55,6 @@ use gpui::{
     SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle, WindowId,
     WindowOptions, actions, canvas, point, relative, size, transparent_black,
 };
-#[cfg(target_os = "macos")]
-use gpui::native_sidebar;
 pub use history_manager::*;
 pub use item::{
     FollowableItem, FollowableItemHandle, Item, ItemHandle, ItemSettings, PreviewTabsSettings,
@@ -192,7 +192,10 @@ impl Render for UnifiedSidebar {
                 return div().size_full().child(view.clone()).into_any_element();
             }
         }
-        div().size_full().child(self.left_dock.clone()).into_any_element()
+        div()
+            .size_full()
+            .child(self.left_dock.clone())
+            .into_any_element()
     }
 }
 
@@ -3628,6 +3631,43 @@ impl Workspace {
         self.serialize_workspace(window, cx);
     }
 
+    pub(crate) fn activate_panel_for_id(
+        &mut self,
+        panel_id: EntityId,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let mut found = None;
+        for dock in self.all_docks() {
+            if let Some(panel_index) = dock.read(cx).panel_index_for_id(panel_id) {
+                found = Some((dock.clone(), panel_index));
+                break;
+            }
+        }
+
+        let Some((dock, panel_index)) = found else {
+            return false;
+        };
+
+        let mut dock_position = None;
+        dock.update(cx, |dock, cx| {
+            dock_position = Some(dock.position());
+            dock.activate_panel(panel_index, window, cx);
+            dock.set_open(true, window, cx);
+            if let Some(panel) = dock.active_panel() {
+                let focus_handle = panel.panel_focus_handle(cx);
+                window.focus(&focus_handle, cx);
+            }
+        });
+
+        if let Some(dock_position) = dock_position {
+            self.dismiss_zoomed_items_to_reveal(Some(dock_position), window, cx);
+        }
+        cx.notify();
+        self.serialize_workspace(window, cx);
+        true
+    }
+
     pub fn activate_panel_for_proto_id(
         &mut self,
         panel_id: PanelId,
@@ -4806,8 +4846,14 @@ impl Workspace {
 
     /// Lazily create a per-workspace mode view from a registered factory.
     /// Returns the view and focus handle if available.
-    fn ensure_mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<&PerWorkspaceModeView> {
-        if let collections::hash_map::Entry::Vacant(entry) = self.per_workspace_mode_views.entry(mode_id) {
+    fn ensure_mode_view(
+        &mut self,
+        mode_id: ModeId,
+        cx: &mut Context<Self>,
+    ) -> Option<&PerWorkspaceModeView> {
+        if let collections::hash_map::Entry::Vacant(entry) =
+            self.per_workspace_mode_views.entry(mode_id)
+        {
             let factory = ModeViewRegistry::try_global(cx)
                 .and_then(|reg| reg.factory(mode_id))
                 .cloned();
@@ -4829,7 +4875,6 @@ impl Workspace {
         }
         self.per_workspace_mode_views.get(&mode_id)
     }
-
 
     /// Get or create the mode view for a given mode, returning it as an AnyView.
     pub fn mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<AnyView> {
@@ -4858,7 +4903,8 @@ impl Workspace {
                 ModeId::BROWSER => {
                     // Ensure per-workspace BrowserView exists and focus it
                     self.ensure_mode_view(ModeId::BROWSER, cx);
-                    let focus_handle = self.per_workspace_mode_views
+                    let focus_handle = self
+                        .per_workspace_mode_views
                         .get(&ModeId::BROWSER)
                         .map(|v| v.focus_handle.clone())
                         .or_else(|| {
@@ -6193,11 +6239,7 @@ impl Workspace {
     }
 
     #[cfg(any(test, feature = "test-support"))]
-    pub fn test_new(
-        project: Entity<Project>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn test_new(project: Entity<Project>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         use node_runtime::NodeRuntime;
         use session::Session;
 
@@ -6325,10 +6367,10 @@ impl Workspace {
             return None;
         }
 
-        // Only render if dock is open AND has a visible panel
+        // Only render if dock has something visible in this window.
         {
             let dock_read = dock.read(cx);
-            if !dock_read.is_open() || dock_read.visible_panel().is_none() {
+            if !dock_read.has_visible_content(window, cx) {
                 return None;
             }
         }
@@ -6359,10 +6401,9 @@ impl Workspace {
     ) -> AnyElement {
         let (sidebar_collapsed, sidebar_width) = {
             let left_dock = self.left_dock.read(cx);
-            let dock_collapsed =
-                !left_dock.is_open() || left_dock.visible_panel().is_none();
+            let dock_collapsed = !left_dock.has_visible_content(window, cx);
             let width: f64 = left_dock
-                .active_panel_size(window, cx)
+                .visible_content_size(window, cx)
                 .map(|s| s.into())
                 .unwrap_or(240.0);
 
@@ -6486,6 +6527,10 @@ impl Workspace {
         let size = new_size.min(self.bounds.right() - RESIZE_HANDLE_SIZE);
 
         self.left_dock.update(cx, |left_dock, cx| {
+            if left_dock.resize_workspace_sidebar_if_open(size, window, cx) {
+                return;
+            }
+
             if WorkspaceSettings::get_global(cx)
                 .resize_all_panels_in_dock
                 .contains(&DockPosition::Left)
@@ -7399,7 +7444,6 @@ impl WorkspaceStore {
         self.workspaces.iter().map(|(window, weak)| (*window, weak))
     }
 }
-
 
 impl FollowerState {
     fn pane(&self) -> &Entity<Pane> {
