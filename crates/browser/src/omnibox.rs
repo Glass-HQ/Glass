@@ -22,13 +22,7 @@ impl OmniboxSuggestion {
     fn url_or_search(&self) -> String {
         match self {
             OmniboxSuggestion::HistoryItem { url, .. } => url.clone(),
-            OmniboxSuggestion::RawUrl(url) => {
-                if url.starts_with("http://") || url.starts_with("https://") {
-                    url.clone()
-                } else {
-                    format!("https://{}", url)
-                }
-            }
+            OmniboxSuggestion::RawUrl(url) => text_to_url(url),
             OmniboxSuggestion::SearchQuery(query) => {
                 let encoded: String =
                     url::form_urlencoded::byte_serialize(query.as_bytes()).collect();
@@ -238,14 +232,7 @@ impl Omnibox {
             return;
         }
 
-        let url = if text.starts_with("http://") || text.starts_with("https://") {
-            text
-        } else if text.contains('.') {
-            format!("https://{}", text)
-        } else {
-            let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
-            format!("https://www.google.com/search?q={}", encoded)
-        };
+        let url = text_to_url(&text);
 
         self.navigate(url, window, cx);
     }
@@ -506,15 +493,64 @@ fn looks_like_url(input: &str) -> bool {
     if input.starts_with("http://") || input.starts_with("https://") {
         return true;
     }
-    // Contains a dot with no spaces — likely a domain
-    if input.contains('.') && !input.contains(' ') {
-        return true;
-    }
     // Contains :// scheme
     if input.contains("://") {
         return true;
     }
-    false
+
+    if input.chars().any(char::is_whitespace) {
+        return false;
+    }
+
+    let Ok(url) = url::Url::parse(&format!("http://{input}")) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    host.eq_ignore_ascii_case("localhost")
+        || host.contains('.')
+        || host.parse::<std::net::IpAddr>().is_ok()
+        || (url.port().is_some() && !host.contains('.'))
+}
+
+fn should_use_http_by_default(input: &str) -> bool {
+    let Ok(url) = url::Url::parse(&format!("http://{input}")) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    if let Ok(address) = host.parse::<std::net::IpAddr>() {
+        return address.is_loopback();
+    }
+
+    url.port().is_some() && !host.contains('.')
+}
+
+fn text_to_url(text: &str) -> String {
+    if text.starts_with("http://") || text.starts_with("https://") {
+        return text.to_string();
+    }
+
+    if !looks_like_url(text) {
+        let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
+        return format!("https://www.google.com/search?q={encoded}");
+    }
+
+    if should_use_http_by_default(text) {
+        format!("http://{text}")
+    } else {
+        format!("https://{text}")
+    }
 }
 
 fn display_url(url: &str) -> String {
@@ -523,4 +559,32 @@ fn display_url(url: &str) -> String {
     }
 
     url.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{looks_like_url, text_to_url};
+
+    #[test]
+    fn localhost_inputs_are_treated_as_urls() {
+        assert!(looks_like_url("localhost"));
+        assert!(looks_like_url("localhost:3000"));
+        assert_eq!(text_to_url("localhost"), "http://localhost");
+        assert_eq!(text_to_url("localhost:3000"), "http://localhost:3000");
+    }
+
+    #[test]
+    fn regular_domains_default_to_https() {
+        assert!(looks_like_url("example.com"));
+        assert_eq!(text_to_url("example.com"), "https://example.com");
+    }
+
+    #[test]
+    fn plain_queries_still_search() {
+        assert!(!looks_like_url("rust ownership"));
+        assert_eq!(
+            text_to_url("rust ownership"),
+            "https://www.google.com/search?q=rust+ownership"
+        );
+    }
 }

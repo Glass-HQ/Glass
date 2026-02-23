@@ -691,13 +691,66 @@ impl BrowserView {
 
 fn text_to_url(text: &str) -> String {
     if text.starts_with("http://") || text.starts_with("https://") {
-        text.to_string()
-    } else if text.contains('.') && !text.contains(' ') {
-        format!("https://{}", text)
-    } else {
-        let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
-        format!("https://www.google.com/search?q={}", encoded)
+        return text.to_string();
     }
+
+    if !looks_like_url(text) {
+        let encoded: String = url::form_urlencoded::byte_serialize(text.as_bytes()).collect();
+        return format!("https://www.google.com/search?q={}", encoded);
+    }
+
+    if should_use_http_by_default(text) {
+        format!("http://{text}")
+    } else {
+        format!("https://{text}")
+    }
+}
+
+fn looks_like_url(input: &str) -> bool {
+    if input.starts_with("http://") || input.starts_with("https://") {
+        return true;
+    }
+
+    if input.contains("://") {
+        return true;
+    }
+
+    if input.chars().any(char::is_whitespace) {
+        return false;
+    }
+
+    let Ok(url) = url::Url::parse(&format!("http://{input}")) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    host.eq_ignore_ascii_case("localhost")
+        || host.contains('.')
+        || host.parse::<std::net::IpAddr>().is_ok()
+        || (url.port().is_some() && !host.contains('.'))
+}
+
+fn should_use_http_by_default(input: &str) -> bool {
+    let Ok(url) = url::Url::parse(&format!("http://{input}")) else {
+        return false;
+    };
+
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+
+    if let Ok(address) = host.parse::<std::net::IpAddr>() {
+        return address.is_loopback();
+    }
+
+    url.port().is_some() && !host.contains('.')
 }
 
 impl EventEmitter<()> for BrowserView {}
@@ -867,5 +920,33 @@ impl Render for BrowserView {
             .child(element)
             .child(self.toast_layer.clone())
             .into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{looks_like_url, text_to_url};
+
+    #[test]
+    fn localhost_inputs_are_treated_as_urls() {
+        assert!(looks_like_url("localhost"));
+        assert!(looks_like_url("localhost:5173"));
+        assert_eq!(text_to_url("localhost"), "http://localhost");
+        assert_eq!(text_to_url("localhost:5173"), "http://localhost:5173");
+    }
+
+    #[test]
+    fn regular_domains_default_to_https() {
+        assert!(looks_like_url("example.com"));
+        assert_eq!(text_to_url("example.com"), "https://example.com");
+    }
+
+    #[test]
+    fn plain_queries_still_search() {
+        assert!(!looks_like_url("rust async await"));
+        assert_eq!(
+            text_to_url("rust async await"),
+            "https://www.google.com/search?q=rust+async+await"
+        );
     }
 }
