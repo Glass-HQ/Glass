@@ -42,7 +42,6 @@ pub enum BrowserEvent {
     LoadingProgress(f64),
     FrameReady,
     BrowserCreated,
-    PopupRequested(String),
     LoadError {
         url: String,
         error_code: i32,

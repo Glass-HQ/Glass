@@ -17,6 +17,7 @@ pub fn render_new_tab_page(
     let browser_view_for_up: WeakEntity<BrowserView> = browser_view.downgrade();
     let browser_view_for_down: WeakEntity<BrowserView> = browser_view.downgrade();
     let browser_view_for_cancel: WeakEntity<BrowserView> = browser_view.downgrade();
+    let browser_view_for_blur: WeakEntity<BrowserView> = browser_view.downgrade();
 
     div()
         .size_full()
@@ -91,6 +92,13 @@ pub fn render_new_tab_page(
                             window.dismiss_native_panel();
                             let _ = browser_view_for_cancel.update(cx, |bv, cx| {
                                 bv.new_tab_cancel(cx);
+                            });
+                        })
+                        .on_blur(move |_event: &SearchSubmitEvent, window, cx| {
+                            window.dismiss_native_panel();
+                            let _ = browser_view_for_blur.update(cx, |bv, cx| {
+                                bv.new_tab_blur(cx);
+                                cx.notify();
                             });
                         })
                         .w(px(500.)),
