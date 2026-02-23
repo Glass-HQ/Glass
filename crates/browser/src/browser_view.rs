@@ -148,6 +148,7 @@ pub struct BrowserView {
     new_tab_search_text: String,
     new_tab_suggestions: Vec<crate::history::HistoryMatch>,
     new_tab_selected_index: Option<usize>,
+    pub(crate) new_tab_search_bounds: Bounds<Pixels>,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     is_incognito_window: bool,
@@ -203,6 +204,7 @@ impl BrowserView {
             new_tab_search_text: String::new(),
             new_tab_suggestions: Vec::new(),
             new_tab_selected_index: None,
+            new_tab_search_bounds: Bounds::default(),
             context_menu: None,
             pending_context_menu: None,
             is_incognito_window: false,
@@ -480,21 +482,27 @@ impl BrowserView {
         let panel_height = content_height.min(400.0);
         let panel_width = 500.0;
 
-        // Compute panel position: below the centered search field.
-        // content_bounds is in window content coordinates.
-        let content = self.content_bounds;
-        let content_center_x = f64::from(content.origin.x + content.size.width / 2.0);
-        let content_center_y = f64::from(content.origin.y + content.size.height / 2.0);
+        // Position the panel directly below the search field.
+        // new_tab_search_bounds are in viewport-relative coordinates (the detail
+        // pane of the NSSplitViewController). We need to add the sidebar offset
+        // to convert to window-frame coordinates for the Point anchor.
+        let search = self.new_tab_search_bounds;
+        let search_center_x = f64::from(search.origin.x + search.size.width / 2.0);
+        let search_bottom_y = f64::from(search.origin.y + search.size.height);
 
         let win_bounds = window.bounds();
         let viewport = window.viewport_size();
         let titlebar_height =
             f64::from(win_bounds.size.height) - f64::from(viewport.height);
+        let sidebar_offset =
+            f64::from(win_bounds.size.width) - f64::from(viewport.width);
 
-        let panel_x =
-            f64::from(win_bounds.origin.x) + content_center_x - panel_width / 2.0;
+        let panel_x = f64::from(win_bounds.origin.x)
+            + sidebar_offset
+            + search_center_x
+            - panel_width / 2.0;
         let panel_y =
-            f64::from(win_bounds.origin.y) + titlebar_height + content_center_y + 16.0;
+            f64::from(win_bounds.origin.y) + titlebar_height + search_bottom_y + 4.0;
 
         let panel = NativePanel::new(panel_width, panel_height)
             .style(NativePanelStyle::Borderless)

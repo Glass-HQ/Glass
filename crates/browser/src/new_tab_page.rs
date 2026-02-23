@@ -1,6 +1,6 @@
 use crate::browser_view::BrowserView;
 use gpui::{
-    App, Entity, IntoElement, SearchChangeEvent, SearchSubmitEvent, Styled, WeakEntity,
+    App, Entity, IntoElement, SearchChangeEvent, SearchSubmitEvent, Styled, WeakEntity, canvas,
     native_search_field, prelude::*, px,
 };
 use ui::prelude::*;
@@ -18,6 +18,18 @@ pub fn render_new_tab_page(
     let browser_view_for_down: WeakEntity<BrowserView> = browser_view.downgrade();
     let browser_view_for_cancel: WeakEntity<BrowserView> = browser_view.downgrade();
     let browser_view_for_blur: WeakEntity<BrowserView> = browser_view.downgrade();
+    let browser_view_for_bounds = browser_view.clone();
+
+    let search_bounds_tracker = canvas(
+        move |bounds, _window, cx| {
+            browser_view_for_bounds.update(cx, |view, _| {
+                view.new_tab_search_bounds = bounds;
+            });
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .size_full();
 
     div()
         .size_full()
@@ -55,53 +67,59 @@ pub fn render_new_tab_page(
                     )
                 })
                 .child(
-                    native_search_field("new-tab-search")
-                        .placeholder("Search or enter URL")
-                        .value(search_text)
-                        .on_change(move |event: &SearchChangeEvent, _window, cx| {
-                            if let Err(error) = browser_view_for_change.update(cx, |browser_view, cx| {
-                                browser_view.set_new_tab_search_text(event.text.clone(), cx);
-                            }) {
-                                log::debug!(
-                                    "[browser] failed to update new tab search text: {}",
-                                    error
-                                );
-                            }
-                        })
-                        .on_submit(move |event: &SearchSubmitEvent, _window, cx| {
-                            if let Err(error) = browser_view_for_submit.update(cx, |browser_view, cx| {
-                                browser_view.submit_new_tab_search(&event.text, cx);
-                            }) {
-                                log::debug!(
-                                    "[browser] failed to submit new tab search text: {}",
-                                    error
-                                );
-                            }
-                        })
-                        .on_move_up(move |_window, cx| {
-                            let _ = browser_view_for_up.update(cx, |bv, cx| {
-                                bv.new_tab_move_up(cx);
-                            });
-                        })
-                        .on_move_down(move |_window, cx| {
-                            let _ = browser_view_for_down.update(cx, |bv, cx| {
-                                bv.new_tab_move_down(cx);
-                            });
-                        })
-                        .on_cancel(move |window, cx| {
-                            window.dismiss_native_panel();
-                            let _ = browser_view_for_cancel.update(cx, |bv, cx| {
-                                bv.new_tab_cancel(cx);
-                            });
-                        })
-                        .on_blur(move |_event: &SearchSubmitEvent, window, cx| {
-                            window.dismiss_native_panel();
-                            let _ = browser_view_for_blur.update(cx, |bv, cx| {
-                                bv.new_tab_blur(cx);
-                                cx.notify();
-                            });
-                        })
-                        .w(px(500.)),
+                    div()
+                        .relative()
+                        .w(px(500.))
+                        .child(search_bounds_tracker)
+                        .child(
+                            native_search_field("new-tab-search")
+                                .placeholder("Search or enter URL")
+                                .value(search_text)
+                                .on_change(move |event: &SearchChangeEvent, _window, cx| {
+                                    if let Err(error) = browser_view_for_change.update(cx, |browser_view, cx| {
+                                        browser_view.set_new_tab_search_text(event.text.clone(), cx);
+                                    }) {
+                                        log::debug!(
+                                            "[browser] failed to update new tab search text: {}",
+                                            error
+                                        );
+                                    }
+                                })
+                                .on_submit(move |event: &SearchSubmitEvent, _window, cx| {
+                                    if let Err(error) = browser_view_for_submit.update(cx, |browser_view, cx| {
+                                        browser_view.submit_new_tab_search(&event.text, cx);
+                                    }) {
+                                        log::debug!(
+                                            "[browser] failed to submit new tab search text: {}",
+                                            error
+                                        );
+                                    }
+                                })
+                                .on_move_up(move |_window, cx| {
+                                    let _ = browser_view_for_up.update(cx, |bv, cx| {
+                                        bv.new_tab_move_up(cx);
+                                    });
+                                })
+                                .on_move_down(move |_window, cx| {
+                                    let _ = browser_view_for_down.update(cx, |bv, cx| {
+                                        bv.new_tab_move_down(cx);
+                                    });
+                                })
+                                .on_cancel(move |window, cx| {
+                                    window.dismiss_native_panel();
+                                    let _ = browser_view_for_cancel.update(cx, |bv, cx| {
+                                        bv.new_tab_cancel(cx);
+                                    });
+                                })
+                                .on_blur(move |_event: &SearchSubmitEvent, window, cx| {
+                                    window.dismiss_native_panel();
+                                    let _ = browser_view_for_blur.update(cx, |bv, cx| {
+                                        bv.new_tab_blur(cx);
+                                        cx.notify();
+                                    });
+                                })
+                                .w(px(500.)),
+                        ),
                 ),
         )
 }
