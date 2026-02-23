@@ -377,6 +377,7 @@ pub struct Dock {
     zoom_layer_open: bool,
     modal_layer: Entity<ModalLayer>,
     dock_button_bar: Option<Entity<DockButtonBar>>,
+    pub(crate) in_native_sidebar: bool,
     _subscriptions: [Subscription; 2],
 }
 
@@ -470,6 +471,7 @@ impl Dock {
                 zoom_layer_open: false,
                 modal_layer,
                 dock_button_bar,
+                in_native_sidebar: false,
             }
         });
 
@@ -965,11 +967,49 @@ impl Dock {
             }
         }
     }
+
+    fn render_native_sidebar_content(
+        &mut self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+        dispatch_context: KeyContext,
+    ) -> Div {
+        let active_panel = self
+            .active_panel_entry()
+            .map(|entry| entry.panel.to_any());
+
+        div()
+            .key_context(dispatch_context)
+            .track_focus(&self.focus_handle(cx))
+            .size_full()
+            .flex()
+            .flex_col()
+            .overflow_hidden()
+            .when_some(self.dock_button_bar.clone(), |this, dock_button_bar| {
+                this.child(dock_button_bar)
+            })
+            .when_some(active_panel, |this, panel| {
+                this.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .size_full()
+                        .overflow_hidden()
+                        .child(panel),
+                )
+            })
+    }
 }
 
 impl Render for Dock {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dispatch_context = Self::dispatch_context();
+
+        if self.in_native_sidebar {
+            return self.render_native_sidebar_content(window, cx, dispatch_context);
+        }
+
         if let Some(entry) = self.visible_entry() {
             let size = entry.panel.size(window, cx);
 

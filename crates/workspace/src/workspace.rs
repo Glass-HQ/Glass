@@ -53,6 +53,8 @@ use gpui::{
     SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle, WindowId,
     WindowOptions, actions, canvas, point, relative, size, transparent_black,
 };
+#[cfg(target_os = "macos")]
+use gpui::native_sidebar;
 pub use history_manager::*;
 pub use item::{
     FollowableItem, FollowableItemHandle, Item, ItemHandle, ItemSettings, PreviewTabsSettings,
@@ -1483,6 +1485,10 @@ impl Workspace {
             window,
             cx,
         );
+        #[cfg(target_os = "macos")]
+        left_dock.update(cx, |dock, _cx| {
+            dock.in_native_sidebar = true;
+        });
         let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
         let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
         let session_id = app_state.session.read(cx).id().to_owned();
@@ -6274,6 +6280,61 @@ impl Workspace {
         )
     }
 
+    /// Wraps content with native_sidebar for the left dock on macOS,
+    /// or returns the content directly on other platforms (where the caller
+    /// is responsible for including the left dock in the content).
+    fn render_with_native_sidebar(
+        &self,
+        content: Div,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> AnyElement {
+        #[cfg(target_os = "macos")]
+        {
+            let (sidebar_collapsed, sidebar_width) = {
+                let left_dock = self.left_dock.read(cx);
+                let collapsed =
+                    !left_dock.is_open() || left_dock.visible_panel().is_none();
+                let width: f64 = left_dock
+                    .active_panel_size(window, cx)
+                    .map(|s| s.into())
+                    .unwrap_or(240.0);
+                (collapsed, width)
+            };
+
+            div()
+                .size_full()
+                .flex()
+                .flex_row()
+                .child(
+                    native_sidebar("workspace-dock-sidebar", &[""; 0])
+                        .sidebar_view(self.left_dock.clone())
+                        .sidebar_width(sidebar_width)
+                        .min_sidebar_width(160.0)
+                        .max_sidebar_width(480.0)
+                        .manage_window_chrome(false)
+                        .manage_toolbar(false)
+                        .collapsed(sidebar_collapsed)
+                        .size_full(),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .flex()
+                        .flex_col()
+                        .size_full()
+                        .overflow_hidden()
+                        .child(content),
+                )
+                .into_any_element()
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            let _ = (window, cx);
+            content.into_any_element()
+        }
+    }
+
     pub fn for_window(window: &Window, cx: &App) -> Option<Entity<Workspace>> {
         window
             .root::<MultiWorkspace>()
@@ -6942,11 +7003,13 @@ impl Render for Workspace {
                                             .panel_for_key("TerminalPanel")
                                             .map(|panel| panel.to_any());
 
-                                        div()
+                                        let terminal_content = div()
                                             .size_full()
                                             .flex()
                                             .flex_row()
-                                            .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
+                                            .when(!cfg!(target_os = "macos"), |this| {
+                                                this.children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
+                                            })
                                             .child(
                                                 div()
                                                     .flex()
@@ -6956,27 +7019,34 @@ impl Render for Workspace {
                                                     .when_some(terminal_panel, |this, panel| {
                                                         this.child(panel)
                                                     }),
-                                            )
-                                            .into_any_element()
+                                            );
+
+                                        self.render_with_native_sidebar(
+                                            terminal_content,
+                                            window,
+                                            cx,
+                                        )
                                     } else {
                                         // Editor Mode: render normal dock layout
-                                        match bottom_dock_layout {
+                                        let editor_layout = match bottom_dock_layout {
                                         BottomDockLayout::Full => div()
                                             .flex()
                                             .flex_col()
-                                            .h_full()
+                                            .size_full()
                                             .child(
                                                 div()
                                                     .flex()
                                                     .flex_row()
                                                     .flex_1()
                                                     .overflow_hidden()
-                                                    .children(self.render_dock(
-                                                        DockPosition::Left,
-                                                        &self.left_dock,
-                                                        window,
-                                                        cx,
-                                                    ))
+                                                    .when(!cfg!(target_os = "macos"), |this| {
+                                                        this.children(self.render_dock(
+                                                            DockPosition::Left,
+                                                            &self.left_dock,
+                                                            window,
+                                                            cx,
+                                                        ))
+                                                    })
 
                                                     .child(
                                                         div()
@@ -7048,7 +7118,9 @@ impl Render for Workspace {
                                                             .flex()
                                                             .flex_row()
                                                             .flex_1()
-                                                            .children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
+                                                            .when(!cfg!(target_os = "macos"), |this| {
+                                                                this.children(self.render_dock(DockPosition::Left, &self.left_dock, window, cx))
+                                                            })
 
                                                             .child(
                                                                 div()
@@ -7095,12 +7167,14 @@ impl Render for Workspace {
                                             .flex()
                                             .flex_row()
                                             .h_full()
-                                            .children(self.render_dock(
-                                                DockPosition::Left,
-                                                &self.left_dock,
-                                                window,
-                                                cx,
-                                            ))
+                                            .when(!cfg!(target_os = "macos"), |this| {
+                                                this.children(self.render_dock(
+                                                    DockPosition::Left,
+                                                    &self.left_dock,
+                                                    window,
+                                                    cx,
+                                                ))
+                                            })
 
                                             .child(
                                                 div()
@@ -7153,12 +7227,14 @@ impl Render for Workspace {
                                             .flex()
                                             .flex_row()
                                             .h_full()
-                                            .children(self.render_dock(
-                                                DockPosition::Left,
-                                                &self.left_dock,
-                                                window,
-                                                cx,
-                                            ))
+                                            .when(!cfg!(target_os = "macos"), |this| {
+                                                this.children(self.render_dock(
+                                                    DockPosition::Left,
+                                                    &self.left_dock,
+                                                    window,
+                                                    cx,
+                                                ))
+                                            })
 
                                             .child(
                                                 div()
@@ -7203,7 +7279,13 @@ impl Render for Workspace {
                                                 window,
                                                 cx,
                                             )),
-                                        }.into_any_element()
+                                        };
+
+                                        self.render_with_native_sidebar(
+                                            editor_layout,
+                                            window,
+                                            cx,
+                                        )
                                     }
                                 })
                                 .children(self.zoomed.as_ref().and_then(|view| {

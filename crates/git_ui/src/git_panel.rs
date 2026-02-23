@@ -35,10 +35,10 @@ use git::{
     StashApply, StashPop, TrashUntrackedFiles, UnstageAll,
 };
 use gpui::{
-    Action, AsyncApp, AsyncWindowContext, Bounds, ClickEvent, Corner, DismissEvent, Empty, Entity,
-    EventEmitter, FocusHandle, Focusable, KeyContext, MouseButton, MouseDownEvent, Point,
-    PromptLevel, ScrollStrategy, Subscription, Task, TextStyle, UniformListScrollHandle,
-    WeakEntity, actions, anchored, deferred, point, size, uniform_list,
+    Action, AsyncApp, AsyncWindowContext, Bounds, ClickEvent, Corner, Empty, Entity, EventEmitter,
+    FocusHandle, Focusable, KeyContext, MouseButton, MouseDownEvent, Point, PromptLevel,
+    ScrollStrategy, Subscription, Task, TextStyle, UniformListScrollHandle, WeakEntity, actions,
+    anchored, deferred, point, size, uniform_list,
 };
 use itertools::Itertools;
 use language::{Buffer, File};
@@ -4859,25 +4859,71 @@ impl GitPanel {
         } else {
             "Discard Changes"
         };
-        let context_menu = ContextMenu::build(window, cx, |context_menu, _, _| {
-            let is_created = entry.status.is_created();
-            context_menu
-                .context(self.focus_handle.clone())
-                .action(stage_title, ToggleStaged.boxed_clone())
-                .action(restore_title, git::RestoreFile::default().boxed_clone())
-                .action_disabled_when(
-                    !is_created,
-                    "Add to .gitignore",
-                    git::AddToGitignore.boxed_clone(),
-                )
-                .separator()
-                .action("Open Diff", menu::Confirm.boxed_clone())
-                .action("Open File", menu::SecondaryConfirm.boxed_clone())
-                .separator()
-                .action_disabled_when(is_created, "View File History", Box::new(git::FileHistory))
-        });
+        let is_created = entry.status.is_created();
         self.selected_entry = Some(ix);
-        self.set_context_menu(context_menu, position, window, cx);
+
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let items = vec![
+                NativeMenuItem::action(stage_title),
+                NativeMenuItem::action(restore_title),
+                NativeMenuItem::Action {
+                    title: "Add to .gitignore".into(),
+                    enabled: is_created,
+                },
+                NativeMenuItem::separator(),
+                NativeMenuItem::action("Open Diff"),
+                NativeMenuItem::action("Open File"),
+                NativeMenuItem::separator(),
+                NativeMenuItem::Action {
+                    title: "View File History".into(),
+                    enabled: !is_created,
+                },
+            ];
+            let actions: Vec<Box<dyn gpui::Action>> = vec![
+                ToggleStaged.boxed_clone(),
+                git::RestoreFile::default().boxed_clone(),
+                git::AddToGitignore.boxed_clone(),
+                menu::Confirm.boxed_clone(),
+                menu::SecondaryConfirm.boxed_clone(),
+                Box::new(git::FileHistory),
+            ];
+            let focus = self.focus_handle.clone();
+            show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
+                if let Some(action) = actions.into_iter().nth(index) {
+                    focus.dispatch_action(&*action, window, cx);
+                }
+            });
+            cx.notify();
+            return;
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let context_menu = ContextMenu::build(window, cx, |context_menu, _, _| {
+                context_menu
+                    .context(self.focus_handle.clone())
+                    .action(stage_title, ToggleStaged.boxed_clone())
+                    .action(restore_title, git::RestoreFile::default().boxed_clone())
+                    .action_disabled_when(
+                        !is_created,
+                        "Add to .gitignore",
+                        git::AddToGitignore.boxed_clone(),
+                    )
+                    .separator()
+                    .action("Open Diff", menu::Confirm.boxed_clone())
+                    .action("Open File", menu::SecondaryConfirm.boxed_clone())
+                    .separator()
+                    .action_disabled_when(
+                        is_created,
+                        "View File History",
+                        Box::new(git::FileHistory),
+                    )
+            });
+            self.set_context_menu(context_menu, position, window, cx);
+        }
     }
 
     fn deploy_panel_context_menu(
@@ -4886,23 +4932,100 @@ impl GitPanel {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let context_menu = git_panel_context_menu(
-            self.focus_handle.clone(),
-            GitMenuState {
-                has_tracked_changes: self.has_tracked_changes(),
-                has_staged_changes: self.has_staged_changes(),
-                has_unstaged_changes: self.has_unstaged_changes(),
-                has_new_changes: self.new_count > 0,
-                sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
-                has_stash_items: self.stash_entries.entries.len() > 0,
-                tree_view: GitPanelSettings::get_global(cx).tree_view,
-            },
-            window,
-            cx,
-        );
-        self.set_context_menu(context_menu, position, window, cx);
+        let state = GitMenuState {
+            has_tracked_changes: self.has_tracked_changes(),
+            has_staged_changes: self.has_staged_changes(),
+            has_unstaged_changes: self.has_unstaged_changes(),
+            has_new_changes: self.new_count > 0,
+            sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
+            has_stash_items: self.stash_entries.entries.len() > 0,
+            tree_view: GitPanelSettings::get_global(cx).tree_view,
+        };
+
+        #[cfg(target_os = "macos")]
+        {
+            use gpui::{NativeMenuItem, show_native_popup_menu};
+
+            let mut items = vec![
+                NativeMenuItem::Action {
+                    title: "Stage All".into(),
+                    enabled: state.has_unstaged_changes,
+                },
+                NativeMenuItem::Action {
+                    title: "Unstage All".into(),
+                    enabled: state.has_staged_changes,
+                },
+                NativeMenuItem::separator(),
+                NativeMenuItem::Action {
+                    title: "Stash All".into(),
+                    enabled: state.has_new_changes || state.has_tracked_changes,
+                },
+                NativeMenuItem::Action {
+                    title: "Stash Pop".into(),
+                    enabled: state.has_stash_items,
+                },
+                NativeMenuItem::action("View Stash"),
+                NativeMenuItem::separator(),
+                NativeMenuItem::action("Open Diff"),
+                NativeMenuItem::separator(),
+                NativeMenuItem::Action {
+                    title: "Discard Tracked Changes".into(),
+                    enabled: state.has_tracked_changes,
+                },
+                NativeMenuItem::Action {
+                    title: "Trash Untracked Files".into(),
+                    enabled: state.has_new_changes,
+                },
+                NativeMenuItem::separator(),
+                NativeMenuItem::action(if state.tree_view {
+                    "Flat View"
+                } else {
+                    "Tree View"
+                }),
+            ];
+            let mut actions: Vec<Box<dyn gpui::Action>> = vec![
+                StageAll.boxed_clone(),
+                UnstageAll.boxed_clone(),
+                StashAll.boxed_clone(),
+                StashPop.boxed_clone(),
+                zed_actions::git::ViewStash.boxed_clone(),
+                project_diff::Diff.boxed_clone(),
+                RestoreTrackedFiles.boxed_clone(),
+                TrashUntrackedFiles.boxed_clone(),
+                Box::new(ToggleTreeView),
+            ];
+            if !state.tree_view {
+                items.push(NativeMenuItem::action(if state.sort_by_path {
+                    "Sort by Status"
+                } else {
+                    "Sort by Path"
+                }));
+                actions.push(Box::new(ToggleSortByPath));
+            }
+
+            let focus = self.focus_handle.clone();
+            show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
+                if let Some(action) = actions.into_iter().nth(index) {
+                    focus.dispatch_action(&*action, window, cx);
+                }
+            });
+            cx.notify();
+            return;
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let context_menu = git_panel_context_menu(
+                self.focus_handle.clone(),
+                state,
+                window,
+                cx,
+            );
+            self.set_context_menu(context_menu, position, window, cx);
+        }
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn set_context_menu(
         &mut self,
         context_menu: Entity<ContextMenu>,
@@ -4910,6 +5033,8 @@ impl GitPanel {
         window: &Window,
         cx: &mut Context<Self>,
     ) {
+        use gpui::DismissEvent;
+
         let subscription = cx.subscribe_in(
             &context_menu,
             window,

@@ -19,14 +19,14 @@ use git::status::GitSummary;
 use git_ui;
 use git_ui::file_diff_view::FileDiffView;
 use gpui::{
-    Action, AnyElement, App, AsyncWindowContext, Bounds, ClipboardItem, Context, CursorStyle,
-    DismissEvent, Div, DragMoveEvent, Entity, EventEmitter, ExternalPaths, FocusHandle, Focusable,
-    FontWeight, Hsla, InteractiveElement, KeyContext, ListHorizontalSizingBehavior,
-    ListSizingBehavior, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent,
-    ParentElement, PathPromptOptions, Pixels, Point, PromptLevel, Render, ScrollStrategy, Stateful,
-    Styled, Subscription, Task, UniformListScrollHandle, WeakEntity, Window, actions, anchored,
-    deferred, div, hsla, linear_color_stop, linear_gradient, point, px, size, transparent_white,
-    uniform_list,
+    Action, AnyElement, App, AsyncWindowContext, Bounds, ClipboardItem, Context, CursorStyle, Div,
+    DragMoveEvent, Entity, EventEmitter, ExternalPaths, FocusHandle, Focusable, FontWeight, Hsla,
+    InteractiveElement, KeyContext, ListHorizontalSizingBehavior, ListSizingBehavior, Modifiers,
+    ModifiersChangedEvent, MouseButton, MouseDownEvent, NativeMenuItem, ParentElement,
+    PathPromptOptions, Pixels, Point, PromptLevel, Render, ScrollStrategy, Stateful, Styled,
+    Subscription, Task, UniformListScrollHandle, WeakEntity, Window, actions, anchored, deferred,
+    div, hsla, linear_color_stop, linear_gradient, point, px, show_native_popup_menu, size,
+    transparent_white, uniform_list,
 };
 use language::DiagnosticSeverity;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
@@ -58,10 +58,9 @@ use std::{
 };
 use theme::ThemeSettings;
 use ui::{
-    Color, ContextMenu, ContextMenuEntry, DecoratedIcon, Divider, Icon, IconDecoration,
-    IconDecorationKind, IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize,
-    ListItem, ListItemSpacing, ScrollAxes, ScrollableHandle, Scrollbars, StickyCandidate, Tooltip,
-    WithScrollbar, prelude::*, v_flex,
+    Color, ContextMenu, DecoratedIcon, Divider, Icon, IconDecoration, IconDecorationKind,
+    IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize, ListItem, ListItemSpacing,
+    ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*, v_flex,
 };
 use util::{
     ResultExt, TakeUntilExt, TryFutureExt, maybe,
@@ -1129,122 +1128,310 @@ impl ProjectPanel {
                     .is_some()
             };
 
-            let entity = cx.entity();
-            let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
-                menu.context(self.focus_handle.clone()).map(|menu| {
-                    if is_read_only {
-                        menu.when(is_dir, |menu| {
-                            menu.action("Search Inside", Box::new(NewSearchInDirectory))
-                        })
-                    } else {
-                        menu.action("New File", Box::new(NewFile))
-                            .action("New Folder", Box::new(NewDirectory))
-                            .separator()
-                            .when(is_local, |menu| {
-                                menu.action(
-                                    if cfg!(target_os = "macos") && !is_remote {
-                                        "Reveal in Finder"
-                                    } else if cfg!(target_os = "windows") && !is_remote {
-                                        "Reveal in File Explorer"
-                                    } else {
-                                        "Reveal in File Manager"
-                                    },
-                                    Box::new(RevealInFileManager),
-                                )
-                            })
-                            .when(is_local, |menu| {
-                                menu.action("Open in Default App", Box::new(OpenWithSystem))
-                            })
-                            .action("Open in Terminal", Box::new(OpenInTerminal))
-                            .when(is_dir, |menu| {
-                                menu.separator()
-                                    .action("Find in Folder…", Box::new(NewSearchInDirectory))
-                            })
-                            .when(is_unfoldable, |menu| {
-                                menu.action("Unfold Directory", Box::new(UnfoldDirectory))
-                            })
-                            .when(is_foldable, |menu| {
-                                menu.action("Fold Directory", Box::new(FoldDirectory))
-                            })
-                            .when(should_show_compare, |menu| {
-                                menu.separator()
-                                    .action("Compare marked files", Box::new(CompareMarkedFiles))
-                            })
-                            .separator()
-                            .action("Cut", Box::new(Cut))
-                            .action("Copy", Box::new(Copy))
-                            .action("Duplicate", Box::new(Duplicate))
-                            // TODO: Paste should always be visible, cbut disabled when clipboard is empty
-                            .action_disabled_when(
-                                self.clipboard.as_ref().is_none(),
-                                "Paste",
-                                Box::new(Paste),
-                            )
-                            .when(is_remote, |menu| {
-                                menu.separator()
-                                    .action("Download...", Box::new(DownloadFromRemote))
-                            })
-                            .separator()
-                            .action("Copy Path", Box::new(zed_actions::workspace::CopyPath))
-                            .action(
-                                "Copy Relative Path",
-                                Box::new(zed_actions::workspace::CopyRelativePath),
-                            )
-                            .when(!is_dir && self.has_git_changes(entry_id), |menu| {
-                                menu.separator().action(
-                                    "Restore File",
-                                    Box::new(git::RestoreFile { skip_prompt: false }),
-                                )
-                            })
-                            .when(has_git_repo, |menu| {
-                                menu.separator()
-                                    .action("View File History", Box::new(git::FileHistory))
-                            })
-                            .when(!should_hide_rename, |menu| {
-                                menu.separator().action("Rename", Box::new(Rename))
-                            })
-                            .when(!is_root && !is_remote, |menu| {
-                                menu.action("Trash", Box::new(Trash { skip_prompt: false }))
-                            })
-                            .when(!is_root, |menu| {
-                                menu.action("Delete", Box::new(Delete { skip_prompt: false }))
-                            })
-                            .when(!is_collab && is_root, |menu| {
-                                menu.separator()
-                                    .action(
-                                        "Add Project to Workspace…",
-                                        Box::new(workspace::AddFolderToProject),
-                                    )
-                                    .action("Remove from Workspace", Box::new(RemoveFromProject))
-                            })
-                            .when(is_dir && !is_root, |menu| {
-                                menu.separator().action(
-                                    "Collapse All",
-                                    Box::new(CollapseSelectedEntryAndChildren),
-                                )
-                            })
-                            .when(is_dir && is_root, |menu| {
-                                let entity = entity.clone();
-                                menu.separator().item(
-                                    ContextMenuEntry::new("Collapse All").handler(
-                                        move |window, cx| {
-                                            entity.update(cx, |this, cx| {
-                                                this.collapse_all_for_root(window, cx);
-                                            });
-                                        },
-                                    ),
-                                )
-                            })
-                    }
-                })
-            });
+            let has_git_changes = !is_dir && self.has_git_changes(entry_id);
+            let has_clipboard = self.clipboard.is_some();
 
-            window.focus(&context_menu.focus_handle(cx), cx);
-            let subscription = cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
-                this.context_menu.take();
+            #[cfg(target_os = "macos")]
+            {
+                enum NativeMenuAction {
+                    Dispatch(Box<dyn gpui::Action>),
+                    CollapseAllForRoot,
+                }
+
+                let mut items = Vec::new();
+                let mut actions: Vec<NativeMenuAction> = Vec::new();
+
+                if is_read_only {
+                    if is_dir {
+                        items.push(NativeMenuItem::action("Search Inside"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(NewSearchInDirectory)));
+                    }
+                } else {
+                    items.push(NativeMenuItem::action("New File"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(NewFile)));
+                    items.push(NativeMenuItem::action("New Folder"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(NewDirectory)));
+                    items.push(NativeMenuItem::separator());
+                    if is_local {
+                        items.push(NativeMenuItem::action(if !is_remote {
+                            "Reveal in Finder"
+                        } else {
+                            "Reveal in File Manager"
+                        }));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(RevealInFileManager)));
+                        items.push(NativeMenuItem::action("Open in Default App"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(OpenWithSystem)));
+                    }
+                    items.push(NativeMenuItem::action("Open in Terminal"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(OpenInTerminal)));
+                    if is_dir {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Find in Folder\u{2026}"));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(NewSearchInDirectory)));
+                    }
+                    if is_unfoldable {
+                        items.push(NativeMenuItem::action("Unfold Directory"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(UnfoldDirectory)));
+                    }
+                    if is_foldable {
+                        items.push(NativeMenuItem::action("Fold Directory"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(FoldDirectory)));
+                    }
+                    if should_show_compare {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Compare marked files"));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(CompareMarkedFiles)));
+                    }
+                    items.push(NativeMenuItem::separator());
+                    items.push(NativeMenuItem::action("Cut"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(Cut)));
+                    items.push(NativeMenuItem::action("Copy"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(Copy)));
+                    items.push(NativeMenuItem::action("Duplicate"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(Duplicate)));
+                    items.push(NativeMenuItem::Action {
+                        title: "Paste".into(),
+                        enabled: has_clipboard,
+                    });
+                    actions.push(NativeMenuAction::Dispatch(Box::new(Paste)));
+                    if is_remote {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Download\u{2026}"));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(DownloadFromRemote)));
+                    }
+                    items.push(NativeMenuItem::separator());
+                    items.push(NativeMenuItem::action("Copy Path"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(
+                        zed_actions::workspace::CopyPath,
+                    )));
+                    items.push(NativeMenuItem::action("Copy Relative Path"));
+                    actions.push(NativeMenuAction::Dispatch(Box::new(
+                        zed_actions::workspace::CopyRelativePath,
+                    )));
+                    if has_git_changes {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Restore File"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(
+                            git::RestoreFile { skip_prompt: false },
+                        )));
+                    }
+                    if has_git_repo {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("View File History"));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(git::FileHistory)));
+                    }
+                    if !should_hide_rename {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Rename"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(Rename)));
+                    }
+                    if !is_root && !is_remote {
+                        items.push(NativeMenuItem::action("Trash"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(Trash {
+                            skip_prompt: false,
+                        })));
+                    }
+                    if !is_root {
+                        items.push(NativeMenuItem::action("Delete"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(Delete {
+                            skip_prompt: false,
+                        })));
+                    }
+                    if !is_collab && is_root {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Add Project to Workspace\u{2026}"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(
+                            workspace::AddFolderToProject,
+                        )));
+                        items.push(NativeMenuItem::action("Remove from Workspace"));
+                        actions
+                            .push(NativeMenuAction::Dispatch(Box::new(RemoveFromProject)));
+                    }
+                    if is_dir && !is_root {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Collapse All"));
+                        actions.push(NativeMenuAction::Dispatch(Box::new(
+                            CollapseSelectedEntryAndChildren,
+                        )));
+                    }
+                    if is_dir && is_root {
+                        items.push(NativeMenuItem::separator());
+                        items.push(NativeMenuItem::action("Collapse All"));
+                        actions.push(NativeMenuAction::CollapseAllForRoot);
+                    }
+                }
+
+                let focus = self.focus_handle.clone();
+                let entity = cx.entity().downgrade();
+                show_native_popup_menu(
+                    &items,
+                    position,
+                    window,
+                    cx,
+                    move |index, window, cx| {
+                        if let Some(action) = actions.into_iter().nth(index) {
+                            match action {
+                                NativeMenuAction::Dispatch(action) => {
+                                    focus.dispatch_action(&*action, window, cx);
+                                }
+                                NativeMenuAction::CollapseAllForRoot => {
+                                    entity
+                                        .update(cx, |this, cx| {
+                                            this.collapse_all_for_root(window, cx);
+                                        })
+                                        .ok();
+                                }
+                            }
+                        }
+                    },
+                );
                 cx.notify();
-            });
-            self.context_menu = Some((context_menu, position, subscription));
+                return;
+            }
+
+            #[cfg(not(target_os = "macos"))]
+            {
+                use gpui::DismissEvent;
+                use ui::ContextMenuEntry;
+
+                let entity = cx.entity();
+                let context_menu = ContextMenu::build(window, cx, |menu, _, _| {
+                    menu.context(self.focus_handle.clone()).map(|menu| {
+                        if is_read_only {
+                            menu.when(is_dir, |menu| {
+                                menu.action("Search Inside", Box::new(NewSearchInDirectory))
+                            })
+                        } else {
+                            menu.action("New File", Box::new(NewFile))
+                                .action("New Folder", Box::new(NewDirectory))
+                                .separator()
+                                .when(is_local, |menu| {
+                                    menu.action(
+                                        "Reveal in File Manager",
+                                        Box::new(RevealInFileManager),
+                                    )
+                                })
+                                .when(is_local, |menu| {
+                                    menu.action(
+                                        "Open in Default App",
+                                        Box::new(OpenWithSystem),
+                                    )
+                                })
+                                .action("Open in Terminal", Box::new(OpenInTerminal))
+                                .when(is_dir, |menu| {
+                                    menu.separator().action(
+                                        "Find in Folder\u{2026}",
+                                        Box::new(NewSearchInDirectory),
+                                    )
+                                })
+                                .when(is_unfoldable, |menu| {
+                                    menu.action(
+                                        "Unfold Directory",
+                                        Box::new(UnfoldDirectory),
+                                    )
+                                })
+                                .when(is_foldable, |menu| {
+                                    menu.action("Fold Directory", Box::new(FoldDirectory))
+                                })
+                                .when(should_show_compare, |menu| {
+                                    menu.separator().action(
+                                        "Compare marked files",
+                                        Box::new(CompareMarkedFiles),
+                                    )
+                                })
+                                .separator()
+                                .action("Cut", Box::new(Cut))
+                                .action("Copy", Box::new(Copy))
+                                .action("Duplicate", Box::new(Duplicate))
+                                .action_disabled_when(!has_clipboard, "Paste", Box::new(Paste))
+                                .when(is_remote, |menu| {
+                                    menu.separator().action(
+                                        "Download\u{2026}",
+                                        Box::new(DownloadFromRemote),
+                                    )
+                                })
+                                .separator()
+                                .action(
+                                    "Copy Path",
+                                    Box::new(zed_actions::workspace::CopyPath),
+                                )
+                                .action(
+                                    "Copy Relative Path",
+                                    Box::new(zed_actions::workspace::CopyRelativePath),
+                                )
+                                .when(has_git_changes, |menu| {
+                                    menu.separator().action(
+                                        "Restore File",
+                                        Box::new(git::RestoreFile { skip_prompt: false }),
+                                    )
+                                })
+                                .when(has_git_repo, |menu| {
+                                    menu.separator().action(
+                                        "View File History",
+                                        Box::new(git::FileHistory),
+                                    )
+                                })
+                                .when(!should_hide_rename, |menu| {
+                                    menu.separator().action("Rename", Box::new(Rename))
+                                })
+                                .when(!is_root && !is_remote, |menu| {
+                                    menu.action(
+                                        "Trash",
+                                        Box::new(Trash { skip_prompt: false }),
+                                    )
+                                })
+                                .when(!is_root, |menu| {
+                                    menu.action(
+                                        "Delete",
+                                        Box::new(Delete { skip_prompt: false }),
+                                    )
+                                })
+                                .when(!is_collab && is_root, |menu| {
+                                    menu.separator()
+                                        .action(
+                                            "Add Project to Workspace\u{2026}",
+                                            Box::new(workspace::AddFolderToProject),
+                                        )
+                                        .action(
+                                            "Remove from Workspace",
+                                            Box::new(RemoveFromProject),
+                                        )
+                                })
+                                .when(is_dir && !is_root, |menu| {
+                                    menu.separator().action(
+                                        "Collapse All",
+                                        Box::new(CollapseSelectedEntryAndChildren),
+                                    )
+                                })
+                                .when(is_dir && is_root, |menu| {
+                                    let entity = entity.clone();
+                                    menu.separator().item(
+                                        ContextMenuEntry::new("Collapse All").handler(
+                                            move |window, cx| {
+                                                entity.update(cx, |this, cx| {
+                                                    this.collapse_all_for_root(window, cx);
+                                                });
+                                            },
+                                        ),
+                                    )
+                                })
+                        }
+                    })
+                });
+
+                window.focus(&context_menu.focus_handle(cx), cx);
+                let subscription =
+                    cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
+                        this.context_menu.take();
+                        cx.notify();
+                    });
+                self.context_menu = Some((context_menu, position, subscription));
+            }
         }
 
         cx.notify();
