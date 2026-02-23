@@ -402,6 +402,13 @@ impl NativeToolbarController {
         if toolbar_key == self.last_toolbar_key {
             return;
         }
+        eprintln!(
+            "[omnibox] TOOLBAR REBUILD: omnibox_focused={}, omnibox_text=\"{}\", old_key=\"{}\" new_key=\"{}\"",
+            self.omnibox_focused,
+            self.omnibox_text,
+            self.last_toolbar_key,
+            toolbar_key,
+        );
         self.last_toolbar_key = toolbar_key;
 
         let mut toolbar = NativeToolbar::new("glass.main.toolbar")
@@ -773,6 +780,7 @@ impl NativeToolbarController {
                     }
                 })
                 .on_begin_editing(move |_event: &NativeToolbarSearchEvent, _window, cx| {
+                    eprintln!("[omnibox] on_begin_editing fired");
                     if let Some(workspace) = workspace_for_begin_editing.upgrade() {
                         if let Some(controller) = workspace
                             .read(cx)
@@ -780,12 +788,14 @@ impl NativeToolbarController {
                             .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                         {
                             controller.update(cx, |controller, _cx| {
+                                eprintln!("[omnibox] setting omnibox_focused=true");
                                 controller.omnibox_focused = true;
                             });
                         }
                     }
                 })
                 .on_end_editing(move |_event: &NativeToolbarSearchEvent, window, cx| {
+                    eprintln!("[omnibox] on_end_editing fired, dismissing panel");
                     window.dismiss_native_panel();
                     if let Some(workspace) = workspace_for_end_editing.upgrade() {
                         if let Some(controller) = workspace
