@@ -14,6 +14,7 @@ use cef::{
     WrapBrowserProcessHandler, api_hash, rc::Rc as _, sys, wrap_app, wrap_browser_process_handler,
 };
 use parking_lot::Mutex;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
@@ -141,6 +142,41 @@ impl GlassAppBuilder {
     }
 }
 
+// ── CEF path resolution ──────────────────────────────────────────────
+
+/// Resolve the CEF directory from `CEF_PATH` env var, falling back to `~/.local/share/cef`.
+#[cfg(target_os = "macos")]
+fn resolve_cef_dir_from_env() -> Option<PathBuf> {
+    let cef_dir = match std::env::var("CEF_PATH") {
+        Ok(path) => PathBuf::from(path),
+        Err(_) => {
+            let home = std::env::var("HOME").ok()?;
+            PathBuf::from(home).join(".local/share/cef")
+        }
+    };
+    if cef_dir
+        .join("Chromium Embedded Framework.framework/Chromium Embedded Framework")
+        .exists()
+    {
+        Some(cef_dir)
+    } else {
+        None
+    }
+}
+
+/// Load the CEF framework directly from a directory path (bypasses LibraryLoader
+/// which only supports bundle-relative paths).
+#[cfg(target_os = "macos")]
+fn load_cef_framework_from_dir(cef_dir: &std::path::Path) -> bool {
+    let framework_path = cef_dir
+        .join("Chromium Embedded Framework.framework/Chromium Embedded Framework");
+    use std::os::unix::ffi::OsStrExt;
+    let Ok(path_cstr) = std::ffi::CString::new(framework_path.as_os_str().as_bytes()) else {
+        return false;
+    };
+    unsafe { cef::load_library(Some(&*path_cstr.as_ptr().cast())) == 1 }
+}
+
 // ── CefInstance ──────────────────────────────────────────────────────
 
 pub struct CefInstance {}
@@ -187,7 +223,21 @@ impl CefInstance {
                     *CEF_LIBRARY_LOADER.lock() = Some(loader);
                 }
                 _ => {
-                    return Ok(());
+                    // Not running from a bundle - try CEF_PATH env var or ~/.local/share/cef
+                    match resolve_cef_dir_from_env() {
+                        Some(cef_dir) => {
+                            if !load_cef_framework_from_dir(&cef_dir) {
+                                log::warn!(
+                                    "[browser::cef_instance] Failed to load CEF from {}",
+                                    cef_dir.display()
+                                );
+                                return Ok(());
+                            }
+                        }
+                        None => {
+                            return Ok(());
+                        }
+                    }
                 }
             }
         }
@@ -259,11 +309,23 @@ impl CefInstance {
         #[cfg(target_os = "macos")]
         {
             if let Ok(exe_path) = std::env::current_exe() {
-                if let Some(macos_dir) = exe_path.parent() {
-                    let helper_path = macos_dir
+                if let Some(exe_dir) = exe_path.parent() {
+                    // Try bundle path first: .app/Contents/Frameworks/Glass Helper.app/...
+                    let bundle_helper = exe_dir
                         .join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
-                    if let Ok(canonical) = helper_path.canonicalize() {
-                        if let Some(path_str) = canonical.to_str() {
+                    // Fall back to glass_helper next to the executable (cargo run)
+                    let dev_helper = exe_dir.join("glass_helper");
+
+                    let helper_path = if bundle_helper.exists() {
+                        bundle_helper.canonicalize().ok()
+                    } else if dev_helper.exists() {
+                        dev_helper.canonicalize().ok()
+                    } else {
+                        None
+                    };
+
+                    if let Some(path) = helper_path {
+                        if let Some(path_str) = path.to_str() {
                             settings.browser_subprocess_path = cef::CefString::from(path_str);
                         }
                     }

@@ -21,7 +21,7 @@ jobs:
           CEF_PATH="$HOME/.local/share/cef"
           mkdir -p "$CEF_PATH"
 
-          CEF_VERSION="144.0.12"
+          CEF_VERSION="145.0.23"
           CEF_CDN="https://cef-builds.spotifycdn.com"
 
           echo "Fetching CEF index..."
