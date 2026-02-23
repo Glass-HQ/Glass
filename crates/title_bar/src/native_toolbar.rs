@@ -22,7 +22,7 @@ use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorkt
 use settings::Settings;
 use std::sync::Arc;
 use workspace::{
-    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
+    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorktreeSecurity,
     Workspace, notifications::NotifyResultExt,
 };
 use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode};
@@ -402,7 +402,6 @@ impl NativeToolbarController {
             .size_mode(NativeToolbarSizeMode::Regular)
             .shows_baseline_separator(false);
 
-        toolbar = toolbar.item(self.build_sidebar_toggle_item(cx));
         toolbar = toolbar.item(self.build_mode_switcher_item(active_mode, cx));
 
         if let Some(restricted_mode) = self.build_restricted_mode_item(cx) {
@@ -549,22 +548,6 @@ impl NativeToolbarController {
         }
 
         window.set_native_toolbar(Some(toolbar));
-    }
-
-    fn build_sidebar_toggle_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
-        let workspace = self.workspace.clone();
-        NativeToolbarItem::Button(
-            NativeToolbarButton::new("glass.sidebar_toggle", "")
-                .tool_tip("Toggle Sidebar")
-                .icon("sidebar.leading")
-                .on_click(move |_event, window, cx| {
-                    if let Some(workspace) = workspace.upgrade() {
-                        workspace.update(cx, |_workspace, cx| {
-                            window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
-                        });
-                    }
-                }),
-        )
     }
 
     fn build_mode_switcher_item(

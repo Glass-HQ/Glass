@@ -1,3 +1,4 @@
+use crate::ToggleWorkspaceSidebar;
 use crate::Workspace;
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
@@ -76,9 +77,10 @@ impl Render for DockButtonBar {
             (&workspace_read.right_dock, DockPosition::Right),
         ];
 
-        // Collect all panels from all docks for the segmented control
-        let mut panel_labels: Vec<SharedString> = Vec::new();
-        let mut panel_symbols: Vec<SharedString> = Vec::new();
+        // Collect all panels from all docks for the segmented control.
+        // Index 0 is reserved for the "Workspaces" segment.
+        let mut panel_labels: Vec<SharedString> = vec!["Workspaces".into()];
+        let mut panel_symbols: Vec<SharedString> = vec!["sidebar.leading".into()];
         let mut panel_ids: Vec<EntityId> = Vec::new();
         let mut selected_segment: Option<usize> = None;
 
@@ -99,6 +101,7 @@ impl Render for DockButtonBar {
                     continue;
                 };
                 let name = panel.icon_tooltip(window, cx).unwrap_or(panel.persistent_name());
+                // +1 offset because index 0 is the Workspaces segment
                 let segment_idx = panel_labels.len();
 
                 // Track the first active+visible panel as the selected segment
@@ -133,7 +136,8 @@ impl Render for DockButtonBar {
         panel_labels.push("Project Diagnostics".into());
         panel_symbols.push(diagnostics_symbol.into());
 
-        // Build the segmented control with all panels + search + diagnostics
+        // Build the segmented control: [Workspaces] [panels...] [Search] [Diagnostics]
+        let workspace_segment_index: usize = 0;
         let callback_panel_ids = panel_ids.clone();
         let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
         let symbol_strs: Vec<&str> = panel_symbols.iter().map(|s| s.as_ref()).collect();
@@ -141,8 +145,11 @@ impl Render for DockButtonBar {
         let mut group = native_toggle_group("dock-panels", &label_strs)
             .sf_symbols(&symbol_strs)
             .border_shape(NativeSegmentedShape::Capsule)
+            .w_full()
             .on_select(cx.listener(move |this, event: &SegmentSelectEvent, window, cx| {
-                if event.index == search_segment_index {
+                if event.index == workspace_segment_index {
+                    window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
+                } else if event.index == search_segment_index {
                     if let Some(workspace) = this.workspace.upgrade() {
                         workspace.update(cx, |_workspace, cx| {
                             window.dispatch_action(
@@ -153,7 +160,9 @@ impl Render for DockButtonBar {
                     }
                 } else if event.index == diagnostics_segment_index {
                     window.dispatch_action(Box::new(DeployProjectDiagnostics), cx);
-                } else if let Some(panel_id) = callback_panel_ids.get(event.index).copied() {
+                } else if let Some(panel_id) =
+                    callback_panel_ids.get(event.index - 1).copied()
+                {
                     if let Some(workspace) = this.workspace.upgrade() {
                         workspace.update(cx, |workspace, cx| {
                             workspace.toggle_panel_for_id(panel_id, window, cx);
@@ -174,8 +183,6 @@ impl Render for DockButtonBar {
             .h(Tab::container_height(cx))
             .px_1()
             .gap_1()
-            .border_b_1()
-            .border_color(cx.theme().colors().border)
             .bg(cx.theme().colors().panel_background)
             .child(group)
             .into_any_element()
