@@ -25,7 +25,7 @@ use workspace::{
     MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
     Workspace, notifications::NotifyResultExt,
 };
-use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode};
+use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode};
 use zed_actions::OpenRemote;
 
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
@@ -572,29 +572,36 @@ impl NativeToolbarController {
         active_mode: ModeId,
         _cx: &Context<Self>,
     ) -> NativeToolbarItem {
-        let selected_index = match active_mode {
-            ModeId::BROWSER => 0,
-            ModeId::EDITOR => 1,
-            _ => 0,
+        let (label, icon) = match active_mode {
+            ModeId::BROWSER => ("Browser", "globe"),
+            ModeId::EDITOR => ("Editor", "doc.text"),
+            ModeId::TERMINAL => ("Terminal", "terminal"),
+            _ => ("Browser", "globe"),
         };
 
-        let segments = vec![
-            NativeToolbarSegment::new("Browser").icon("globe"),
-            NativeToolbarSegment::new("Editor").icon("doc.text"),
+        let menu_items = vec![
+            NativeToolbarMenuItem::action("Browser").icon("globe"),
+            NativeToolbarMenuItem::action("Editor").icon("doc.text"),
+            NativeToolbarMenuItem::action("Terminal").icon("terminal"),
         ];
 
         let workspace = self.workspace.clone();
-        NativeToolbarItem::SegmentedControl(
-            NativeToolbarSegmentedControl::new("glass.mode_switcher", segments)
-                .selected_index(selected_index)
+        NativeToolbarItem::MenuButton(
+            NativeToolbarMenuButton::new("glass.mode_switcher", label, menu_items)
+                .tool_tip("Switch Mode")
+                .icon(icon)
+                .shows_indicator(true)
                 .on_select(move |event, window, cx| {
                     if let Some(workspace) = workspace.upgrade() {
-                        workspace.update(cx, |_workspace, cx| match event.selected_index {
+                        workspace.update(cx, |_workspace, cx| match event.index {
                             0 => {
                                 window.dispatch_action(SwitchToBrowserMode.boxed_clone(), cx);
                             }
                             1 => {
                                 window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
+                            }
+                            2 => {
+                                window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
                             }
                             _ => {}
                         });
