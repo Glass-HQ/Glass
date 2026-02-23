@@ -20,6 +20,8 @@ pub struct RegisteredModeView {
     pub focus_handle: FocusHandle,
     /// Optional view to render in the title bar center when this mode is active
     pub titlebar_center_view: Option<AnyView>,
+    /// Optional sidebar view shown in the unified native sidebar when this mode is active
+    pub sidebar_view: Option<AnyView>,
 }
 
 /// Factory function that creates a new mode view instance.

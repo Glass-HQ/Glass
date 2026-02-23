@@ -150,6 +150,52 @@ use crate::{
     security_modal::SecurityModal,
 };
 
+/// A unified sidebar that persists across mode switches (browser, editor, terminal).
+/// Instead of each mode creating its own native_sidebar, this single entity wraps
+/// the appropriate sidebar content for the current mode, avoiding teardown/rebuild
+/// of the NSSplitViewController on mode switches.
+#[cfg(target_os = "macos")]
+pub struct UnifiedSidebar {
+    active_mode: ModeId,
+    left_dock: Entity<Dock>,
+    browser_sidebar_view: Option<AnyView>,
+}
+
+#[cfg(target_os = "macos")]
+impl UnifiedSidebar {
+    pub fn new(left_dock: Entity<Dock>) -> Self {
+        Self {
+            active_mode: ModeId::BROWSER,
+            left_dock,
+            browser_sidebar_view: None,
+        }
+    }
+
+    pub fn set_mode(&mut self, mode: ModeId, cx: &mut Context<Self>) {
+        if self.active_mode != mode {
+            self.active_mode = mode;
+            cx.notify();
+        }
+    }
+
+    pub fn set_browser_sidebar_view(&mut self, view: AnyView, cx: &mut Context<Self>) {
+        self.browser_sidebar_view = Some(view);
+        cx.notify();
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Render for UnifiedSidebar {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.active_mode == ModeId::BROWSER {
+            if let Some(view) = &self.browser_sidebar_view {
+                return div().size_full().child(view.clone()).into_any_element();
+            }
+        }
+        div().size_full().child(self.left_dock.clone()).into_any_element()
+    }
+}
+
 pub const SERIALIZATION_THROTTLE_TIME: Duration = Duration::from_millis(200);
 
 static ZED_WINDOW_SIZE: LazyLock<Option<Size<Pixels>>> = LazyLock::new(|| {
@@ -1175,6 +1221,8 @@ pub struct Workspace {
     zoomed_position: Option<DockPosition>,
     center: PaneGroup,
     left_dock: Entity<Dock>,
+    #[cfg(target_os = "macos")]
+    unified_sidebar: Entity<UnifiedSidebar>,
     bottom_dock: Entity<Dock>,
     right_dock: Entity<Dock>,
     panes: Vec<Entity<Pane>>,
@@ -1489,6 +1537,11 @@ impl Workspace {
         left_dock.update(cx, |dock, _cx| {
             dock.in_native_sidebar = true;
         });
+        #[cfg(target_os = "macos")]
+        let unified_sidebar = {
+            let left_dock_clone = left_dock.clone();
+            cx.new(|_cx| UnifiedSidebar::new(left_dock_clone))
+        };
         let bottom_dock = Dock::new(DockPosition::Bottom, modal_layer.clone(), None, window, cx);
         let right_dock = Dock::new(DockPosition::Right, modal_layer.clone(), None, window, cx);
         let session_id = app_state.session.read(cx).id().to_owned();
@@ -1590,6 +1643,8 @@ impl Workspace {
             notifications: Notifications::default(),
             suppressed_notifications: HashSet::default(),
             left_dock,
+            #[cfg(target_os = "macos")]
+            unified_sidebar,
             bottom_dock,
             right_dock,
             project: project.clone(),
@@ -4758,6 +4813,14 @@ impl Workspace {
                 .cloned();
             if let Some(factory) = factory {
                 let registered = factory(cx);
+
+                #[cfg(target_os = "macos")]
+                if let Some(sidebar_view) = registered.sidebar_view {
+                    self.unified_sidebar.update(cx, |sidebar, cx| {
+                        sidebar.set_browser_sidebar_view(sidebar_view, cx);
+                    });
+                }
+
                 entry.insert(PerWorkspaceModeView {
                     view: registered.view,
                     focus_handle: registered.focus_handle,
@@ -4766,6 +4829,7 @@ impl Workspace {
         }
         self.per_workspace_mode_views.get(&mode_id)
     }
+
 
     /// Get or create the mode view for a given mode, returning it as an AnyView.
     pub fn mode_view(&mut self, mode_id: ModeId, cx: &mut Context<Self>) -> Option<AnyView> {
@@ -4850,6 +4914,11 @@ impl Workspace {
                 }
                 _ => {}
             }
+
+            #[cfg(target_os = "macos")]
+            self.unified_sidebar.update(cx, |sidebar, cx| {
+                sidebar.set_mode(mode_id, cx);
+            });
 
             self.serialize_workspace(window, cx);
             cx.notify();
@@ -6280,59 +6349,55 @@ impl Workspace {
         )
     }
 
-    /// Wraps content with native_sidebar for the left dock on macOS,
-    /// or returns the content directly on other platforms (where the caller
-    /// is responsible for including the left dock in the content).
-    fn render_with_native_sidebar(
+    /// Wraps the entire mode-specific content with the unified native sidebar on macOS.
+    #[cfg(target_os = "macos")]
+    fn render_with_unified_sidebar(
         &self,
-        content: Div,
+        mode_content: AnyElement,
         window: &mut Window,
         cx: &mut App,
     ) -> AnyElement {
-        #[cfg(target_os = "macos")]
-        {
-            let (sidebar_collapsed, sidebar_width) = {
-                let left_dock = self.left_dock.read(cx);
-                let collapsed =
-                    !left_dock.is_open() || left_dock.visible_panel().is_none();
-                let width: f64 = left_dock
-                    .active_panel_size(window, cx)
-                    .map(|s| s.into())
-                    .unwrap_or(240.0);
-                (collapsed, width)
-            };
+        let (sidebar_collapsed, sidebar_width) = {
+            let left_dock = self.left_dock.read(cx);
+            let dock_collapsed =
+                !left_dock.is_open() || left_dock.visible_panel().is_none();
+            let width: f64 = left_dock
+                .active_panel_size(window, cx)
+                .map(|s| s.into())
+                .unwrap_or(240.0);
 
-            div()
-                .size_full()
-                .flex()
-                .flex_row()
-                .child(
-                    native_sidebar("workspace-dock-sidebar", &[""; 0])
-                        .sidebar_view(self.left_dock.clone())
-                        .sidebar_width(sidebar_width)
-                        .min_sidebar_width(160.0)
-                        .max_sidebar_width(480.0)
-                        .manage_window_chrome(false)
-                        .manage_toolbar(false)
-                        .collapsed(sidebar_collapsed)
-                        .size_full(),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .size_full()
-                        .overflow_hidden()
-                        .child(content),
-                )
-                .into_any_element()
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            let _ = (window, cx);
-            content.into_any_element()
-        }
+            if self.active_mode == ModeId::BROWSER {
+                (false, 200.0)
+            } else {
+                (dock_collapsed, width)
+            }
+        };
+
+        div()
+            .size_full()
+            .flex()
+            .flex_row()
+            .child(
+                native_sidebar("workspace-unified-sidebar", &[""; 0])
+                    .sidebar_view(self.unified_sidebar.clone())
+                    .sidebar_width(sidebar_width)
+                    .min_sidebar_width(160.0)
+                    .max_sidebar_width(480.0)
+                    .manage_window_chrome(false)
+                    .manage_toolbar(false)
+                    .collapsed(sidebar_collapsed)
+                    .size_full(),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .flex_col()
+                    .size_full()
+                    .overflow_hidden()
+                    .child(mode_content),
+            )
+            .into_any_element()
     }
 
     pub fn for_window(window: &Window, cx: &App) -> Option<Entity<Workspace>> {
@@ -6966,7 +7031,7 @@ impl Render for Workspace {
 
                                 })
                                 .child({
-                                    if self.active_mode == ModeId::BROWSER {
+                                    let mode_content = if self.active_mode == ModeId::BROWSER {
                                         // Browser Mode: each workspace gets its own BrowserView
                                         // via factory, falling back to global registry for compat
                                         self.ensure_mode_view(ModeId::BROWSER, cx);
@@ -6982,17 +7047,12 @@ impl Render for Workspace {
                                         div()
                                             .size_full()
                                             .flex()
-                                            .flex_row()
-                                            .child(
-                                                div()
-                                                    .flex()
-                                                    .flex_col()
-                                                    .flex_1()
-                                                    .overflow_hidden()
-                                                    .when_some(browser_view, |this, view| {
-                                                        this.child(view)
-                                                    }),
-                                            )
+                                            .flex_col()
+                                            .flex_1()
+                                            .overflow_hidden()
+                                            .when_some(browser_view, |this, view| {
+                                                this.child(view)
+                                            })
                                             .into_any_element()
                                     } else if self.active_mode == ModeId::TERMINAL {
                                         // Terminal Mode: render terminal panel with left dock
@@ -7020,11 +7080,7 @@ impl Render for Workspace {
                                                     }),
                                             );
 
-                                        self.render_with_native_sidebar(
-                                            terminal_content,
-                                            window,
-                                            cx,
-                                        )
+                                        terminal_content.into_any_element()
                                     } else {
                                         // Editor Mode: render normal dock layout
                                         let editor_layout = match bottom_dock_layout {
@@ -7280,12 +7336,17 @@ impl Render for Workspace {
                                             )),
                                         };
 
-                                        self.render_with_native_sidebar(
-                                            editor_layout,
-                                            window,
-                                            cx,
-                                        )
-                                    }
+                                        editor_layout.into_any_element()
+                                    };
+
+                                    #[cfg(target_os = "macos")]
+                                    let mode_content = self.render_with_unified_sidebar(
+                                        mode_content,
+                                        window,
+                                        cx,
+                                    );
+
+                                    mode_content
                                 })
                                 .children(self.zoomed.as_ref().and_then(|view| {
                                     let zoomed_view = view.upgrade()?;

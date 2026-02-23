@@ -2624,8 +2624,9 @@ impl<'a> Iterator for BlockChunks<'a> {
 
         let (mut prefix, suffix) = self.input_chunk.text.split_at(prefix_bytes);
         self.input_chunk.text = suffix;
-        self.input_chunk.tabs >>= prefix_bytes.saturating_sub(1);
-        self.input_chunk.chars >>= prefix_bytes.saturating_sub(1);
+        let shift = prefix_bytes.saturating_sub(1) as u32;
+        self.input_chunk.tabs = self.input_chunk.tabs.unbounded_shr(shift);
+        self.input_chunk.chars = self.input_chunk.chars.unbounded_shr(shift);
 
         let mut tabs = self.input_chunk.tabs;
         let mut chars = self.input_chunk.chars;

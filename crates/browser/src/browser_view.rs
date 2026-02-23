@@ -9,6 +9,8 @@ mod swipe;
 mod tab_strip;
 mod tabs;
 
+pub use tab_strip::BrowserSidebarPanel;
+
 use self::context_menu::{BrowserContextMenu, PendingContextMenu};
 use self::swipe::SwipeNavigationState;
 
@@ -611,29 +613,10 @@ impl Render for BrowserView {
             TabBarMode::Sidebar => {
                 #[cfg(target_os = "macos")]
                 {
-                    let native_sidebar_panel = self.ensure_native_sidebar_panel(cx);
-                    let sidebar_collapsed = self.sidebar_collapsed;
                     element
-                        .flex_row()
-                        .child(
-                            gpui::native_sidebar("browser-native-sidebar", &[""; 0])
-                                .sidebar_view(native_sidebar_panel)
-                                .sidebar_width(200.0)
-                                .min_sidebar_width(160.0)
-                                .max_sidebar_width(420.0)
-                                .manage_window_chrome(false)
-                                .collapsed(sidebar_collapsed)
-                                .size_full(),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .flex()
-                                .flex_col()
-                                .overflow_hidden()
-                                .child(self.bookmark_bar.clone())
-                                .child(self.render_browser_content(cx)),
-                        )
+                        .flex_col()
+                        .child(self.bookmark_bar.clone())
+                        .child(self.render_browser_content(cx))
                         .into_any_element()
                 }
                 #[cfg(not(target_os = "macos"))]

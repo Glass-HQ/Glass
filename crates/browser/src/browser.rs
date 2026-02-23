@@ -28,7 +28,7 @@ mod session;
 mod tab;
 mod toolbar;
 
-pub use browser_view::BrowserView;
+pub use browser_view::{BrowserSidebarPanel, BrowserView};
 pub use cef_instance::CefInstance;
 pub use tab::BrowserTab;
 
@@ -58,10 +58,20 @@ pub fn init(cx: &mut App) {
         Arc::new(|cx: &mut App| {
             let browser_view = cx.new(|cx| BrowserView::new(cx));
             let focus_handle = browser_view.focus_handle(cx);
+
+            #[cfg(target_os = "macos")]
+            let sidebar_view = {
+                let panel = browser_view.update(cx, |bv, cx| bv.ensure_native_sidebar_panel(cx));
+                Some(gpui::AnyView::from(panel))
+            };
+            #[cfg(not(target_os = "macos"))]
+            let sidebar_view = None;
+
             RegisteredModeView {
                 view: browser_view.into(),
                 focus_handle,
                 titlebar_center_view: None,
+                sidebar_view,
             }
         }),
     );

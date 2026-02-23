@@ -103,7 +103,7 @@ fn render_tab_favicon(id: SharedString, favicon_url: Option<&str>) -> gpui::AnyE
     }
 }
 
-pub(super) struct BrowserSidebarPanel {
+pub struct BrowserSidebarPanel {
     browser_view: WeakEntity<BrowserView>,
     hovered_tab_index: Option<usize>,
     hovered_close_tab_index: Option<usize>,
@@ -808,7 +808,7 @@ impl BrowserView {
             )
     }
 
-    pub(super) fn ensure_native_sidebar_panel(
+    pub fn ensure_native_sidebar_panel(
         &mut self,
         cx: &mut Context<Self>,
     ) -> Entity<BrowserSidebarPanel> {
