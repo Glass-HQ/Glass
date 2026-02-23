@@ -631,9 +631,6 @@ impl Render for BrowserView {
                                 .flex()
                                 .flex_col()
                                 .overflow_hidden()
-                                .when(sidebar_collapsed, |this| {
-                                    this.child(self.render_sidebar_expand_button(cx))
-                                })
                                 .child(self.bookmark_bar.clone())
                                 .child(self.render_browser_content(cx)),
                         )

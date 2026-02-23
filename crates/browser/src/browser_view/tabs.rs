@@ -474,11 +474,6 @@ impl BrowserView {
         cx.notify();
     }
 
-    pub(super) fn toggle_sidebar_collapsed(&mut self, cx: &mut Context<Self>) {
-        self.sidebar_collapsed = !self.sidebar_collapsed;
-        cx.notify();
-    }
-
     pub(super) fn close_tab_at(
         &mut self,
         index: usize,

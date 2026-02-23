@@ -16,7 +16,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::utils::TRAFFIC_LIGHT_PADDING;
 use ui::{Divider, DividerColor, ListSubHeader, Tab, ThreadItem, Tooltip, prelude::*};
 use ui_input::ErasedEditor;
 use util::ResultExt as _;
@@ -994,7 +993,6 @@ fn read_thread_title_map() -> Option<HashMap<String, String>> {
 
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let titlebar_height = ui::utils::platform_title_bar_height(window);
         let ui_font = theme::setup_ui_font(window, cx);
 
         v_flex()
@@ -1006,21 +1004,6 @@ impl Render for Sidebar {
             .bg(cx.theme().colors().surface_background)
             .border_r_1()
             .border_color(cx.theme().colors().border)
-            .child(
-                h_flex()
-                    .flex_none()
-                    .h(titlebar_height)
-                    .w_full()
-                    .mt_px()
-                    .pb_px()
-                    .pr_1()
-                    .when(cfg!(target_os = "macos"), |this| {
-                        this.pl(px(TRAFFIC_LIGHT_PADDING))
-                    })
-                    .when(cfg!(not(target_os = "macos")), |this| this.pl_2())
-                    .border_b_1()
-                    .border_color(cx.theme().colors().border),
-            )
             .child(self.picker.clone())
     }
 }

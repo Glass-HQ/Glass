@@ -403,6 +403,7 @@ impl NativeToolbarController {
             .shows_baseline_separator(false);
 
         toolbar = toolbar.item(NativeToolbarItem::SidebarToggle);
+        toolbar = toolbar.item(NativeToolbarItem::SidebarTrackingSeparator);
         toolbar = toolbar.item(self.build_mode_switcher_item(active_mode, cx));
 
         if let Some(restricted_mode) = self.build_restricted_mode_item(cx) {

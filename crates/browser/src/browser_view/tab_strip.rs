@@ -167,48 +167,9 @@ impl Render for BrowserSidebarPanel {
             self.hovered_close_tab_index = None;
         }
 
-        let collapse_view = browser_view.clone().downgrade();
         v_flex()
             .size_full()
             .bg(theme.colors().editor_background)
-            .child(
-                div()
-                    .flex()
-                    .items_center()
-                    .justify_end()
-                    .px_1()
-                    .pt_1()
-                    .child(
-                        div()
-                            .id("native-sidebar-collapse-button")
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .w(px(22.))
-                            .h(px(22.))
-                            .rounded(px(5.))
-                            .cursor_pointer()
-                            .hover(move |style| {
-                                style.bg(theme.colors().text.opacity(0.09))
-                            })
-                            .on_click({
-                                let collapse_view = collapse_view.clone();
-                                move |_, _window, cx| {
-                                    collapse_view
-                                        .update(cx, |this, cx| {
-                                            this.toggle_sidebar_collapsed(cx);
-                                        })
-                                        .ok();
-                                }
-                            })
-                            .child(
-                                native_image_view("native-sidebar-collapse-icon")
-                                    .sf_symbol("sidebar.left")
-                                    .w(px(13.))
-                                    .h(px(13.)),
-                            ),
-                    ),
-            )
             .child(
                 v_flex()
                     .id("native-sidebar-tab-list")
@@ -859,40 +820,6 @@ impl BrowserView {
         let sidebar_panel = cx.new(|cx| BrowserSidebarPanel::new(browser_view, cx));
         self.native_sidebar_panel = Some(sidebar_panel.clone());
         sidebar_panel
-    }
-
-    #[cfg(target_os = "macos")]
-    pub(super) fn render_sidebar_expand_button(
-        &self,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let theme = cx.theme();
-        div()
-            .flex()
-            .items_center()
-            .h(px(28.))
-            .pl_1()
-            .child(
-                div()
-                    .id("native-sidebar-expand-button")
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w(px(22.))
-                    .h(px(22.))
-                    .rounded(px(5.))
-                    .cursor_pointer()
-                    .hover(move |style| style.bg(theme.colors().text.opacity(0.09)))
-                    .on_click(cx.listener(|this, _, _window, cx| {
-                        this.toggle_sidebar_collapsed(cx);
-                    }))
-                    .child(
-                        native_image_view("native-sidebar-expand-icon")
-                            .sf_symbol("sidebar.left")
-                            .w(px(13.))
-                            .h(px(13.)),
-                    ),
-            )
     }
 
     #[cfg(not(target_os = "macos"))]
