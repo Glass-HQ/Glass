@@ -24,8 +24,9 @@ use crate::toolbar::BrowserToolbar;
 use editor::Editor;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
-    IntoElement, ParentElement, Pixels, Render, Styled, Subscription, Task, Window, actions, div,
-    prelude::*, px,
+    IntoElement, NativePanel, NativePanelAnchor, NativePanelLevel, NativePanelMaterial,
+    NativePanelStyle, NativePopoverClickableRow, NativePopoverContentItem, ParentElement, Pixels,
+    Render, Styled, Subscription, Task, Window, actions, div, prelude::*, px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_modes::{ModeId, ModeViewRegistry};
@@ -145,6 +146,8 @@ pub struct BrowserView {
     last_viewport: Option<(u32, u32, u32)>,
     pending_new_tab_urls: Vec<String>,
     new_tab_search_text: String,
+    new_tab_suggestions: Vec<crate::history::HistoryMatch>,
+    new_tab_selected_index: Option<usize>,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     is_incognito_window: bool,
@@ -198,6 +201,8 @@ impl BrowserView {
             last_viewport: None,
             pending_new_tab_urls: Vec::new(),
             new_tab_search_text: String::new(),
+            new_tab_suggestions: Vec::new(),
+            new_tab_selected_index: None,
             context_menu: None,
             pending_context_menu: None,
             is_incognito_window: false,
@@ -260,18 +265,36 @@ impl BrowserView {
             return;
         }
 
-        self.new_tab_search_text = text;
+        self.new_tab_search_text = text.clone();
+        self.new_tab_selected_index = None;
+
+        if text.is_empty() {
+            self.new_tab_suggestions.clear();
+        } else {
+            self.search_new_tab_history(text, cx);
+        }
         cx.notify();
     }
 
     pub(crate) fn submit_new_tab_search(&mut self, text: &str, cx: &mut Context<Self>) {
-        let query = text.trim();
-        if query.is_empty() {
-            return;
-        }
+        // If a suggestion is selected via keyboard, navigate to it.
+        let url = if let Some(index) = self.new_tab_selected_index {
+            self.new_tab_suggestions
+                .get(index)
+                .map(|s| s.url.clone())
+                .unwrap_or_else(|| text_to_url(text.trim()))
+        } else {
+            let query = text.trim();
+            if query.is_empty() {
+                return;
+            }
+            text_to_url(query)
+        };
 
-        let url = text_to_url(query);
         self.new_tab_search_text.clear();
+        self.new_tab_suggestions.clear();
+        self.new_tab_selected_index = None;
+
         if let Some(tab) = self.active_tab().cloned() {
             tab.update(cx, |tab, cx| {
                 tab.navigate(&url, cx);
@@ -279,6 +302,184 @@ impl BrowserView {
             });
         }
         cx.notify();
+    }
+
+    pub(crate) fn new_tab_move_up(&mut self, cx: &mut Context<Self>) {
+        if self.new_tab_suggestions.is_empty() {
+            return;
+        }
+        self.new_tab_selected_index = match self.new_tab_selected_index {
+            None => Some(self.new_tab_suggestions.len() - 1),
+            Some(0) => None,
+            Some(i) => Some(i - 1),
+        };
+        cx.notify();
+    }
+
+    pub(crate) fn new_tab_move_down(&mut self, cx: &mut Context<Self>) {
+        if self.new_tab_suggestions.is_empty() {
+            return;
+        }
+        self.new_tab_selected_index = match self.new_tab_selected_index {
+            None => Some(0),
+            Some(i) if i + 1 >= self.new_tab_suggestions.len() => None,
+            Some(i) => Some(i + 1),
+        };
+        cx.notify();
+    }
+
+    pub(crate) fn new_tab_cancel(&mut self, _cx: &mut Context<Self>) {
+        self.new_tab_suggestions.clear();
+        self.new_tab_selected_index = None;
+    }
+
+    fn search_new_tab_history(&mut self, query: String, cx: &mut Context<Self>) {
+        let entries = self.history.read(cx).entries().to_vec();
+        let executor = cx.background_executor().clone();
+        cx.spawn(async move |this, cx| {
+            let matches =
+                crate::history::BrowserHistory::search(entries, query, 8, executor).await;
+            let _ = cx.update(|cx| {
+                let _ = this.update(cx, |this, cx| {
+                    this.new_tab_suggestions = matches;
+                    cx.notify();
+                });
+            });
+        })
+        .detach();
+    }
+
+    fn show_new_tab_suggestion_panel(
+        &self,
+        browser_view_weak: gpui::WeakEntity<Self>,
+        window: &mut Window,
+    ) {
+        if self.new_tab_suggestions.is_empty() {
+            window.dismiss_native_panel();
+            return;
+        }
+
+        let mut items: Vec<NativePopoverContentItem> = Vec::new();
+        let mut row_count = 0usize;
+        let has_search_row = !self.new_tab_search_text.is_empty();
+
+        if has_search_row {
+            let query = self.new_tab_search_text.clone();
+            let is_selected = self.new_tab_selected_index.is_none();
+            let label = if is_selected {
+                format!("\u{25B8} Search \"{}\"", query)
+            } else {
+                format!("Search \"{}\"", query)
+            };
+            let bv = browser_view_weak.clone();
+            items.push(
+                NativePopoverClickableRow::new(label)
+                    .icon("magnifyingglass")
+                    .detail("Google")
+                    .on_click(move |window, cx| {
+                        window.dismiss_native_panel();
+                        let url = text_to_url(&query);
+                        let _ = bv.update(cx, |bv, cx| {
+                            bv.new_tab_search_text.clear();
+                            bv.new_tab_suggestions.clear();
+                            bv.new_tab_selected_index = None;
+                            if let Some(tab) = bv.active_tab().cloned() {
+                                tab.update(cx, |tab, cx| {
+                                    tab.navigate(&url, cx);
+                                    tab.set_focus(true);
+                                });
+                            }
+                            cx.notify();
+                        });
+                    })
+                    .into(),
+            );
+            row_count += 1;
+            items.push(NativePopoverContentItem::separator());
+        }
+
+        items.push(NativePopoverContentItem::heading("History"));
+        for (idx, suggestion) in self.new_tab_suggestions.iter().enumerate() {
+            let url = suggestion.url.clone();
+            let is_selected = self.new_tab_selected_index == Some(idx);
+            let title = if suggestion.title.is_empty() {
+                suggestion.url.clone()
+            } else {
+                suggestion.title.clone()
+            };
+            let title = if is_selected {
+                format!("\u{25B8} {}", title)
+            } else {
+                title
+            };
+            let detail = crate::new_tab_page::extract_domain(&suggestion.url);
+            let bv = browser_view_weak.clone();
+            items.push(
+                NativePopoverClickableRow::new(title)
+                    .icon("clock")
+                    .detail(detail)
+                    .on_click(move |window, cx| {
+                        window.dismiss_native_panel();
+                        let _ = bv.update(cx, |bv, cx| {
+                            bv.new_tab_search_text.clear();
+                            bv.new_tab_suggestions.clear();
+                            bv.new_tab_selected_index = None;
+                            if let Some(tab) = bv.active_tab().cloned() {
+                                tab.update(cx, |tab, cx| {
+                                    tab.navigate(&url, cx);
+                                    tab.set_focus(true);
+                                });
+                            }
+                            cx.notify();
+                        });
+                    })
+                    .into(),
+            );
+            row_count += 1;
+        }
+
+        let padding = 16.0;
+        let row_height = 28.0;
+        let heading_height = 28.0;
+        let separator_height = 12.0;
+        let content_height = (row_count as f64 * row_height)
+            + heading_height
+            + if has_search_row {
+                separator_height
+            } else {
+                0.0
+            }
+            + padding * 2.0;
+        let panel_height = content_height.min(400.0);
+        let panel_width = 500.0;
+
+        // Compute panel position: below the centered search field.
+        // content_bounds is in window content coordinates.
+        let content = self.content_bounds;
+        let content_center_x = f64::from(content.origin.x + content.size.width / 2.0);
+        let content_center_y = f64::from(content.origin.y + content.size.height / 2.0);
+
+        let win_bounds = window.bounds();
+        let viewport = window.viewport_size();
+        let titlebar_height =
+            f64::from(win_bounds.size.height) - f64::from(viewport.height);
+
+        let panel_x =
+            f64::from(win_bounds.origin.x) + content_center_x - panel_width / 2.0;
+        let panel_y =
+            f64::from(win_bounds.origin.y) + titlebar_height + content_center_y + 16.0;
+
+        let panel = NativePanel::new(panel_width, panel_height)
+            .style(NativePanelStyle::Borderless)
+            .level(NativePanelLevel::PopUpMenu)
+            .non_activating(true)
+            .has_shadow(true)
+            .corner_radius(10.0)
+            .material(NativePanelMaterial::Popover)
+            .on_close(|_, _, _| {})
+            .items(items);
+
+        window.show_native_panel(panel, NativePanelAnchor::Point { x: panel_x, y: panel_y });
     }
 
     fn request_context_for_new_tab(&self) -> Option<cef::RequestContext> {
@@ -568,6 +769,21 @@ impl Render for BrowserView {
                     }
                 }
             }
+        }
+
+        // Show suggestion panel for new tab page search
+        let is_new_tab = self
+            .active_tab()
+            .map(|t| t.read(cx).is_new_tab_page())
+            .unwrap_or(false);
+        if is_new_tab
+            && !self.new_tab_search_text.is_empty()
+            && !self.new_tab_suggestions.is_empty()
+        {
+            let weak = cx.entity().downgrade();
+            self.show_new_tab_suggestion_panel(weak, window);
+        } else if is_new_tab && (self.new_tab_search_text.is_empty() || self.new_tab_suggestions.is_empty()) {
+            window.dismiss_native_panel();
         }
 
         let element = div()

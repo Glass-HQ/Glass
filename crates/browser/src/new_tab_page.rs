@@ -1,7 +1,7 @@
 use crate::browser_view::BrowserView;
 use gpui::{
-    App, Entity, IntoElement, SearchChangeEvent, SearchSubmitEvent, Styled, native_search_field,
-    prelude::*, px,
+    App, Entity, IntoElement, SearchChangeEvent, SearchSubmitEvent, Styled, WeakEntity,
+    native_search_field, prelude::*, px,
 };
 use ui::prelude::*;
 
@@ -14,6 +14,9 @@ pub fn render_new_tab_page(
     let theme = cx.theme();
     let browser_view_for_change = browser_view.downgrade();
     let browser_view_for_submit = browser_view.downgrade();
+    let browser_view_for_up: WeakEntity<BrowserView> = browser_view.downgrade();
+    let browser_view_for_down: WeakEntity<BrowserView> = browser_view.downgrade();
+    let browser_view_for_cancel: WeakEntity<BrowserView> = browser_view.downgrade();
 
     div()
         .size_full()
@@ -74,7 +77,33 @@ pub fn render_new_tab_page(
                                 );
                             }
                         })
+                        .on_move_up(move |_window, cx| {
+                            let _ = browser_view_for_up.update(cx, |bv, cx| {
+                                bv.new_tab_move_up(cx);
+                            });
+                        })
+                        .on_move_down(move |_window, cx| {
+                            let _ = browser_view_for_down.update(cx, |bv, cx| {
+                                bv.new_tab_move_down(cx);
+                            });
+                        })
+                        .on_cancel(move |window, cx| {
+                            window.dismiss_native_panel();
+                            let _ = browser_view_for_cancel.update(cx, |bv, cx| {
+                                bv.new_tab_cancel(cx);
+                            });
+                        })
                         .w(px(500.)),
                 ),
         )
+}
+
+pub(crate) fn extract_domain(url: &str) -> String {
+    url.strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"))
+        .unwrap_or(url)
+        .split('/')
+        .next()
+        .unwrap_or(url)
+        .to_string()
 }
