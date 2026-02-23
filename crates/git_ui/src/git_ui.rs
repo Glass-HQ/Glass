@@ -494,11 +494,10 @@ fn render_remote_button(
 }
 
 mod remote_button {
-    use gpui::{Action, AnyView, ClickEvent, Corner, FocusHandle, InteractiveElement};
+    use gpui::{Action, AnyView, ClickEvent, FocusHandle, InteractiveElement};
     use ui::{
-        App, ButtonCommon, Clickable, ContextMenu, ElementId, FluentBuilder, Icon, IconName,
-        IconSize, IntoElement, Label, LabelCommon, LabelSize, LineHeightStyle, ParentElement,
-        PopoverMenu, SharedString, SplitButton, Styled, Tooltip, Window, div, h_flex, rems,
+        App, ButtonCommon, Clickable, ElementId, FluentBuilder, Icon, IconName,
+        IconSize, IntoElement, Label, LabelCommon, LabelSize, LineHeightStyle, ParentElement, SharedString, SplitButton, Styled, Tooltip, Window, div, h_flex, rems,
     };
 
     pub fn render_fetch_button(

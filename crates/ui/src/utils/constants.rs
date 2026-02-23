@@ -1,4 +1,4 @@
-use gpui::{Pixels, Window, px};
+use gpui::{Pixels, Window};
 
 // Use pixels here instead of a rem-based size because the macOS traffic
 // lights are a static size, and don't scale with the rest of the UI.

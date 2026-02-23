@@ -43,7 +43,7 @@ use std::{
     },
 };
 use ui::{
-    CommonAnimationExt, IconButtonShape, KeyBinding, List, ListItem, ListSeparator, Modal,
+    CommonAnimationExt, KeyBinding, List, ListItem, ListSeparator, Modal,
     ModalFooter, ModalHeader, Navigable, NavigableEntry, Section, Tooltip, WithScrollbar,
     prelude::*,
 };

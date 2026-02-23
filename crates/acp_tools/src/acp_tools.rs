@@ -18,7 +18,7 @@ use markdown::{CodeBlockRenderer, Markdown, MarkdownElement, MarkdownStyle};
 use project::Project;
 use settings::Settings;
 use theme::ThemeSettings;
-use ui::{CopyButton, Tooltip, WithScrollbar, prelude::*};
+use ui::{CopyButton, WithScrollbar, prelude::*};
 use util::ResultExt as _;
 use workspace::{
     Item, ItemHandle, ToolbarItemEvent, ToolbarItemLocation, ToolbarItemView, Workspace,

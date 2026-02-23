@@ -1,4 +1,4 @@
-use gpui::{Corner, List};
+use gpui::List;
 use language_model::LanguageModelEffortLevel;
 use settings::update_settings_file;
 use ui::{ButtonLike, SplitButton, SplitButtonStyle, Tab};
@@ -3226,7 +3226,7 @@ impl AcpThreadView {
         {
             use gpui::{NativeMenuItem, show_native_popup_menu};
 
-            let weak_self = cx.weak_entity();
+            let _weak_self = cx.weak_entity();
             let message_editor = self.message_editor.clone();
             let workspace = self.workspace.clone();
             let supports_images = self.prompt_capabilities.borrow().image;
@@ -3365,6 +3365,7 @@ impl AcpThreadView {
         }
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn build_add_context_menu(
         &self,
         window: &mut Window,
@@ -5569,7 +5570,7 @@ impl AcpThreadView {
             .map(|(i, choice)| (i, choice.label()))
             .collect();
 
-        let permission_dropdown_handle = self.permission_dropdown_handle.clone();
+        let _permission_dropdown_handle = self.permission_dropdown_handle.clone();
 
         #[cfg(target_os = "macos")]
         {

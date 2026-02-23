@@ -1,22 +1,30 @@
 use acp_thread::AgentSessionModes;
 use agent_client_protocol as acp;
 use agent_servers::AgentServer;
-use agent_settings::AgentSettings;
 use fs::Fs;
-use gpui::{Context, Entity, WeakEntity, Window, prelude::*};
-use settings::Settings as _;
+use gpui::{Context, WeakEntity, Window, prelude::*};
 use std::{rc::Rc, sync::Arc};
-use ui::{
-    Button, ContextMenu, ContextMenuEntry, DocumentationSide, KeyBinding, PopoverMenu,
-    PopoverMenuHandle, Tooltip, prelude::*,
-};
+use ui::{Button, ContextMenu, PopoverMenuHandle, Tooltip, prelude::*};
 
-use crate::{CycleModeSelector, ToggleProfileSelector, ui::HoldForDefault};
+use crate::ToggleProfileSelector;
+
+#[cfg(not(target_os = "macos"))]
+use agent_settings::AgentSettings;
+#[cfg(not(target_os = "macos"))]
+use gpui::Entity;
+#[cfg(not(target_os = "macos"))]
+use settings::Settings as _;
+#[cfg(not(target_os = "macos"))]
+use ui::{ContextMenuEntry, DocumentationSide, KeyBinding, PopoverMenu};
+#[cfg(not(target_os = "macos"))]
+use crate::{CycleModeSelector, ui::HoldForDefault};
 
 pub struct ModeSelector {
     connection: Rc<dyn AgentSessionModes>,
+    #[cfg(not(target_os = "macos"))]
     agent_server: Rc<dyn AgentServer>,
     menu_handle: PopoverMenuHandle<ContextMenu>,
+    #[cfg(not(target_os = "macos"))]
     fs: Arc<dyn Fs>,
     setting_mode: bool,
 }
@@ -27,10 +35,15 @@ impl ModeSelector {
         agent_server: Rc<dyn AgentServer>,
         fs: Arc<dyn Fs>,
     ) -> Self {
+        #[cfg(target_os = "macos")]
+        let _ = (&agent_server, &fs);
+
         Self {
             connection: session_modes,
+            #[cfg(not(target_os = "macos"))]
             agent_server,
             menu_handle: PopoverMenuHandle::default(),
+            #[cfg(not(target_os = "macos"))]
             fs,
             setting_mode: false,
         }
@@ -75,6 +88,7 @@ impl ModeSelector {
         .detach();
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn build_context_menu(
         &self,
         window: &mut Window,

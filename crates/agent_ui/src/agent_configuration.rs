@@ -17,7 +17,7 @@ use extension::ExtensionManifest;
 use extension_host::ExtensionStore;
 use fs::Fs;
 use gpui::{
-    Action, AnyView, App, AsyncWindowContext, Corner, Entity, EventEmitter, FocusHandle, Focusable,
+    Action, AnyView, App, AsyncWindowContext, Entity, EventEmitter, FocusHandle, Focusable,
     ScrollHandle, Subscription, Task, WeakEntity,
 };
 use language::LanguageRegistry;
@@ -36,8 +36,8 @@ use project::{
 };
 use settings::{Settings, SettingsStore, update_settings_file};
 use ui::{
-    ButtonStyle, Chip, CommonAnimationExt, ContextMenu, ContextMenuEntry, Disclosure, Divider,
-    DividerColor, ElevationIndex, Indicator, LabelSize, PopoverMenu, Switch, Tooltip,
+    ButtonStyle, Chip, CommonAnimationExt, Disclosure, Divider,
+    DividerColor, ElevationIndex, Indicator, LabelSize, Switch, Tooltip,
     WithScrollbar, prelude::*,
 };
 use util::ResultExt as _;
@@ -775,7 +775,7 @@ impl AgentConfiguration {
                 "Server is stopped.",
             ),
         };
-        let is_remote = server_configuration
+        let _is_remote = server_configuration
             .as_ref()
             .map(|config| matches!(config.as_ref(), ContextServerConfiguration::Http { .. }))
             .unwrap_or(false);

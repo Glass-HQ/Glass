@@ -1,4 +1,4 @@
-use crate::branch_picker::{self, BranchList};
+use crate::branch_picker::BranchList;
 use crate::git_panel::{GitPanel, commit_message_editor, panel_editor_style};
 use git::repository::CommitOptions;
 use git::{Amend, Commit, GenerateCommitMessage, Signoff};
@@ -6,7 +6,7 @@ use panel::panel_button;
 use project::DisableAiSettings;
 use settings::Settings;
 use ui::{
-    ContextMenu, KeybindingHint, PopoverMenu, PopoverMenuHandle, SplitButton, Tooltip, prelude::*,
+    ContextMenu, KeybindingHint, PopoverMenuHandle, SplitButton, Tooltip, prelude::*,
 };
 
 use editor::{Editor, EditorElement};
@@ -262,7 +262,7 @@ impl CommitModal {
     fn render_git_commit_menu(
         &self,
         id: impl Into<ElementId>,
-        keybinding_target: Option<FocusHandle>,
+        _keybinding_target: Option<FocusHandle>,
     ) -> impl IntoElement {
         #[cfg(target_os = "macos")]
         {
@@ -410,7 +410,7 @@ impl CommitModal {
             active_repo,
             is_amend_pending,
             is_signoff_enabled,
-            workspace,
+            _workspace,
         ) = self.git_panel.update(cx, |git_panel, cx| {
             let (can_commit, tooltip) = git_panel.configure_commit_button(cx);
             let title = git_panel.commit_button_title();

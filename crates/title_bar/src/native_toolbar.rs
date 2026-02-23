@@ -10,8 +10,7 @@ use gpui::{
     NativePanelLevel, NativePanelMaterial, NativePanelStyle, NativePopoverClickableRow,
     NativePopoverContentItem, NativeToolbar, NativeToolbarButton, NativeToolbarDisplayMode,
     NativeToolbarItem, NativeToolbarLabel, NativeToolbarMenuButton, NativeToolbarMenuItem,
-    NativeToolbarSearchEvent, NativeToolbarSearchField, NativeToolbarSegment,
-    NativeToolbarSegmentedControl, NativeToolbarSizeMode, Render, SharedString, Subscription,
+    NativeToolbarSearchEvent, NativeToolbarSearchField, NativeToolbarSizeMode, Render, SharedString, Subscription,
     WeakEntity, Window, px,
 };
 use image_viewer::ImageView;
