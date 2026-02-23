@@ -45,6 +45,7 @@ pub struct NativeToolbarController {
     omnibox_text: String,
     is_user_typing: bool,
     omnibox_suggestions: Vec<browser::history::HistoryMatch>,
+    omnibox_selected_index: Option<usize>,
     last_toolbar_key: String,
     status_cursor: Option<String>,
     status_language: Option<String>,
@@ -172,6 +173,7 @@ impl NativeToolbarController {
             omnibox_text: String::new(),
             is_user_typing: false,
             omnibox_suggestions: Vec::new(),
+            omnibox_selected_index: None,
             last_toolbar_key: String::new(),
             status_cursor: None,
             status_language: None,
@@ -650,6 +652,10 @@ impl NativeToolbarController {
     fn build_omnibox_item(&self, _cx: &Context<Self>) -> NativeToolbarItem {
         let workspace_for_submit = self.workspace.clone();
         let workspace_for_change = self.workspace.clone();
+        let workspace_for_move_up = self.workspace.clone();
+        let workspace_for_move_down = self.workspace.clone();
+        let workspace_for_cancel = self.workspace.clone();
+        let workspace_for_end_editing = self.workspace.clone();
 
         NativeToolbarItem::SearchField(
             NativeToolbarSearchField::new("glass.omnibox")
@@ -668,6 +674,7 @@ impl NativeToolbarController {
                             controller.update(cx, |controller, cx| {
                                 controller.is_user_typing = true;
                                 controller.omnibox_text = text.to_string();
+                                controller.omnibox_selected_index = None;
                                 controller.search_history(text.to_string(), cx);
                             });
                         }
@@ -686,7 +693,90 @@ impl NativeToolbarController {
                             .and_then(|item| item.downcast::<NativeToolbarController>().ok())
                         {
                             controller.update(cx, |controller, cx| {
+                                // If a row is selected via keyboard, navigate to its URL
+                                if let Some(selected) = controller.omnibox_selected_index {
+                                    if let Some(url) = controller.url_for_selected_row(selected) {
+                                        controller.omnibox_selected_index = None;
+                                        controller.navigate_omnibox(&url, cx);
+                                        return;
+                                    }
+                                }
+                                controller.omnibox_selected_index = None;
                                 controller.navigate_omnibox(&text, cx);
+                            });
+                        }
+                    }
+                })
+                .on_move_down(move |_event: &NativeToolbarSearchEvent, window, cx| {
+                    if let Some(workspace) = workspace_for_move_down.upgrade() {
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                let total = controller.omnibox_row_count();
+                                if total == 0 {
+                                    return;
+                                }
+                                controller.omnibox_selected_index = Some(match controller.omnibox_selected_index {
+                                    Some(i) => (i + 1) % total,
+                                    None => 0,
+                                });
+                                controller.show_suggestion_panel(window);
+                                cx.notify();
+                            });
+                        }
+                    }
+                })
+                .on_move_up(move |_event: &NativeToolbarSearchEvent, window, cx| {
+                    if let Some(workspace) = workspace_for_move_up.upgrade() {
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                let total = controller.omnibox_row_count();
+                                if total == 0 {
+                                    return;
+                                }
+                                controller.omnibox_selected_index = Some(match controller.omnibox_selected_index {
+                                    Some(0) | None => total.saturating_sub(1),
+                                    Some(i) => i - 1,
+                                });
+                                controller.show_suggestion_panel(window);
+                                cx.notify();
+                            });
+                        }
+                    }
+                })
+                .on_cancel(move |_event: &NativeToolbarSearchEvent, window, cx| {
+                    window.dismiss_native_panel();
+                    if let Some(workspace) = workspace_for_cancel.upgrade() {
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                controller.omnibox_selected_index = None;
+                                cx.notify();
+                            });
+                        }
+                    }
+                })
+                .on_end_editing(move |_event: &NativeToolbarSearchEvent, window, cx| {
+                    window.dismiss_native_panel();
+                    if let Some(workspace) = workspace_for_end_editing.upgrade() {
+                        if let Some(controller) = workspace
+                            .read(cx)
+                            .titlebar_item()
+                            .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                        {
+                            controller.update(cx, |controller, cx| {
+                                controller.omnibox_selected_index = None;
+                                cx.notify();
                             });
                         }
                     }
@@ -769,6 +859,35 @@ impl NativeToolbarController {
         )
     }
 
+    fn omnibox_row_count(&self) -> usize {
+        let mut count = self.omnibox_suggestions.len();
+        if !self.omnibox_text.is_empty() {
+            count += 1; // "Search Google" row
+        }
+        count
+    }
+
+    fn url_for_selected_row(&self, index: usize) -> Option<String> {
+        let mut current = 0;
+
+        // "Search Google" row is first when omnibox has text
+        if !self.omnibox_text.is_empty() {
+            if current == index {
+                return Some(text_to_url(&self.omnibox_text));
+            }
+            current += 1;
+        }
+
+        for suggestion in &self.omnibox_suggestions {
+            if current == index {
+                return Some(suggestion.url.clone());
+            }
+            current += 1;
+        }
+
+        None
+    }
+
     fn show_suggestion_panel(&self, window: &mut Window) {
         if self.omnibox_suggestions.is_empty() {
             window.dismiss_native_panel();
@@ -776,8 +895,10 @@ impl NativeToolbarController {
         }
 
         let workspace = self.workspace.clone();
+        let selected = self.omnibox_selected_index;
         let mut items: Vec<NativePopoverContentItem> = Vec::new();
         let mut row_count = 0usize;
+        let mut row_index = 0usize;
         let has_search_row = !self.omnibox_text.is_empty();
 
         // "Search Google" row first
@@ -788,6 +909,7 @@ impl NativeToolbarController {
                 NativePopoverClickableRow::new(format!("Search \"{}\"", query))
                     .icon("magnifyingglass")
                     .detail("Google")
+                    .selected(selected == Some(row_index))
                     .on_click(move |window, cx| {
                         window.dismiss_native_panel();
                         let url = text_to_url(&query);
@@ -806,6 +928,7 @@ impl NativeToolbarController {
                     .into(),
             );
             row_count += 1;
+            row_index += 1;
             items.push(NativePopoverContentItem::separator());
         }
 
@@ -823,6 +946,7 @@ impl NativeToolbarController {
                 NativePopoverClickableRow::new(title)
                     .icon("clock")
                     .detail(detail)
+                    .selected(selected == Some(row_index))
                     .on_click(move |window, cx| {
                         window.dismiss_native_panel();
                         if let Some(workspace) = navigate_workspace.upgrade() {
@@ -840,6 +964,7 @@ impl NativeToolbarController {
                     .into(),
             );
             row_count += 1;
+            row_index += 1;
         }
 
         let padding = 16.0;
