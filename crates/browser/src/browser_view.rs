@@ -623,7 +623,8 @@ impl Render for BrowserView {
                                 .sidebar_width(200.0)
                                 .min_sidebar_width(160.0)
                                 .max_sidebar_width(420.0)
-                                .manage_window_chrome(false)
+                                .manage_window_chrome(true)
+                                .manage_toolbar(false)
                                 .collapsed(sidebar_collapsed),
                         )
                         .when(sidebar_collapsed, |this| {
