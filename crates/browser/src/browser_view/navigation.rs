@@ -1,4 +1,4 @@
-use gpui::{Context, Window};
+use gpui::{Context, NativeSearchFieldTarget, Window};
 
 use super::{BrowserView, CopyUrl, FocusOmnibox, GoBack, GoForward, OpenDevTools, Reload};
 
@@ -9,12 +9,32 @@ impl BrowserView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let is_new_tab = self
+            .active_tab()
+            .map(|tab| tab.read(cx).is_new_tab_page())
+            .unwrap_or(false);
+
+        if is_new_tab {
+            window.focus_native_search_field(
+                NativeSearchFieldTarget::ContentElement("new-tab-search".into()),
+                true,
+            );
+            cx.stop_propagation();
+            return;
+        }
+
+        window.focus_native_search_field(
+            NativeSearchFieldTarget::ToolbarItem("glass.omnibox".into()),
+            true,
+        );
+
         if let Some(toolbar) = self.toolbar.clone() {
             toolbar.update(cx, |toolbar, cx| {
                 toolbar.focus_omnibox(window, cx);
             });
-            cx.stop_propagation();
         }
+
+        cx.stop_propagation();
     }
 
     pub(super) fn handle_reload(
