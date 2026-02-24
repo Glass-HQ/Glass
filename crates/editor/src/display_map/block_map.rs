@@ -265,6 +265,8 @@ impl<P: Debug> Debug for BlockProperties<P> {
 pub enum BlockStyle {
     Fixed,
     Flex,
+    /// Like `Flex` but doesn't use the gutter
+    FlexClipped,
     Sticky,
 }
 
@@ -272,6 +274,7 @@ pub enum BlockStyle {
 pub struct EditorMargins {
     pub gutter: GutterDimensions,
     pub right: Pixels,
+    pub extended_right: Pixels,
 }
 
 #[derive(gpui::AppContext, gpui::VisualContext)]
@@ -393,8 +396,8 @@ impl Block {
             Block::Custom(block) => block.style,
             Block::ExcerptBoundary { .. }
             | Block::FoldedBuffer { .. }
-            | Block::BufferHeader { .. }
-            | Block::Spacer { .. } => BlockStyle::Sticky,
+            | Block::BufferHeader { .. } => BlockStyle::Sticky,
+            Block::Spacer { .. } => BlockStyle::FlexClipped,
         }
     }
 
@@ -736,7 +739,7 @@ impl BlockMap {
     }
 
     // Warning: doesn't sync the block map, use advisedly
-    pub(crate) fn retain_blocks_raw(&mut self, mut pred: impl FnMut(&Arc<CustomBlock>) -> bool) {
+    pub(crate) fn retain_blocks_raw(&mut self, pred: &mut dyn FnMut(&Arc<CustomBlock>) -> bool) {
         let mut ids_to_remove = HashSet::default();
         self.custom_blocks.retain(|block| {
             let keep = pred(block);
@@ -1275,8 +1278,8 @@ impl BlockMap {
                 .row()
         };
         fn determine_spacer(
-            our_wrapper: &mut impl FnMut(Point, Bias) -> WrapRow,
-            companion_wrapper: &mut impl FnMut(Point, Bias) -> WrapRow,
+            our_wrapper: &mut dyn FnMut(Point, Bias) -> WrapRow,
+            companion_wrapper: &mut dyn FnMut(Point, Bias) -> WrapRow,
             our_point: Point,
             their_point: Point,
             delta: i32,
@@ -1707,7 +1710,7 @@ pub(crate) fn balancing_block(
     Some(BlockProperties {
         placement: their_placement,
         height: my_block.height,
-        style: BlockStyle::Sticky,
+        style: BlockStyle::FlexClipped,
         render: Arc::new(move |cx| {
             crate::EditorElement::render_spacer_block(
                 cx.block_id,

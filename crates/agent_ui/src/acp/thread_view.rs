@@ -484,11 +484,11 @@ impl AcpServerView {
             let mut resumed_without_history = false;
             let result = if let Some(resume) = resume_thread.clone() {
                 cx.update(|_, cx| {
-                    if connection.supports_load_session(cx) {
+                    if connection.supports_load_session() {
                         connection
                             .clone()
                             .load_session(resume, project.clone(), &session_cwd, cx)
-                    } else if connection.supports_resume_session(cx) {
+                    } else if connection.supports_resume_session() {
                         resumed_without_history = true;
                         connection
                             .clone()
@@ -659,7 +659,7 @@ impl AcpServerView {
 
         let connection = thread.read(cx).connection().clone();
         let session_id = thread.read(cx).session_id().clone();
-        let session_list = if connection.supports_session_history(cx) {
+        let session_list = if connection.supports_session_history() {
             connection.session_list(cx)
         } else {
             None
@@ -1478,7 +1478,7 @@ impl AcpServerView {
             return;
         };
         if connected.threads.contains_key(&subagent_id)
-            || !connected.connection.supports_load_session(cx)
+            || !connected.connection.supports_load_session()
         {
             return;
         }
@@ -3512,7 +3512,7 @@ pub(crate) mod tests {
             Task::ready(Ok(thread))
         }
 
-        fn supports_resume_session(&self, _cx: &App) -> bool {
+        fn supports_resume_session(&self) -> bool {
             true
         }
 
@@ -3840,7 +3840,7 @@ pub(crate) mod tests {
             Task::ready(Ok(thread))
         }
 
-        fn supports_load_session(&self, _cx: &App) -> bool {
+        fn supports_load_session(&self) -> bool {
             true
         }
 

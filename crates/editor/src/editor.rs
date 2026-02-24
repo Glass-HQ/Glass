@@ -5286,7 +5286,7 @@ impl Editor {
 
             editor.change_selections(Default::default(), window, cx, |s| {
                 let mut index = 0;
-                s.move_cursors_with(|map, _, _| {
+                s.move_cursors_with(&mut |map, _, _| {
                     let row = rows[index];
                     index += 1;
 
@@ -5367,7 +5367,7 @@ impl Editor {
 
             editor.change_selections(Default::default(), window, cx, |s| {
                 let mut index = 0;
-                s.move_cursors_with(|map, _, _| {
+                s.move_cursors_with(&mut |map, _, _| {
                     let row = rows[index];
                     index += 1;
 
@@ -8487,7 +8487,7 @@ impl Editor {
             let mut suggested_indent = None;
             multibuffer.suggested_indents_callback(
                 cursor_point.row..cursor_point.row + 1,
-                |_, indent| {
+                &mut |_, indent| {
                     suggested_indent = Some(indent);
                     ControlFlow::Break(())
                 },
@@ -10747,7 +10747,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::TypingAction, cx);
         self.transact(window, cx, |this, window, cx| {
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|map, selection| {
+                s.move_with(&mut |map, selection| {
                     if selection.is_empty() {
                         let cursor = movement::right(map, selection.head());
                         selection.end = cursor;
@@ -13073,7 +13073,7 @@ impl Editor {
         self.transact(window, cx, |this, window, cx| {
             let edits = this.change_selections(Default::default(), window, cx, |s| {
                 let mut edits: Vec<(Range<MultiBufferOffset>, String)> = Default::default();
-                s.move_with(|display_map, selection| {
+                s.move_with(&mut |display_map, selection| {
                     if !selection.is_empty() {
                         return;
                     }
@@ -13576,7 +13576,7 @@ impl Editor {
     pub fn kill_ring_cut(&mut self, _: &KillRingCut, window: &mut Window, cx: &mut Context<Self>) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::TypingAction, cx);
         self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
-            s.move_with(|snapshot, sel| {
+            s.move_with(&mut |snapshot, sel| {
                 if sel.is_empty() {
                     sel.end = DisplayPoint::new(sel.end.row(), snapshot.line_len(sel.end.row()));
                 }
@@ -14017,7 +14017,7 @@ impl Editor {
     pub fn move_left(&mut self, _: &MoveLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 let cursor = if selection.is_empty() {
                     movement::left(map, selection.start)
                 } else {
@@ -14031,14 +14031,14 @@ impl Editor {
     pub fn select_left(&mut self, _: &SelectLeft, window: &mut Window, cx: &mut Context<Self>) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| (movement::left(map, head), SelectionGoal::None));
+            s.move_heads_with(&mut |map, head, _| (movement::left(map, head), SelectionGoal::None));
         })
     }
 
     pub fn move_right(&mut self, _: &MoveRight, window: &mut Window, cx: &mut Context<Self>) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 let cursor = if selection.is_empty() {
                     movement::right(map, selection.end)
                 } else {
@@ -14052,7 +14052,9 @@ impl Editor {
     pub fn select_right(&mut self, _: &SelectRight, window: &mut Window, cx: &mut Context<Self>) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| (movement::right(map, head), SelectionGoal::None));
+            s.move_heads_with(&mut |map, head, _| {
+                (movement::right(map, head), SelectionGoal::None)
+            });
         });
     }
 
@@ -14073,7 +14075,7 @@ impl Editor {
         let first_selection = self.selections.first_anchor();
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14114,7 +14116,7 @@ impl Editor {
         let text_layout_details = &self.text_layout_details(window, cx);
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14151,7 +14153,7 @@ impl Editor {
         let text_layout_details = &self.text_layout_details(window, cx);
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14177,7 +14179,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::down_by_rows(map, head, action.lines, goal, false, text_layout_details)
             })
         })
@@ -14192,7 +14194,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::up_by_rows(map, head, action.lines, goal, false, text_layout_details)
             })
         })
@@ -14213,7 +14215,7 @@ impl Editor {
         let text_layout_details = &self.text_layout_details(window, cx);
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::up_by_rows(map, head, row_count, goal, false, text_layout_details)
             })
         })
@@ -14259,7 +14261,7 @@ impl Editor {
         let text_layout_details = &self.text_layout_details(window, cx);
 
         self.change_selections(effects, window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14280,7 +14282,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::up(map, head, goal, false, text_layout_details)
             })
         })
@@ -14301,7 +14303,7 @@ impl Editor {
         let first_selection = self.selections.first_anchor();
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14337,7 +14339,7 @@ impl Editor {
         let text_layout_details = &self.text_layout_details(window, cx);
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::down_by_rows(map, head, row_count, goal, false, text_layout_details)
             })
         })
@@ -14382,7 +14384,7 @@ impl Editor {
 
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(effects, window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 if !selection.is_empty() {
                     selection.goal = SelectionGoal::None;
                 }
@@ -14403,7 +14405,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         let text_layout_details = &self.text_layout_details(window, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, goal| {
+            s.move_heads_with(&mut |map, head, goal| {
                 movement::down(map, head, goal, false, text_layout_details)
             })
         });
@@ -14493,7 +14495,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (
                     movement::previous_word_start(map, head),
                     SelectionGoal::None,
@@ -14510,7 +14512,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (
                     movement::previous_subword_start(map, head),
                     SelectionGoal::None,
@@ -14527,7 +14529,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::previous_word_start(map, head),
                     SelectionGoal::None,
@@ -14544,7 +14546,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::previous_subword_start(map, head),
                     SelectionGoal::None,
@@ -14563,7 +14565,7 @@ impl Editor {
         self.transact(window, cx, |this, window, cx| {
             this.select_autoclose_pair(window, cx);
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|map, selection| {
+                s.move_with(&mut |map, selection| {
                     if selection.is_empty() {
                         let mut cursor = if action.ignore_newlines {
                             movement::previous_word_start(map, selection.head())
@@ -14594,7 +14596,7 @@ impl Editor {
         self.transact(window, cx, |this, window, cx| {
             this.select_autoclose_pair(window, cx);
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|map, selection| {
+                s.move_with(&mut |map, selection| {
                     if selection.is_empty() {
                         let mut cursor = if action.ignore_newlines {
                             movement::previous_subword_start(map, selection.head())
@@ -14623,7 +14625,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (movement::next_word_end(map, head), SelectionGoal::None)
             });
         })
@@ -14637,7 +14639,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (movement::next_subword_end(map, head), SelectionGoal::None)
             });
         })
@@ -14651,7 +14653,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (movement::next_word_end(map, head), SelectionGoal::None)
             });
         })
@@ -14665,7 +14667,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (movement::next_subword_end(map, head), SelectionGoal::None)
             });
         })
@@ -14680,7 +14682,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::TypingAction, cx);
         self.transact(window, cx, |this, window, cx| {
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|map, selection| {
+                s.move_with(&mut |map, selection| {
                     if selection.is_empty() {
                         let mut cursor = if action.ignore_newlines {
                             movement::next_word_end(map, selection.head())
@@ -14710,7 +14712,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::TypingAction, cx);
         self.transact(window, cx, |this, window, cx| {
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|map, selection| {
+                s.move_with(&mut |map, selection| {
                     if selection.is_empty() {
                         let mut cursor = if action.ignore_newlines {
                             movement::next_subword_end(map, selection.head())
@@ -14739,7 +14741,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (
                     movement::indented_line_beginning(
                         map,
@@ -14761,7 +14763,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::indented_line_beginning(
                         map,
@@ -14784,7 +14786,7 @@ impl Editor {
         self.hide_mouse_cursor(HideMouseCursorOrigin::TypingAction, cx);
         self.transact(window, cx, |this, window, cx| {
             this.change_selections(Default::default(), window, cx, |s| {
-                s.move_with(|_, selection| {
+                s.move_with(&mut |_, selection| {
                     selection.reversed = true;
                 });
             });
@@ -14809,7 +14811,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_cursors_with(|map, head, _| {
+            s.move_cursors_with(&mut |map, head, _| {
                 (
                     movement::line_end(map, head, action.stop_at_soft_wraps),
                     SelectionGoal::None,
@@ -14826,7 +14828,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::line_end(map, head, action.stop_at_soft_wraps),
                     SelectionGoal::None,
@@ -14871,7 +14873,7 @@ impl Editor {
             );
             if !action.stop_at_newlines {
                 this.change_selections(Default::default(), window, cx, |s| {
-                    s.move_with(|_, sel| {
+                    s.move_with(&mut |_, sel| {
                         if sel.is_empty() {
                             sel.end = DisplayPoint::new(sel.end.row() + 1_u32, 0);
                         }
@@ -14896,7 +14898,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::start_of_paragraph(map, selection.head(), 1),
                     SelectionGoal::None,
@@ -14917,7 +14919,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::end_of_paragraph(map, selection.head(), 1),
                     SelectionGoal::None,
@@ -14938,7 +14940,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::start_of_paragraph(map, head, 1),
                     SelectionGoal::None,
@@ -14959,7 +14961,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::end_of_paragraph(map, head, 1),
                     SelectionGoal::None,
@@ -14980,7 +14982,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::start_of_excerpt(
                         map,
@@ -15005,7 +15007,7 @@ impl Editor {
         }
 
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::start_of_excerpt(
                         map,
@@ -15030,7 +15032,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::end_of_excerpt(
                         map,
@@ -15055,7 +15057,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_with(|map, selection| {
+            s.move_with(&mut |map, selection| {
                 selection.collapse_to(
                     movement::end_of_excerpt(
                         map,
@@ -15080,7 +15082,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::start_of_excerpt(map, head, workspace::searchable::Direction::Prev),
                     SelectionGoal::None,
@@ -15101,7 +15103,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::start_of_excerpt(map, head, workspace::searchable::Direction::Next),
                     SelectionGoal::None,
@@ -15122,7 +15124,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::end_of_excerpt(map, head, workspace::searchable::Direction::Next),
                     SelectionGoal::None,
@@ -15143,7 +15145,7 @@ impl Editor {
         }
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_heads_with(|map, head, _| {
+            s.move_heads_with(&mut |map, head, _| {
                 (
                     movement::end_of_excerpt(map, head, workspace::searchable::Direction::Prev),
                     SelectionGoal::None,
@@ -16366,7 +16368,7 @@ impl Editor {
                 let snapshot = this.buffer.read(cx).snapshot(cx);
 
                 this.change_selections(Default::default(), window, cx, |s| {
-                    s.move_cursors_with(|display_snapshot, display_point, _| {
+                    s.move_cursors_with(&mut |display_snapshot, display_point, _| {
                         let mut point = display_point.to_point(display_snapshot);
                         point.row += 1;
                         point = snapshot.clip_point(point, Bias::Left);
@@ -17214,7 +17216,7 @@ impl Editor {
     ) {
         self.hide_mouse_cursor(HideMouseCursorOrigin::MovementAction, cx);
         self.change_selections(Default::default(), window, cx, |s| {
-            s.move_offsets_with(|snapshot, selection| {
+            s.move_offsets_with(&mut |snapshot, selection| {
                 let Some(enclosing_bracket_ranges) =
                     snapshot.enclosing_bracket_ranges(selection.start..selection.end)
                 else {
@@ -19716,7 +19718,7 @@ impl Editor {
     pub fn set_mark(&mut self, _: &actions::SetMark, window: &mut Window, cx: &mut Context<Self>) {
         if self.selection_mark_mode {
             self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
-                s.move_with(|_, sel| {
+                s.move_with(&mut |_, sel| {
                     sel.collapse_to(sel.head(), SelectionGoal::None);
                 });
             })
@@ -19732,7 +19734,7 @@ impl Editor {
         cx: &mut Context<Self>,
     ) {
         self.change_selections(SelectionEffects::no_scroll(), window, cx, |s| {
-            s.move_with(|_, sel| {
+            s.move_with(&mut |_, sel| {
                 if sel.start != sel.end {
                     sel.reversed = !sel.reversed
                 }
@@ -23805,7 +23807,7 @@ impl Editor {
 
     pub fn clear_highlights_with(
         &mut self,
-        f: impl FnMut(&HighlightKey) -> bool,
+        f: &mut dyn FnMut(&HighlightKey) -> bool,
         cx: &mut Context<Self>,
     ) {
         let cleared = self
