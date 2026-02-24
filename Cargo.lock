@@ -2967,7 +2967,6 @@ dependencies = [
  "db",
  "fs",
  "gpui",
- "gpui_platform",
  "language",
  "log",
  "node_runtime",
@@ -4625,7 +4624,6 @@ dependencies = [
  "futures",
  "gaoya",
  "gpui",
- "gpui_platform",
  "gpui_tokio",
  "http_client",
  "indoc",
@@ -5137,7 +5135,6 @@ dependencies = [
  "fs",
  "futures",
  "gpui",
- "gpui_platform",
  "gpui_tokio",
  "handlebars 4.5.0",
  "language",
@@ -5173,7 +5170,7 @@ dependencies = [
 name = "eval_utils"
 version = "0.1.0"
 dependencies = [
- "gpui_platform",
+ "gpui",
  "serde",
  "smol",
 ]
@@ -5290,7 +5287,7 @@ dependencies = [
  "env_logger 0.11.8",
  "extension",
  "fs",
- "gpui_platform",
+ "gpui",
  "language",
  "log",
  "reqwest_client",
@@ -5836,7 +5833,6 @@ version = "0.1.0"
 dependencies = [
  "fs",
  "gpui",
- "gpui_platform",
 ]
 
 [[package]]
@@ -6785,13 +6781,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "gpui_platform"
-version = "0.1.0"
-dependencies = [
- "gpui",
 ]
 
 [[package]]
@@ -8863,7 +8852,6 @@ dependencies = [
  "fs",
  "futures",
  "gpui",
- "gpui_platform",
  "language",
  "languages",
  "linkify",
@@ -11606,7 +11594,6 @@ dependencies = [
  "client",
  "futures",
  "gpui",
- "gpui_platform",
  "http_client",
  "language",
  "node_runtime",
@@ -12525,7 +12512,6 @@ dependencies = [
  "git2",
  "git_hosting_providers",
  "gpui",
- "gpui_platform",
  "gpui_tokio",
  "http_client",
  "image",
@@ -18863,7 +18849,7 @@ name = "worktree_benchmarks"
 version = "0.1.0"
 dependencies = [
  "fs",
- "gpui_platform",
+ "gpui",
  "settings",
  "worktree",
 ]
@@ -19290,7 +19276,6 @@ dependencies = [
  "git_ui",
  "go_to_line",
  "gpui",
- "gpui_platform",
  "gpui_tokio",
  "http_client",
  "image",

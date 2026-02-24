@@ -40,7 +40,7 @@ uuid.workspace = true
 workspace.workspace = true
 
 [dev-dependencies]
-gpui_platform = { workspace = true, features = ["screen-capture"] }
+gpui = { workspace = true, features = ["screen-capture"] }
 
 [[example]]
 name = "component_preview"

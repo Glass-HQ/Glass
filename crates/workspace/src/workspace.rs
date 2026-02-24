@@ -8419,17 +8419,6 @@ fn deserialize_remote_project(
     })
 }
 
-pub fn join_in_room_project(
-    _project_id: u64,
-    _follow_user_id: u64,
-    _app_state: Arc<AppState>,
-    _cx: &mut App,
-) -> Task<Result<()>> {
-    Task::ready(Err(anyhow!(
-        "join_in_room_project is unavailable in this build configuration"
-    )))
-}
-
 pub fn reload(cx: &mut App) {
     let should_confirm = WorkspaceSettings::get_global(cx).confirm_quit;
     let mut workspace_windows = cx
