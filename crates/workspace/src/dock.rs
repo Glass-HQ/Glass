@@ -553,7 +553,6 @@ impl Dock {
                 }
                 cx.emit(Event::ZoomChanged);
                 workspace.dismiss_zoomed_items_to_reveal(Some(position), window, cx);
-                workspace.update_active_view_for_followers(window, cx)
             }
         })
         .detach();

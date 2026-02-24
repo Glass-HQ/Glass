@@ -236,13 +236,7 @@ impl NativeToolbarController {
         cx.notify();
     }
 
-    fn window_activation_changed(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        self.workspace
-            .update(cx, |workspace, cx| {
-                workspace.update_active_view_for_followers(_window, cx);
-            })
-            .ok();
-    }
+    fn window_activation_changed(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
 
     fn effective_active_worktree(&self, cx: &App) -> Option<Entity<project::Worktree>> {
         let project = self.project.read(cx);

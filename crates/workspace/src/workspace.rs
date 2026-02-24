@@ -4632,7 +4632,6 @@ impl Workspace {
         }
         self.zoomed_position = None;
         cx.emit(Event::ZoomChanged);
-        self.update_active_view_for_followers(window, cx);
         pane.update(cx, |pane, _| {
             pane.track_alternate_file_items();
         });
@@ -4651,9 +4650,7 @@ impl Workspace {
         self.last_active_center_pane = Some(pane.downgrade());
     }
 
-    fn handle_panel_focused(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.update_active_view_for_followers(window, cx);
-    }
+    fn handle_panel_focused(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
 
     fn handle_pane_event(
         &mut self,
@@ -4708,7 +4705,6 @@ impl Workspace {
                 serialize_workspace = *focus_changed || pane != self.active_pane();
                 if pane == self.active_pane() {
                     self.active_item_path_changed(*focus_changed, window, cx);
-                    self.update_active_view_for_followers(window, cx);
                 } else if *local {
                     self.set_active_pane(pane, window, cx);
                 }
@@ -5359,10 +5355,6 @@ impl Workspace {
         self.leader_updated(CollaboratorId::Agent, window, cx);
     }
 
-    pub fn update_active_view_for_followers(&mut self, _window: &mut Window, _cx: &mut App) {
-        // No-op: Human collaboration features have been removed
-    }
-
     pub fn leader_for_pane(&self, pane: &Entity<Pane>) -> Option<CollaboratorId> {
         self.follower_states.iter().find_map(|(leader_id, state)| {
             if state.center_pane == *pane || state.dock_pane.as_ref() == Some(pane) {
@@ -5434,8 +5426,6 @@ impl Workspace {
 
     pub fn on_window_activation_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if window.is_window_active() {
-            self.update_active_view_for_followers(window, cx);
-
             if let Some(database_id) = self.database_id {
                 cx.background_spawn(persistence::DB.update_timestamp(database_id))
                     .detach();
