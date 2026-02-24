@@ -1205,7 +1205,7 @@ impl GitStore {
             if buffer
                 .read(cx)
                 .language()
-                .is_none_or(|lang| lang.name() != "Rust".into())
+                .is_none_or(|lang| lang.name() != "Rust")
             {
                 return Task::ready(Err(anyhow!("no permalink available")));
             }
@@ -1611,7 +1611,6 @@ impl GitStore {
                     .detach();
                 }
             }
-            _ => {}
         }
     }
 

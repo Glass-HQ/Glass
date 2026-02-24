@@ -286,6 +286,9 @@ messages!(
     (GetSharedAgentThreadResponse, Foreground),
     (FindSearchCandidatesChunk, Background),
     (FindSearchCandidatesCancelled, Background),
+    (SpawnKernel, Background),
+    (SpawnKernelResponse, Background),
+    (KillKernel, Background),
     (GetRemoteProfilingData, Background),
     (GetRemoteProfilingDataResponse, Background),
 );
@@ -446,6 +449,8 @@ request_messages!(
     (TrustWorktrees, Ack),
     (RestrictWorktrees, Ack),
     (FindSearchCandidatesChunk, Ack),
+    (SpawnKernel, SpawnKernelResponse),
+    (KillKernel, Ack),
     (GetRemoteProfilingData, GetRemoteProfilingDataResponse),
 );
 
@@ -510,6 +515,8 @@ entity_messages!(
     GetTypeDefinition,
     InlayHints,
     SemanticTokens,
+    SpawnKernel,
+    KillKernel,
     LinkedEditingRange,
     LoadCommitDiff,
     LspQuery,

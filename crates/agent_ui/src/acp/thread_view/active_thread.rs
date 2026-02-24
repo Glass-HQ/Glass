@@ -6417,7 +6417,7 @@ impl AcpThreadView {
                 if is_canceled_or_failed {
                     "Subagent Canceled"
                 } else {
-                    "Creating Subagent…"
+                    "Spawning agent…"
                 }
                 .into()
             });
@@ -6471,9 +6471,16 @@ impl AcpThreadView {
                     .bg(self.tool_card_header_bg(cx))
                     .child(
                         h_flex()
+                            .id(format!("subagent-title-{}-{}", entry_ix, context_ix))
+                            .min_w_0()
+                            .overflow_hidden()
                             .gap_1p5()
                             .child(icon)
-                            .child(Label::new(title.to_string()).size(LabelSize::Small))
+                            .child(
+                                Label::new(title.to_string())
+                                    .size(LabelSize::Small)
+                                    .truncate(),
+                            )
                             .when(files_changed > 0, |this| {
                                 this.child(
                                     h_flex()
@@ -6493,11 +6500,13 @@ impl AcpThreadView {
                                             diff_stats.lines_removed as usize,
                                         )),
                                 )
-                            }),
+                            })
+                            .tooltip(Tooltip::text(title.to_string())),
                     )
                     .when_some(session_id, |this, session_id| {
                         this.child(
                             h_flex()
+                                .flex_shrink_0()
                                 .when(has_expandable_content, |this| {
                                     this.child(
                                         IconButton::new(

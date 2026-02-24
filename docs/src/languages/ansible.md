@@ -76,7 +76,7 @@ If your inventory file is in the YAML format, you can either:
 
 By default, the following config is passed to the Ansible language server:
 
-```json [settings]
+```json
 {
   "ansible": {
     "ansible": {
