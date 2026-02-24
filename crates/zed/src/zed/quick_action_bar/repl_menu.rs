@@ -38,14 +38,7 @@ impl QuickActionBar {
 
         let editor = self.active_editor()?;
 
-        let is_valid_project = editor
-            .read(cx)
-            .workspace()
-            .map(|workspace| {
-                let project = workspace.read(cx).project().read(cx);
-                !project.is_via_collab()
-            })
-            .unwrap_or(false);
+        let is_valid_project = editor.read(cx).workspace().is_some();
 
         if !is_valid_project {
             return None;

@@ -2347,12 +2347,6 @@ impl Project {
         !self.is_local()
     }
 
-    /// Compatibility shim for upstream callsites after collab guest mode removal.
-    #[inline]
-    pub fn is_via_collab(&self) -> bool {
-        false
-    }
-
     #[inline]
     pub fn is_via_wsl_with_host_interop(&self, cx: &App) -> bool {
         matches!(
@@ -4151,15 +4145,6 @@ impl Project {
     pub fn remove_worktree(&mut self, id_to_remove: WorktreeId, cx: &mut Context<Self>) {
         self.worktree_store.update(cx, |worktree_store, cx| {
             worktree_store.remove_worktree(id_to_remove, cx);
-        });
-    }
-
-    /// NOTE: This function is dead code - it was only used by from_join_project_response
-    /// which has been removed (user-to-user collaboration).
-    #[allow(dead_code)]
-    fn add_worktree(&mut self, worktree: &Entity<Worktree>, cx: &mut Context<Self>) {
-        self.worktree_store.update(cx, |worktree_store, cx| {
-            worktree_store.add(worktree, cx);
         });
     }
 
