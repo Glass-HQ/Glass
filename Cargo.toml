@@ -299,7 +299,6 @@ git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
 gpui = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false }
-gpui_platform = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false }
 gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 gpui_tokio = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 html_to_markdown = { path = "crates/html_to_markdown" }
@@ -789,7 +788,6 @@ calloop = { git = "https://github.com/zed-industries/calloop" }
 [patch.'https://github.com/Obsydian-HQ/gpui.git']
 collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
 gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
-gpui_platform = { path = "../../Obsydian-HQ/gpui/crates/gpui_platform" }
 gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
 gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
 http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
