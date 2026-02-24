@@ -932,8 +932,8 @@ impl Item for AppStoreConnectTab {
         Some(Icon::new(IconName::CloudDownload).size(IconSize::Small))
     }
 
-    fn to_item_events(event: &Self::Event, mut f: impl FnMut(ItemEvent)) {
-        f(*event);
+    fn to_item_events(event: &Self::Event, f: &mut dyn FnMut(ItemEvent)) {
+        f(*event)
     }
 
     fn tab_content(
