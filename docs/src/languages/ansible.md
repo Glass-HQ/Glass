@@ -1,3 +1,8 @@
+---
+title: Ansible
+description: "Configure Ansible language support in Zed, including language servers, formatting, and debugging."
+---
+
 # Ansible
 
 Support for Ansible in Zed is provided via a community-maintained [Ansible extension](https://github.com/kartikvashistha/zed-ansible).
@@ -71,7 +76,7 @@ If your inventory file is in the YAML format, you can either:
 
 By default, the following config is passed to the Ansible language server:
 
-```json [settings]
+```json
 {
   "ansible": {
     "ansible": {

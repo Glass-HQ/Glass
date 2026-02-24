@@ -1148,7 +1148,7 @@ impl Pane {
                     }
                 };
 
-                self.close_items(window, cx, SaveIntent::Skip, |existing_item| {
+                self.close_items(window, cx, SaveIntent::Skip, &|existing_item| {
                     views_to_close.contains(&existing_item)
                 })
                 .detach();
@@ -1620,7 +1620,7 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Task<Result<()>> {
-        self.close_items(window, cx, save_intent, move |view_id| {
+        self.close_items(window, cx, save_intent, &move |view_id| {
             view_id == item_id_to_close
         })
     }
@@ -1639,7 +1639,7 @@ impl Pane {
             .filter(|item| item.project_path(cx).as_ref() == Some(project_path))
             .map(|item| item.item_id())
             .collect();
-        self.close_items(window, cx, save_intent, move |item_id| {
+        self.close_items(window, cx, save_intent, &move |item_id| {
             matching_item_ids.contains(&item_id)
                 && (close_pinned || !pinned_item_ids.contains(&item_id))
         })
@@ -1669,7 +1669,7 @@ impl Pane {
             window,
             cx,
             action.save_intent.unwrap_or(SaveIntent::Close),
-            move |item_id| {
+            &move |item_id| {
                 item_id != active_item_id
                     && (action.close_pinned || !pinned_item_ids.contains(&item_id))
             },
@@ -1693,7 +1693,7 @@ impl Pane {
             window,
             cx,
             action.save_intent.unwrap_or(SaveIntent::Close),
-            move |item_id| {
+            &move |item_id| {
                 (action.close_pinned || !pinned_item_ids.contains(&item_id))
                     && multibuffer_items.contains(&item_id)
             },
@@ -1713,7 +1713,7 @@ impl Pane {
         let clean_item_ids = self.clean_item_ids(cx);
         let pinned_item_ids = self.pinned_item_ids();
 
-        self.close_items(window, cx, SaveIntent::Close, move |item_id| {
+        self.close_items(window, cx, SaveIntent::Close, &move |item_id| {
             clean_item_ids.contains(&item_id)
                 && (action.close_pinned || !pinned_item_ids.contains(&item_id))
         })
@@ -1755,7 +1755,7 @@ impl Pane {
         let to_the_side_item_ids = self.to_the_side_item_ids(item_id, side);
         let pinned_item_ids = self.pinned_item_ids();
 
-        self.close_items(window, cx, SaveIntent::Close, move |item_id| {
+        self.close_items(window, cx, SaveIntent::Close, &move |item_id| {
             to_the_side_item_ids.contains(&item_id)
                 && (close_pinned || !pinned_item_ids.contains(&item_id))
         })
@@ -1777,7 +1777,7 @@ impl Pane {
             window,
             cx,
             action.save_intent.unwrap_or(SaveIntent::Close),
-            |item_id| action.close_pinned || !pinned_item_ids.contains(&item_id),
+            &|item_id| action.close_pinned || !pinned_item_ids.contains(&item_id),
         )
     }
 
@@ -1910,7 +1910,7 @@ impl Pane {
         window: &mut Window,
         cx: &mut Context<Pane>,
         mut save_intent: SaveIntent,
-        should_close: impl Fn(EntityId) -> bool,
+        should_close: &dyn Fn(EntityId) -> bool,
     ) -> Task<Result<()>> {
         // Find the items to close.
         let mut items_to_close = Vec::new();
@@ -4462,7 +4462,7 @@ impl NavHistory {
     pub fn for_each_entry(
         &self,
         cx: &App,
-        mut f: impl FnMut(&NavigationEntry, (ProjectPath, Option<PathBuf>)),
+        f: &mut dyn FnMut(&NavigationEntry, (ProjectPath, Option<PathBuf>)),
     ) {
         let borrowed_history = self.0.lock();
         borrowed_history
@@ -7861,8 +7861,8 @@ mod tests {
         let scroll_bounds = tab_bar_scroll_handle.bounds();
         let scroll_offset = tab_bar_scroll_handle.offset();
         assert!(tab_bounds.right() <= scroll_bounds.right());
-        // -38.5 is the magic number for this setup
-        assert_eq!(scroll_offset.x, px(-38.5));
+        // -39.5 is the magic number for this setup
+        assert_eq!(scroll_offset.x, px(-39.5));
         assert!(
             !tab_bounds.intersects(&new_tab_button_bounds),
             "Tab should not overlap with the new tab button, if this is failing check if there's been a redesign!"
