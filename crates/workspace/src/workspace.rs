@@ -52,8 +52,8 @@ use gpui::{
     CursorStyle, Decorations, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle,
     Focusable, Global, HitboxBehavior, Hsla, KeyContext, Keystroke, ManagedView, MouseButton,
     PathPromptOptions, Point, PromptLevel, Render, ResizeEdge, Size, Stateful, Subscription,
-    SystemWindowTabController, Task, Tiling, WeakEntity, WindowBounds, WindowHandle, WindowId,
-    WindowOptions, actions, canvas, point, relative, size, transparent_black,
+    SystemWindowTabController, Task, Tiling, WeakEntity, WindowBackgroundAppearance, WindowBounds,
+    WindowHandle, WindowId, WindowOptions, actions, canvas, point, relative, size, transparent_black,
 };
 pub use history_manager::*;
 pub use item::{
@@ -204,10 +204,28 @@ impl UnifiedSidebar {
 
 #[cfg(target_os = "macos")]
 impl Render for UnifiedSidebar {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if self.active_mode == ModeId::BROWSER {
             if let Some(view) = &self.browser_sidebar_view {
-                return div().size_full().child(view.clone()).into_any_element();
+                // The browser sidebar replaces the left dock's content, but the
+                // DockButtonBar (segmented control) must remain visible as the top
+                // navigation. Without this, when the browser mode initialises its
+                // sidebar panel the left_dock is removed from the element tree,
+                // destroying the native NSSegmentedControl and making it
+                // unrecoverable until the app is relaunched.
+                let dock_button_bar = self.left_dock.read(cx).dock_button_bar();
+                log::info!(
+                    "UnifiedSidebar: BROWSER+browser_sidebar_view — rendering DockButtonBar as header (present={}), browser panel as content",
+                    dock_button_bar.is_some()
+                );
+                return div()
+                    .size_full()
+                    .flex()
+                    .flex_col()
+                    .overflow_hidden()
+                    .when_some(dock_button_bar, |this, bar| this.child(bar))
+                    .child(div().flex_1().size_full().overflow_hidden().child(view.clone()))
+                    .into_any_element();
             }
         }
         div()
@@ -4930,6 +4948,10 @@ impl Workspace {
 
                 #[cfg(target_os = "macos")]
                 if let Some(sidebar_view) = registered.sidebar_view {
+                    log::info!(
+                        "ensure_mode_view({:?}): setting browser_sidebar_view on UnifiedSidebar — segmented control will move to UnifiedSidebar header",
+                        mode_id
+                    );
                     self.unified_sidebar.update(cx, |sidebar, cx| {
                         sidebar.set_browser_sidebar_view(sidebar_view, cx);
                     });
@@ -6488,6 +6510,16 @@ impl Workspace {
             !self.left_dock.read(cx).has_visible_content(window, cx)
         };
 
+        // For opaque (non-glass) themes, fill the sidebar's native titlebar area
+        // with the panel background color so it matches the rest of the sidebar.
+        // Glass/vibrancy themes leave this as None so native transparency shows through.
+        let sidebar_titlebar_fill = match cx.theme().window_background_appearance() {
+            WindowBackgroundAppearance::Opaque => {
+                Some(cx.theme().colors().panel_background)
+            }
+            _ => None,
+        };
+
         div()
             .size_full()
             .flex()
@@ -6501,6 +6533,7 @@ impl Workspace {
                     .manage_window_chrome(false)
                     .manage_toolbar(false)
                     .collapsed(sidebar_collapsed)
+                    .sidebar_background_color(sidebar_titlebar_fill)
                     .size_full(),
             )
             .child(
