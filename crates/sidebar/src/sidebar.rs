@@ -19,9 +19,8 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use theme::ActiveTheme;
-use ui::utils::TRAFFIC_LIGHT_PADDING;
 use ui::{
-    AgentThreadStatus, Divider, DividerColor, KeyBinding, ListSubHeader, Tab, ThreadItem, Tooltip,
+    AgentThreadStatus, Divider, DividerColor, ListSubHeader, Tab, ThreadItem, Tooltip,
     prelude::*,
 };
 use ui_input::ErasedEditor;
