@@ -25,8 +25,9 @@ use editor::Editor;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, NativePanel, NativePanelAnchor, NativePanelLevel, NativePanelMaterial,
-    NativePanelStyle, NativePopoverClickableRow, NativePopoverContentItem, ParentElement, Pixels,
-    Render, Styled, Subscription, Task, Window, actions, div, prelude::*, px,
+    NativePanelStyle, NativePopoverClickableRow, NativePopoverContentItem, NativeSearchFieldTarget,
+    ParentElement, Pixels, Render, Styled, Subscription, Task, Window, actions, div, prelude::*,
+    px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace_modes::{BrowserSidebarState, ModeId, ModeViewRegistry};
@@ -591,7 +592,7 @@ impl BrowserView {
         self.sync_bookmark_bar_visibility(cx);
     }
 
-    fn focus_omnibox_if_new_tab(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+    fn focus_omnibox_if_new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let is_new_tab = self
             .active_tab()
             .map(|t| t.read(cx).is_new_tab_page())
@@ -599,6 +600,11 @@ impl BrowserView {
         if !is_new_tab {
             return;
         }
+
+        window.focus_native_search_field(
+            NativeSearchFieldTarget::ContentElement("new-tab-search".into()),
+            true,
+        );
     }
 
     fn sync_bookmark_bar_visibility(&self, cx: &mut Context<Self>) {
