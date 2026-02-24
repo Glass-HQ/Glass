@@ -109,18 +109,18 @@ impl ParentElement for Tab {
 impl RenderOnce for Tab {
     #[allow(refining_impl_trait)]
     fn render(self, _: &mut Window, cx: &mut App) -> Stateful<Div> {
-        let (text_color, tab_bg, _tab_hover_bg, _tab_active_bg) = match self.selected {
+        let (text_color, tab_bg, tab_hover_bg, tab_active_bg) = match self.selected {
             false => (
                 cx.theme().colors().text_muted,
-                cx.theme().colors().tab_inactive_background,
-                cx.theme().colors().ghost_element_hover,
-                cx.theme().colors().ghost_element_active,
+                cx.theme().colors().tab_inactive_background.opacity(0.0),
+                cx.theme().colors().text.opacity(0.09),
+                cx.theme().colors().text.opacity(0.14),
             ),
             true => (
                 cx.theme().colors().text,
-                cx.theme().colors().tab_active_background,
-                cx.theme().colors().element_hover,
-                cx.theme().colors().element_active,
+                cx.theme().colors().text.opacity(0.14),
+                cx.theme().colors().text.opacity(0.14),
+                cx.theme().colors().text.opacity(0.20),
             ),
         };
 
@@ -141,37 +141,33 @@ impl RenderOnce for Tab {
             }
         };
 
+        let visual_tab_height = Tab::content_height(cx) - px(3.);
+
         self.div
-            .h(Tab::container_height(cx))
+            .h(visual_tab_height)
+            .mt(px(1.))
+            .mb(px(2.))
             .bg(tab_bg)
-            .border_color(cx.theme().colors().border)
+            .rounded(px(6.))
+            .when(!self.selected, |this| {
+                this.hover(move |style| style.bg(tab_hover_bg))
+            })
+            .active(|style| style.bg(tab_active_bg))
             .map(|this| match self.position {
-                TabPosition::First => {
-                    if self.selected {
-                        this.pl_px().border_r_1().pb_px()
-                    } else {
-                        this.pl_px().pr_px().border_b_1()
-                    }
-                }
-                TabPosition::Last => {
-                    if self.selected {
-                        this.border_l_1().border_r_1().pb_px()
-                    } else {
-                        this.pl_px().border_b_1().border_r_1()
-                    }
-                }
-                TabPosition::Middle(Ordering::Equal) => this.border_l_1().border_r_1().pb_px(),
-                TabPosition::Middle(Ordering::Less) => this.border_l_1().pr_px().border_b_1(),
-                TabPosition::Middle(Ordering::Greater) => this.border_r_1().pl_px().border_b_1(),
+                TabPosition::First => this.ml_1(),
+                TabPosition::Last => this.mr_1(),
+                TabPosition::Middle(Ordering::Equal)
+                | TabPosition::Middle(Ordering::Less)
+                | TabPosition::Middle(Ordering::Greater) => this,
             })
             .cursor_pointer()
             .child(
                 h_flex()
                     .group("")
                     .relative()
-                    .h(Tab::content_height(cx))
-                    .px(DynamicSpacing::Base04.px(cx))
-                    .gap(DynamicSpacing::Base04.rems(cx))
+                    .h_full()
+                    .px(DynamicSpacing::Base03.px(cx))
+                    .gap(DynamicSpacing::Base02.rems(cx))
                     .text_color(text_color)
                     .child(start_slot)
                     .children(self.children)

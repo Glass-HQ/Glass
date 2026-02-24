@@ -21,7 +21,7 @@ use gpui::{
     DragMoveEvent, Entity, EntityId, EventEmitter, ExternalPaths, FocusHandle, FocusOutEvent,
     Focusable, KeyContext, MouseButton, NavigationDirection, Pixels, Point,
     PromptLevel, Render, ScrollHandle, Subscription, Task, WeakEntity, WeakFocusHandle, Window,
-    actions, anchored, deferred, native_icon_button, prelude::*,
+    actions, anchored, deferred, native_icon_button, native_image_view, prelude::*,
 };
 use itertools::Itertools;
 use language::{Capability, DiagnosticSeverity};
@@ -2695,7 +2695,7 @@ impl Pane {
         ix: usize,
         item: &dyn ItemHandle,
         detail: usize,
-        focus_handle: &FocusHandle,
+        _focus_handle: &FocusHandle,
         window: &mut Window,
         cx: &mut Context<Pane>,
     ) -> impl IntoElement + use<> {
@@ -2897,56 +2897,48 @@ impl Pane {
             }))
             .start_slot::<Indicator>(indicator)
             .map(|this| {
-                let end_slot_action: &'static dyn Action;
-                let end_slot_tooltip_text: &'static str;
                 let end_slot = if is_pinned {
-                    end_slot_action = &TogglePinTab;
-                    end_slot_tooltip_text = "Unpin Tab";
                     IconButton::new("unpin tab", IconName::Pin)
                         .shape(IconButtonShape::Square)
                         .icon_color(Color::Muted)
                         .size(ButtonSize::None)
                         .icon_size(IconSize::Small)
+                        .tooltip(Tooltip::text("Unpin Tab"))
                         .on_click(cx.listener(move |pane, _, window, cx| {
                             pane.unpin_tab_at(ix, window, cx);
                         }))
+                        .into_any_element()
                 } else {
-                    end_slot_action = &CloseActiveItem {
-                        save_intent: None,
-                        close_pinned: false,
-                    };
-                    end_slot_tooltip_text = "Close Tab";
+                    let close_button = div()
+                        .id(("close-tab-native", ix))
+                        .relative()
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .w(px(16.))
+                        .h(px(16.))
+                        .rounded(px(4.))
+                        .cursor_pointer()
+                        .hover(|style| style.bg(cx.theme().colors().text.opacity(0.09)))
+                        .on_click(cx.listener(move |pane, _, window, cx| {
+                            pane.close_item_by_id(item_id, SaveIntent::Close, window, cx)
+                                .detach_and_log_err(cx);
+                        }))
+                        .child(
+                            native_image_view(format!("close-tab-icon-{ix}"))
+                                .sf_symbol("xmark")
+                                .w(px(8.))
+                                .h(px(8.)),
+                        )
+                        .into_any_element();
                     match show_close_button {
-                        ShowCloseButton::Always => IconButton::new("close tab", IconName::Close),
+                        ShowCloseButton::Always => close_button,
                         ShowCloseButton::Hover => {
-                            IconButton::new("close tab", IconName::Close).visible_on_hover("")
+                            div().visible_on_hover("").child(close_button).into_any_element()
                         }
                         ShowCloseButton::Hidden => return this,
                     }
-                    .shape(IconButtonShape::Square)
-                    .icon_color(Color::Muted)
-                    .size(ButtonSize::None)
-                    .icon_size(IconSize::Small)
-                    .on_click(cx.listener(move |pane, _, window, cx| {
-                        pane.close_item_by_id(item_id, SaveIntent::Close, window, cx)
-                            .detach_and_log_err(cx);
-                    }))
-                }
-                .map(|this| {
-                    if is_active {
-                        let focus_handle = focus_handle.clone();
-                        this.tooltip(move |window, cx| {
-                            Tooltip::for_action_in(
-                                end_slot_tooltip_text,
-                                end_slot_action,
-                                &window.focused(cx).unwrap_or_else(|| focus_handle.clone()),
-                                cx,
-                            )
-                        })
-                    } else {
-                        this.tooltip(Tooltip::text(end_slot_tooltip_text))
-                    }
-                });
+                };
                 this.end_slot(end_slot)
             })
             .child(

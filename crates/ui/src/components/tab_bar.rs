@@ -103,10 +103,10 @@ impl RenderOnce for TabBar {
                 this.child(
                     h_flex()
                         .flex_none()
-                        .gap(DynamicSpacing::Base04.rems(cx))
-                        .px(DynamicSpacing::Base06.rems(cx))
+                        .gap(DynamicSpacing::Base03.rems(cx))
+                        .pl(DynamicSpacing::Base06.rems(cx))
+                        .pr(DynamicSpacing::Base02.rems(cx))
                         .border_b_1()
-                        .border_r_1()
                         .border_color(cx.theme().colors().border)
                         .children(self.start_children),
                 )
