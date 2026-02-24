@@ -1,3 +1,8 @@
+---
+title: How to Migrate from PyCharm to Zed
+description: "Guide for migrating from PyCharm to Zed, including settings and keybindings."
+---
+
 # How to Migrate from PyCharm to Zed
 
 This guide covers how to set up Zed if you're coming from PyCharm, including keybindings, settings, and the differences you should expect.
@@ -48,12 +53,7 @@ This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shif
 
 ## Set Up Editor Preferences
 
-You can configure settings manually in the Settings Editor.
-
-To edit your settings:
-
-1. `Cmd+,` to open the Settings Editor.
-2. Run `zed: open settings` in the Command Palette.
+You can configure most settings in the Settings Editor ({#kb zed::OpenSettings}). For advanced settings, run `zed: open settings file` from the Command Palette to edit your settings file directly.
 
 Settings PyCharm users typically configure first:
 
@@ -83,7 +83,7 @@ Once inside a project:
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like PyCharm's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like PyCharm's "Search Everywhere")
 
-Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like PyCharm's Project tool window).
+Open buffers appear as tabs across the top. The Project Panel shows your file tree and Git status. Toggle it with `Cmd+1` (just like PyCharm's Project tool window).
 
 ## Differences in Keybindings
 
@@ -143,7 +143,7 @@ Zed also supports key sequences (multi-key shortcuts).
 
 If you've used PyCharm on large projects, you know the wait: "Indexing..." can take anywhere from 30 seconds to several minutes depending on project size and dependencies. PyCharm builds a comprehensive index of your entire codebase to power its code intelligence, and it re-indexes when dependencies change or when you install new packages.
 
-Zed doesn't index. You open a folder and start working immediately. File search and navigation work instantly regardless of project size. For many PyCharm users, this alone is reason enough to switch—no more waiting, no more "Indexing paused" interruptions.
+Zed doesn't index. You open a folder and start working immediately. File search and navigation stay fast regardless of project size, without waiting through indexing pauses.
 
 PyCharm's index powers features like finding all usages across your entire codebase, understanding class hierarchies, and detecting unused imports project-wide. Zed delegates this work to language servers, which may not analyze as deeply or as broadly.
 
@@ -318,9 +318,9 @@ The test output appears in the terminal panel. For pytest, use `--tb=short` for 
 
 ### Extensions vs. Plugins
 
-PyCharm has a plugin ecosystem covering everything from additional language support to database tools to deployment integrations.
+PyCharm has a large plugin catalog covering everything from additional language support to database tools to deployment integrations.
 
-Zed's extension ecosystem is smaller and more focused:
+Zed's extension catalog is smaller and more focused:
 
 - Language support and syntax highlighting
 - Themes
@@ -396,7 +396,7 @@ Here are a few useful tweaks:
 "load_direnv": "shell_hook"
 ```
 
-**Customize virtual environment detection:**
+**Customize virtual environment detection** (requires manual JSON editing):
 
 ```json
 {

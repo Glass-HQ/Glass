@@ -303,6 +303,8 @@ pub mod project_panel {
     actions!(
         project_panel,
         [
+            /// Toggles the project panel.
+            Toggle,
             /// Toggles focus on the project panel.
             ToggleFocus
         ]
@@ -466,6 +468,8 @@ pub mod assistant {
     actions!(
         agent,
         [
+            /// Toggles the agent panel.
+            Toggle,
             #[action(deprecated_aliases = ["assistant::ToggleFocus"])]
             ToggleFocus
         ]
@@ -624,6 +628,8 @@ actions!(
 actions!(
     debug_panel,
     [
+        /// Toggles the debug panel.
+        Toggle,
         /// Toggles focus on the debug panel.
         ToggleFocus
     ]

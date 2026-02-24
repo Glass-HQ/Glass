@@ -1,3 +1,8 @@
+---
+title: How to Migrate from IntelliJ IDEA to Zed
+description: "Guide for migrating from IntelliJ IDEA to Zed, including settings and keybindings."
+---
+
 # How to Migrate from IntelliJ IDEA to Zed
 
 This guide covers how to set up Zed if you're coming from IntelliJ IDEA, including keybindings, settings, and the differences you should expect.
@@ -48,12 +53,7 @@ This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shif
 
 ## Set Up Editor Preferences
 
-You can configure settings manually in the Settings Editor.
-
-To edit your settings:
-
-1. `Cmd+,` to open the Settings Editor.
-2. Run `zed: open settings` in the Command Palette.
+You can configure most settings in the Settings Editor ({#kb zed::OpenSettings}). For advanced settings, run `zed: open settings file` from the Command Palette to edit your settings file directly.
 
 Settings IntelliJ users typically configure first:
 
@@ -83,7 +83,7 @@ Once inside a project:
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like IntelliJ's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like IntelliJ's "Search Everywhere")
 
-Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like IntelliJ's Project tool window).
+Open buffers appear as tabs across the top. The Project Panel shows your file tree and Git status. Toggle it with `Cmd+1` (just like IntelliJ's Project tool window).
 
 ## Differences in Keybindings
 
@@ -216,7 +216,7 @@ IntelliJ's value for enterprise Java development comes largely from its framewor
 
 Zed has none of this. The language server sees Java code as Java code, so it doesn't understand that `@Autowired` means something special or that this class is a REST controller.
 
-Similarly for other ecosystems: no Rails integration, no Django awareness, no Angular/React-specific tooling beyond what the TypeScript language server provides.
+Similarly for other stacks: no Rails integration, no Django awareness, no Angular/React-specific tooling beyond what the TypeScript language server provides.
 
 **How to adapt:**
 
@@ -260,9 +260,9 @@ The Debug Panel (`Cmd+5`) shows variables, call stack, and breakpoints—similar
 
 ### Extensions vs. Plugins
 
-IntelliJ has a massive plugin ecosystem covering everything from language support to database tools to deployment integrations.
+IntelliJ has a large plugin catalog covering everything from language support to database tools to deployment integrations.
 
-Zed's extension ecosystem is smaller and more focused:
+Zed's extension catalog is smaller and more focused:
 
 - Language support and syntax highlighting
 - Themes
@@ -328,7 +328,7 @@ Here are a few useful tweaks:
 "load_direnv": "shell_hook"
 ```
 
-**Configure language servers**: For Java development, you may want to configure the Java language server in your settings:
+**Configure language servers** (requires manual JSON editing): For Java development, you may want to configure the Java language server in your settings:
 
 ```json
 {

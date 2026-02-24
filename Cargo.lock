@@ -12129,6 +12129,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "askpass",
+ "chrono",
  "dap",
  "db",
  "dev_container",
@@ -13715,6 +13716,7 @@ version = "0.1.0"
 dependencies = [
  "acp_thread",
  "agent_ui",
+ "chrono",
  "db",
  "editor",
  "feature_flags",
@@ -18576,6 +18578,7 @@ dependencies = [
  "any_vec",
  "anyhow",
  "async-recursion",
+ "chrono",
  "client",
  "clock",
  "collections",

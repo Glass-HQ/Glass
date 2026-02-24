@@ -1,3 +1,8 @@
+---
+title: How to Migrate from RustRover to Zed
+description: "Guide for migrating from RustRover to Zed, including settings and keybindings."
+---
+
 # How to Migrate from RustRover to Zed
 
 This guide covers how to set up Zed if you're coming from RustRover, including keybindings, settings, and the differences you should expect as a Rust developer.
@@ -48,12 +53,7 @@ This maps familiar shortcuts like `Shift Shift` for Search Everywhere, `Cmd+Shif
 
 ## Set Up Editor Preferences
 
-You can configure settings manually in the Settings Editor.
-
-To edit your settings:
-
-1. `Cmd+,` to open the Settings Editor.
-2. Run `zed: open settings` in the Command Palette.
+You can configure most settings in the Settings Editor ({#kb zed::OpenSettings}). For advanced settings, run `zed: open settings file` from the Command Palette to edit your settings file directly.
 
 Settings RustRover users typically configure first:
 
@@ -95,7 +95,7 @@ Once inside a project:
 - Use `Cmd+Shift+O` or `Cmd+E` to jump between files quickly (like RustRover's "Recent Files")
 - Use `Cmd+Shift+A` or `Shift Shift` to open the Command Palette (like RustRover's "Search Everywhere")
 
-Open buffers appear as tabs across the top. The sidebar shows your file tree and Git status. Toggle it with `Cmd+1` (just like RustRover's Project tool window).
+Open buffers appear as tabs across the top. The Project Panel shows your file tree and Git status. Toggle it with `Cmd+1` (just like RustRover's Project tool window).
 
 ## Differences in Keybindings
 
@@ -166,7 +166,7 @@ Zed skips the indexing step. You open a folder and start working right away. Sin
 
 ### rust-analyzer: Shared Foundation, Different Integration
 
-Here's what makes the RustRover-to-Zed transition unique: **both editors use rust-analyzer** for Rust language intelligence. This means the core code analysis—completions, go-to-definition, find references, type inference—is fundamentally the same.
+Here's what makes the RustRover-to-Zed transition unique: **both editors use rust-analyzer** for Rust language intelligence. This means the core code analysis (completions, go-to-definition, find references, type inference) is fundamentally the same.
 
 RustRover integrates rust-analyzer into its JetBrains platform, adding a GUI layer, additional refactorings, and its own indexing on top. Zed uses rust-analyzer more directly through the Language Server Protocol (LSP).
 
@@ -333,9 +333,9 @@ The test output appears in the terminal panel. For more detailed output, use:
 
 ### Extensions vs. Plugins
 
-RustRover has a plugin ecosystem, though it's more limited than other JetBrains IDEs since Rust support is built-in.
+RustRover has a plugin catalog, though it's more limited than other JetBrains IDEs since Rust support is built-in.
 
-Zed's extension ecosystem is smaller and more focused:
+Zed's extension catalog is smaller and more focused:
 
 - Language support and syntax highlighting
 - Themes
@@ -426,7 +426,7 @@ Here are a few useful tweaks for Rust developers:
 }
 ```
 
-**Configure rust-analyzer settings:**
+**Configure rust-analyzer settings** (requires manual JSON editing):
 
 ```json
 {
