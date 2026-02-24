@@ -19,7 +19,7 @@ fn estimate_tokens(bytes: usize) -> usize {
 }
 
 /// The client's preferred edit prediction model. The server may override this.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EditPredictionModelKind {
     Zeta1,
     Zeta2,
@@ -28,7 +28,7 @@ pub enum EditPredictionModelKind {
 /// Pre-computed byte offset ranges within `cursor_excerpt` for different
 /// editable and context token budgets. Allows the server to select the
 /// appropriate ranges for whichever model it uses.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct ExcerptRanges {
     /// Editable region computed with a 150-token budget.
     pub editable_150: Range<usize>,
@@ -44,7 +44,7 @@ pub struct ExcerptRanges {
     pub editable_350_context_150: Range<usize>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct ZetaPromptInput {
     pub cursor_path: Arc<Path>,
     pub cursor_excerpt: Arc<str>,
@@ -86,9 +86,9 @@ pub struct ZetaPromptInput {
 pub enum ZetaFormat {
     V0112MiddleAtEnd,
     V0113Ordered,
-    #[default]
     V0114180EditableRegion,
     V0120GitMergeMarkers,
+    #[default]
     V0131GitMergeMarkersPrefix,
     V0211Prefill,
     V0211SeedCoder,
@@ -149,7 +149,7 @@ impl ZetaFormat {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 #[serde(tag = "event")]
 pub enum Event {
     BufferChange {
@@ -200,7 +200,7 @@ pub fn write_event(prompt: &mut String, event: &Event) {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct RelatedFile {
     pub path: Arc<Path>,
     pub max_row: u32,
@@ -209,7 +209,7 @@ pub struct RelatedFile {
     pub in_open_source_repo: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Hash, Serialize, Deserialize)]
 pub struct RelatedExcerpt {
     pub row_range: Range<u32>,
     pub text: Arc<str>,
@@ -242,6 +242,26 @@ pub fn clean_zeta2_model_output(output: &str, format: ZetaFormat) -> &str {
     }
 }
 
+pub fn excerpt_range_for_format(
+    format: ZetaFormat,
+    ranges: &ExcerptRanges,
+) -> (Range<usize>, Range<usize>) {
+    match format {
+        ZetaFormat::V0112MiddleAtEnd | ZetaFormat::V0113Ordered => (
+            ranges.editable_150.clone(),
+            ranges.editable_150_context_350.clone(),
+        ),
+        ZetaFormat::V0114180EditableRegion
+        | ZetaFormat::V0120GitMergeMarkers
+        | ZetaFormat::V0131GitMergeMarkersPrefix
+        | ZetaFormat::V0211Prefill
+        | ZetaFormat::V0211SeedCoder => (
+            ranges.editable_350.clone(),
+            ranges.editable_350_context_150.clone(),
+        ),
+    }
+}
+
 fn resolve_cursor_region(
     input: &ZetaPromptInput,
     format: ZetaFormat,
@@ -254,21 +274,7 @@ fn resolve_cursor_region(
         );
     };
 
-    let (editable_range, context_range) = match format {
-        ZetaFormat::V0112MiddleAtEnd | ZetaFormat::V0113Ordered => (
-            ranges.editable_150.clone(),
-            ranges.editable_150_context_350.clone(),
-        ),
-        ZetaFormat::V0114180EditableRegion
-        | ZetaFormat::V0120GitMergeMarkers
-        | ZetaFormat::V0131GitMergeMarkersPrefix
-        | ZetaFormat::V0211Prefill
-        | ZetaFormat::V0211SeedCoder => (
-            ranges.editable_180.clone(),
-            ranges.editable_180_context_350.clone(),
-        ),
-    };
-
+    let (editable_range, context_range) = excerpt_range_for_format(format, ranges);
     let context_start = context_range.start;
     let context_text = &input.cursor_excerpt[context_range];
     let adjusted_editable =
