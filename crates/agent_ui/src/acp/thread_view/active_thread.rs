@@ -1,5 +1,7 @@
 use cloud_api_types::SubmitAgentThreadFeedbackBody;
-use gpui::{Corner, List};
+#[cfg(not(target_os = "macos"))]
+use gpui::Corner;
+use gpui::List;
 use language_model::LanguageModelEffortLevel;
 use settings::update_settings_file;
 use ui::{ButtonLike, SplitButton, SplitButtonStyle, Tab};

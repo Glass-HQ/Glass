@@ -8348,107 +8348,14 @@ fn deserialize_remote_project(
 }
 
 pub fn join_in_room_project(
-    project_id: u64,
-    follow_user_id: u64,
-    app_state: Arc<AppState>,
-    cx: &mut App,
+    _project_id: u64,
+    _follow_user_id: u64,
+    _app_state: Arc<AppState>,
+    _cx: &mut App,
 ) -> Task<Result<()>> {
-    let windows = cx.windows();
-    cx.spawn(async move |cx| {
-        let existing_window_and_workspace: Option<(
-            WindowHandle<MultiWorkspace>,
-            Entity<Workspace>,
-        )> = windows.into_iter().find_map(|window_handle| {
-            window_handle
-                .downcast::<MultiWorkspace>()
-                .and_then(|window_handle| {
-                    window_handle
-                        .update(cx, |multi_workspace, _window, cx| {
-                            for workspace in multi_workspace.workspaces() {
-                                if workspace.read(cx).project().read(cx).remote_id()
-                                    == Some(project_id)
-                                {
-                                    return Some((window_handle, workspace.clone()));
-                                }
-                            }
-                            None
-                        })
-                        .unwrap_or(None)
-                })
-        });
-
-        let multi_workspace_window = if let Some((existing_window, target_workspace)) =
-            existing_window_and_workspace
-        {
-            existing_window
-                .update(cx, |multi_workspace, _, cx| {
-                    multi_workspace.activate(target_workspace, cx);
-                })
-                .ok();
-            existing_window
-        } else {
-            let active_call = cx.update(|cx| ActiveCall::global(cx));
-            let room = active_call
-                .read_with(cx, |call, _| call.room().cloned())
-                .context("not in a call")?;
-            let project = room
-                .update(cx, |room, cx| {
-                    room.join_project(
-                        project_id,
-                        app_state.languages.clone(),
-                        app_state.fs.clone(),
-                        cx,
-                    )
-                })
-                .await?;
-
-            let window_bounds_override = window_bounds_env_override();
-            cx.update(|cx| {
-                let mut options = (app_state.build_window_options)(None, cx);
-                options.window_bounds = window_bounds_override.map(WindowBounds::Windowed);
-                cx.open_window(options, |window, cx| {
-                    let workspace = cx.new(|cx| {
-                        Workspace::new(Default::default(), project, app_state.clone(), window, cx)
-                    });
-                    cx.new(|cx| MultiWorkspace::new(workspace, window, cx))
-                })
-            })?
-        };
-
-        multi_workspace_window.update(cx, |multi_workspace, window, cx| {
-            cx.activate(true);
-            window.activate_window();
-
-            // We set the active workspace above, so this is the correct workspace.
-            let workspace = multi_workspace.workspace().clone();
-            workspace.update(cx, |workspace, cx| {
-                if let Some(room) = ActiveCall::global(cx).read(cx).room().cloned() {
-                    let follow_peer_id = room
-                        .read(cx)
-                        .remote_participants()
-                        .iter()
-                        .find(|(_, participant)| participant.user.id == follow_user_id)
-                        .map(|(_, p)| p.peer_id)
-                        .or_else(|| {
-                            // If we couldn't follow the given user, follow the host instead.
-                            let collaborator = workspace
-                                .project()
-                                .read(cx)
-                                .collaborators()
-                                .values()
-                                .find(|collaborator| collaborator.is_host)?;
-                            Some(collaborator.peer_id)
-                        });
-
-                    if let Some(follow_peer_id) = follow_peer_id {
-                        workspace.follow(follow_peer_id, window, cx);
-                    }
-                }
-            });
-        })?;
-
-        anyhow::Ok(())
-    })
+    Task::ready(Err(anyhow!(
+        "join_in_room_project is unavailable in this build configuration"
+    )))
 }
 
 pub fn reload(cx: &mut App) {

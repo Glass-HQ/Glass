@@ -1,9 +1,8 @@
 use anyhow::Result;
 use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use gpui::{
-    AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    ManagedView, MouseButton, Pixels, Render, Subscription, Task, Tiling, Window, WindowId,
-    actions, deferred, px,
+    AnyView, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable, ManagedView,
+    Pixels, Render, Subscription, Task, Tiling, Window, WindowId, actions,
 };
 use project::Project;
 use std::path::PathBuf;

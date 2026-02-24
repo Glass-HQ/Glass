@@ -2671,7 +2671,7 @@ impl AgentPanel {
                         workspace.update(cx, |workspace, cx| {
                             if let Some(panel) = workspace.panel::<AgentPanel>(cx) {
                                 panel.update(cx, |panel, cx| {
-                                    panel.new_agent_thread(AgentType::ClaudeCode, window, cx);
+                                    panel.new_agent_thread(AgentType::ClaudeAgent, window, cx);
                                 });
                             }
                         });
@@ -2716,7 +2716,9 @@ impl AgentPanel {
                 let agent_names: Vec<_> = store
                     .external_agents()
                     .filter(|name| {
-                        name.0 != GEMINI_NAME && name.0 != CLAUDE_CODE_NAME && name.0 != CODEX_NAME
+                        name.0 != GEMINI_NAME
+                            && name.0 != CLAUDE_AGENT_NAME
+                            && name.0 != CODEX_NAME
                     })
                     .cloned()
                     .collect();
