@@ -107,6 +107,7 @@ pub fn render_new_tab_page(
                                 })
                                 .on_cancel(move |window, cx| {
                                     window.dismiss_native_panel();
+                                    window.blur_native_field_editor();
                                     let _ = browser_view_for_cancel.update(cx, |bv, cx| {
                                         bv.new_tab_cancel(cx);
                                     });

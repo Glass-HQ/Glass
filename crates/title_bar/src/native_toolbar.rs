@@ -751,6 +751,7 @@ impl NativeToolbarController {
                 })
                 .on_cancel(move |_event: &NativeToolbarSearchEvent, window, cx| {
                     window.dismiss_native_panel();
+                    window.blur_native_field_editor();
                     if let Some(workspace) = workspace_for_cancel.upgrade() {
                         if let Some(controller) = workspace
                             .read(cx)
