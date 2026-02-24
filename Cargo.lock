@@ -1297,6 +1297,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smol",
+ "ui",
  "util",
  "workspace",
 ]
@@ -2409,8 +2410,8 @@ dependencies = [
 
 [[package]]
 name = "cef"
-version = "145.1.1+145.0.23"
-source = "git+https://github.com/tauri-apps/cef-rs#db2476fbe15ba15c9e582e3650e3f1e7d7753216"
+version = "145.4.0+145.0.26"
+source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
 dependencies = [
  "cef-dll-sys",
  "libloading 0.9.0",
@@ -2420,8 +2421,8 @@ dependencies = [
 
 [[package]]
 name = "cef-dll-sys"
-version = "145.1.1+145.0.23"
-source = "git+https://github.com/tauri-apps/cef-rs#db2476fbe15ba15c9e582e3650e3f1e7d7753216"
+version = "145.4.0+145.0.26"
+source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
 dependencies = [
  "anyhow",
  "cmake",
@@ -2965,6 +2966,7 @@ dependencies = [
  "db",
  "fs",
  "gpui",
+ "gpui_platform",
  "language",
  "log",
  "node_runtime",
@@ -4425,7 +4427,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "download-cef"
 version = "2.3.0"
-source = "git+https://github.com/tauri-apps/cef-rs#db2476fbe15ba15c9e582e3650e3f1e7d7753216"
+source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
 dependencies = [
  "bzip2",
  "clap",
@@ -4617,6 +4619,7 @@ dependencies = [
  "fs",
  "futures",
  "gpui",
+ "gpui_platform",
  "gpui_tokio",
  "http_client",
  "indoc",
@@ -5111,6 +5114,7 @@ dependencies = [
  "fs",
  "futures",
  "gpui",
+ "gpui_platform",
  "gpui_tokio",
  "handlebars 4.5.0",
  "language",
@@ -5146,7 +5150,7 @@ dependencies = [
 name = "eval_utils"
 version = "0.1.0"
 dependencies = [
- "gpui",
+ "gpui_platform",
  "serde",
  "smol",
 ]
@@ -5263,7 +5267,7 @@ dependencies = [
  "env_logger 0.11.8",
  "extension",
  "fs",
- "gpui",
+ "gpui_platform",
  "language",
  "log",
  "reqwest_client",
@@ -5809,6 +5813,7 @@ version = "0.1.0"
 dependencies = [
  "fs",
  "gpui",
+ "gpui_platform",
 ]
 
 [[package]]
@@ -6727,6 +6732,13 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "gpui_platform"
+version = "0.1.0"
+dependencies = [
+ "gpui",
 ]
 
 [[package]]
@@ -8797,6 +8809,7 @@ dependencies = [
  "fs",
  "futures",
  "gpui",
+ "gpui_platform",
  "language",
  "languages",
  "linkify",
@@ -9191,8 +9204,10 @@ name = "miniprofiler_ui"
 version = "0.1.0"
 dependencies = [
  "gpui",
+ "rpc",
  "serde_json",
  "smol",
+ "theme",
  "util",
  "workspace",
  "zed_actions",
@@ -11537,6 +11552,7 @@ dependencies = [
  "client",
  "futures",
  "gpui",
+ "gpui_platform",
  "http_client",
  "language",
  "node_runtime",
@@ -12390,6 +12406,7 @@ dependencies = [
  "git2",
  "git_hosting_providers",
  "gpui",
+ "gpui_platform",
  "gpui_tokio",
  "http_client",
  "image",
@@ -18682,7 +18699,7 @@ name = "worktree_benchmarks"
 version = "0.1.0"
 dependencies = [
  "fs",
- "gpui",
+ "gpui_platform",
  "settings",
  "worktree",
 ]
@@ -19097,6 +19114,7 @@ dependencies = [
  "git_ui",
  "go_to_line",
  "gpui",
+ "gpui_platform",
  "gpui_tokio",
  "http_client",
  "image",

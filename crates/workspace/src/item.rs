@@ -74,6 +74,7 @@ impl Settings for ItemSettings {
             git_status: tabs.git_status.unwrap()
                 && content
                     .git
+                    .as_ref()
                     .unwrap()
                     .enabled
                     .unwrap()

@@ -1,4 +1,4 @@
-use cloud_api_types::SubmitAgentThreadFeedbackBody;
+use cloud_api_types::{SubmitAgentThreadFeedbackBody, SubmitAgentThreadFeedbackCommentsBody};
 #[cfg(not(target_os = "macos"))]
 use gpui::Corner;
 use gpui::List;
@@ -86,18 +86,28 @@ impl ThreadFeedbackState {
 
         self.comments_editor.take();
 
+        let project = thread.read(cx).project().read(cx);
+        let client = project.client();
+        let user_store = project.user_store();
+        let organization = user_store.read(cx).current_organization();
+
         let session_id = thread.read(cx).session_id().clone();
         let agent_telemetry_id = thread.read(cx).connection().telemetry_id();
         let task = telemetry.thread_data(&session_id, cx);
         cx.background_spawn(async move {
             let thread = task.await?;
-            telemetry::event!(
-                "Agent Thread Feedback Comments",
-                agent = agent_telemetry_id,
-                session_id = session_id,
-                comments = comments,
-                thread = thread
-            );
+
+            client
+                .cloud_client()
+                .submit_agent_feedback_comments(SubmitAgentThreadFeedbackCommentsBody {
+                    organization_id: organization.map(|organization| organization.id.clone()),
+                    agent: agent_telemetry_id.to_string(),
+                    session_id: session_id.to_string(),
+                    comments,
+                    thread,
+                })
+                .await?;
+
             anyhow::Ok(())
         })
         .detach_and_log_err(cx);
@@ -292,7 +302,7 @@ impl AcpThreadView {
         thread_store: Option<Entity<ThreadStore>>,
         history: Entity<AcpThreadHistory>,
         prompt_store: Option<Entity<PromptStore>>,
-        initial_content: Option<ExternalAgentInitialContent>,
+        initial_content: Option<AgentInitialContent>,
         mut subscriptions: Vec<Subscription>,
         window: &mut Window,
         cx: &mut Context<Self>,
@@ -304,6 +314,8 @@ impl AcpThreadView {
         let history_subscription = cx.observe(&history, |this, history, cx| {
             this.update_recent_history_from_cache(&history, cx);
         });
+
+        let mut should_auto_submit = false;
 
         let message_editor = cx.new(|cx| {
             let mut editor = MessageEditor::new(
@@ -325,15 +337,15 @@ impl AcpThreadView {
             );
             if let Some(content) = initial_content {
                 match content {
-                    ExternalAgentInitialContent::ThreadSummary(entry) => {
+                    AgentInitialContent::ThreadSummary(entry) => {
                         editor.insert_thread_summary(entry, window, cx);
                     }
-                    ExternalAgentInitialContent::Text(prompt) => {
-                        editor.set_message(
-                            vec![acp::ContentBlock::Text(acp::TextContent::new(prompt))],
-                            window,
-                            cx,
-                        );
+                    AgentInitialContent::ContentBlock {
+                        blocks,
+                        auto_submit,
+                    } => {
+                        should_auto_submit = auto_submit;
+                        editor.set_message(blocks, window, cx);
                     }
                 }
             }
@@ -370,7 +382,7 @@ impl AcpThreadView {
 
         let recent_history_entries = history.read(cx).get_recent_sessions(3);
 
-        Self {
+        let mut this = Self {
             id,
             parent_id,
             focus_handle: cx.focus_handle(),
@@ -434,7 +446,11 @@ impl AcpThreadView {
             history,
             _history_subscription: history_subscription,
             show_codex_windows_warning,
+        };
+        if should_auto_submit {
+            this.send(window, cx);
         }
+        this
     }
 
     pub fn handle_message_editor_event(
@@ -1392,11 +1408,34 @@ impl AcpThreadView {
         let thread = &self.thread;
         let telemetry = ActionLogTelemetry::from(thread.read(cx));
         let action_log = thread.read(cx).action_log().clone();
+        let has_changes = action_log.read(cx).changed_buffers(cx).len() > 0;
+
         action_log
             .update(cx, |action_log, cx| {
                 action_log.reject_all_edits(Some(telemetry), cx)
             })
             .detach();
+
+        if has_changes {
+            if let Some(workspace) = self.workspace.upgrade() {
+                workspace.update(cx, |workspace, cx| {
+                    crate::ui::show_undo_reject_toast(workspace, action_log, cx);
+                });
+            }
+        }
+    }
+
+    pub fn undo_last_reject(
+        &mut self,
+        _: &UndoLastReject,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let thread = &self.thread;
+        let action_log = thread.read(cx).action_log().clone();
+        action_log
+            .update(cx, |action_log, cx| action_log.undo_last_reject(cx))
+            .detach()
     }
 
     pub fn open_edited_buffer(
@@ -1948,6 +1987,7 @@ impl AcpThreadView {
                                         Some(telemetry.clone()),
                                         cx,
                                     )
+                                    .0
                                     .detach_and_log_err(cx);
                             })
                         }
@@ -7679,6 +7719,7 @@ impl Render for AcpThreadView {
             }))
             .on_action(cx.listener(Self::keep_all))
             .on_action(cx.listener(Self::reject_all))
+            .on_action(cx.listener(Self::undo_last_reject))
             .on_action(cx.listener(Self::allow_always))
             .on_action(cx.listener(Self::allow_once))
             .on_action(cx.listener(Self::reject_once))
@@ -7939,6 +7980,7 @@ pub(crate) fn open_link(
             }
             MentionUri::Diagnostics { .. } => {}
             MentionUri::TerminalSelection { .. } => {}
+            MentionUri::GitDiff { .. } => {}
         })
     } else {
         cx.open_url(&url);

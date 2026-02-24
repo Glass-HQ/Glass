@@ -31,7 +31,7 @@ use collections::HashSet;
 use edit_prediction::EditPredictionStore;
 use futures::channel::mpsc;
 use futures::{SinkExt as _, StreamExt as _};
-use gpui::{AppContext as _, Application, BackgroundExecutor, Task};
+use gpui::{AppContext as _, BackgroundExecutor, Task};
 use zeta_prompt::ZetaFormat;
 
 use reqwest_client::ReqwestClient;
@@ -851,7 +851,7 @@ fn main() {
     }
 
     let http_client = Arc::new(ReqwestClient::new());
-    let app = Application::headless().with_http_client(http_client);
+    let app = gpui::Application::headless().with_http_client(http_client);
 
     app.run(move |cx| {
         let app_state = Arc::new(headless::init(cx));

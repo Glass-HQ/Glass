@@ -15,7 +15,7 @@ workspace = true
 tracy = ["ztracing/tracy"]
 test-support = [
     "gpui/test-support",
-    "gpui/screen-capture",
+    "gpui_platform/screen-capture",
     "dep:image",
     "dep:semver",
     "workspace/test-support",
@@ -29,7 +29,7 @@ test-support = [
 ]
 visual-tests = [
     "gpui/test-support",
-    "gpui/screen-capture",
+    "gpui_platform/screen-capture",
     "dep:image",
     "dep:semver",
     "dep:tempfile",
@@ -119,9 +119,8 @@ system_specs.workspace = true
 gpui = { workspace = true, features = [
     "wayland",
     "x11",
-    "font-kit",
-    "windows-manifest",
 ] }
+gpui_platform = {workspace = true, features=["screen-capture", "font-kit", "wayland", "x11"]}
 image = { workspace = true, optional = true }
 semver = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
@@ -234,7 +233,7 @@ ashpd.workspace = true
 [dev-dependencies]
 dap = { workspace = true, features = ["test-support"] }
 editor = { workspace = true, features = ["test-support"] }
-gpui = { workspace = true, features = ["test-support", "screen-capture"] }
+gpui = { workspace = true, features = ["test-support"] }
 image_viewer = { workspace = true, features = ["test-support"] }
 itertools.workspace = true
 language = { workspace = true, features = ["test-support"] }

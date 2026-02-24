@@ -1,8 +1,8 @@
 use crate::{
-    ContextServerRegistry, CopyPathTool, CreateDirectoryTool, DbLanguageModel, DbThread,
-    DeletePathTool, DiagnosticsTool, EditFileTool, FetchTool, FindPathTool, GrepTool,
-    ListDirectoryTool, MovePathTool, NowTool, OpenTool, ProjectSnapshot, ReadFileTool,
-    RestoreFileFromDiskTool, SaveFileTool, StreamingEditFileTool, SubagentTool,
+    AgentGitWorktreeInfo, ContextServerRegistry, CopyPathTool, CreateDirectoryTool,
+    DbLanguageModel, DbThread, DeletePathTool, DiagnosticsTool, EditFileTool, FetchTool,
+    FindPathTool, GrepTool, ListDirectoryTool, MovePathTool, NowTool, OpenTool, ProjectSnapshot,
+    ReadFileTool, RestoreFileFromDiskTool, SaveFileTool, StreamingEditFileTool, SubagentTool,
     SystemPromptTemplate, Template, Templates, TerminalTool, ToolPermissionDecision, WebSearchTool,
     decide_permission_from_settings,
 };
@@ -61,7 +61,6 @@ use uuid::Uuid;
 const TOOL_CANCELED_MESSAGE: &str = "Tool canceled by user";
 pub const MAX_TOOL_NAME_LENGTH: usize = 64;
 pub const MAX_SUBAGENT_DEPTH: u8 = 4;
-pub const MAX_PARALLEL_SUBAGENTS: usize = 8;
 
 /// Context passed to a subagent thread for lifecycle management
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -216,6 +215,7 @@ impl UserMessage {
         const OPEN_RULES_TAG: &str =
             "<rules>\nThe user has specified the following rules that should be applied:\n";
         const OPEN_DIAGNOSTICS_TAG: &str = "<diagnostics>";
+        const OPEN_DIFFS_TAG: &str = "<diffs>";
 
         let mut file_context = OPEN_FILES_TAG.to_string();
         let mut directory_context = OPEN_DIRECTORIES_TAG.to_string();
@@ -225,6 +225,7 @@ impl UserMessage {
         let mut fetch_context = OPEN_FETCH_TAG.to_string();
         let mut rules_context = OPEN_RULES_TAG.to_string();
         let mut diagnostics_context = OPEN_DIAGNOSTICS_TAG.to_string();
+        let mut diffs_context = OPEN_DIFFS_TAG.to_string();
 
         for chunk in &self.content {
             let chunk = match chunk {
@@ -320,6 +321,18 @@ impl UserMessage {
                             )
                             .ok();
                         }
+                        MentionUri::GitDiff { base_ref } => {
+                            write!(
+                                &mut diffs_context,
+                                "\nBranch diff against {}:\n{}",
+                                base_ref,
+                                MarkdownCodeBlock {
+                                    tag: "diff",
+                                    text: content
+                                }
+                            )
+                            .ok();
+                        }
                     }
 
                     language_model::MessageContent::Text(uri.as_link().to_string())
@@ -357,6 +370,13 @@ impl UserMessage {
             message
                 .content
                 .push(language_model::MessageContent::Text(selection_context));
+        }
+
+        if diffs_context.len() > OPEN_DIFFS_TAG.len() {
+            diffs_context.push_str("</diffs>\n");
+            message
+                .content
+                .push(language_model::MessageContent::Text(diffs_context));
         }
 
         if thread_context.len() > OPEN_THREADS_TAG.len() {
@@ -581,7 +601,7 @@ pub trait TerminalHandle {
 
 pub trait SubagentHandle {
     fn id(&self) -> acp::SessionId;
-    fn wait_for_summary(&self, summary_prompt: String, cx: &AsyncApp) -> Task<Result<String>>;
+    fn wait_for_output(&self, cx: &AsyncApp) -> Task<Result<String>>;
 }
 
 pub trait ThreadEnvironment {
@@ -599,7 +619,6 @@ pub trait ThreadEnvironment {
         label: String,
         initial_prompt: String,
         timeout: Option<Duration>,
-        allowed_tools: Option<Vec<String>>,
         cx: &mut App,
     ) -> Result<Rc<dyn SubagentHandle>>;
 }
@@ -870,6 +889,8 @@ pub struct Thread {
     subagent_context: Option<SubagentContext>,
     /// Weak references to running subagent threads for cancellation propagation
     running_subagents: Vec<WeakEntity<Thread>>,
+    /// Git worktree info if this thread is running in an agent worktree.
+    git_worktree_info: Option<AgentGitWorktreeInfo>,
 }
 
 impl Thread {
@@ -960,6 +981,7 @@ impl Thread {
             imported: false,
             subagent_context: None,
             running_subagents: Vec::new(),
+            git_worktree_info: None,
         }
     }
 
@@ -1184,6 +1206,7 @@ impl Thread {
             imported: db_thread.imported,
             subagent_context: db_thread.subagent_context,
             running_subagents: Vec::new(),
+            git_worktree_info: db_thread.git_worktree_info,
         }
     }
 
@@ -1204,6 +1227,7 @@ impl Thread {
             profile: Some(self.profile_id.clone()),
             imported: self.imported,
             subagent_context: self.subagent_context.clone(),
+            git_worktree_info: self.git_worktree_info.clone(),
         };
 
         cx.background_spawn(async move {
@@ -1302,7 +1326,7 @@ impl Thread {
 
     pub fn add_default_tools(
         &mut self,
-        allowed_tool_names: Option<Vec<&str>>,
+        allowed_tool_names: Option<Vec<SharedString>>,
         environment: Rc<dyn ThreadEnvironment>,
         cx: &mut Context<Self>,
     ) {
@@ -1396,8 +1420,14 @@ impl Thread {
         }
     }
 
-    pub fn add_tool<T: AgentTool>(&mut self, tool: T, allowed_tool_names: Option<&Vec<&str>>) {
-        if allowed_tool_names.is_some_and(|tool_names| !tool_names.contains(&T::NAME)) {
+    pub fn add_tool<T: AgentTool>(
+        &mut self,
+        tool: T,
+        allowed_tool_names: Option<&Vec<SharedString>>,
+    ) {
+        if allowed_tool_names
+            .is_some_and(|tool_names| !tool_names.iter().any(|x| x.as_str() == T::NAME))
+        {
             return;
         }
 
@@ -2588,13 +2618,6 @@ impl Thread {
             .iter()
             .filter_map(|s| s.upgrade().map(|s| s.read(cx).id().clone()))
             .collect()
-    }
-
-    pub fn running_subagent_count(&self) -> usize {
-        self.running_subagents
-            .iter()
-            .filter(|s| s.upgrade().is_some())
-            .count()
     }
 
     pub fn is_subagent(&self) -> bool {
