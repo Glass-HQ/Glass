@@ -1249,7 +1249,15 @@ impl HeadlessProject {
         let (deltas, now_nanos) = cx.update(|cx| {
             let dispatcher = cx.foreground_executor().dispatcher();
             let timings = if foreground_only {
-                vec![dispatcher.get_current_thread_timings()]
+                let task_timings = dispatcher.get_current_thread_timings();
+                vec![gpui::ThreadTaskTimings {
+                    thread_name: std::thread::current()
+                        .name()
+                        .map(str::to_string),
+                    thread_id: std::thread::current().id(),
+                    total_pushed: task_timings.len() as u64,
+                    timings: task_timings,
+                }]
             } else {
                 dispatcher.get_all_timings()
             };
