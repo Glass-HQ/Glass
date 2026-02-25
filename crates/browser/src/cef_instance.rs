@@ -337,21 +337,27 @@ impl CefInstance {
             }
         }
 
-        // Set framework_dir_path and main_bundle_path when not running from a bundle
-        // (e.g. cargo run with CEF_PATH)
+        // Set framework_dir_path and main_bundle_path only when not running from a
+        // bundle (e.g. cargo run with CEF_PATH). When running from a .app bundle, CEF
+        // discovers the bundle automatically via NSBundle; setting main_bundle_path to
+        // the wrong directory (Contents/MacOS/) would cause CEF to fail reading the
+        // CFBundleIdentifier.
         #[cfg(target_os = "macos")]
         {
-            if let Some(cef_dir) = resolve_cef_dir_from_env() {
-                let fw_path = cef_dir.join("Chromium Embedded Framework.framework");
-                if fw_path.exists() {
-                    if let Some(fw_str) = fw_path.to_str() {
-                        settings.framework_dir_path = cef::CefString::from(fw_str);
+            let running_from_bundle = CEF_LIBRARY_LOADER.lock().is_some();
+            if !running_from_bundle {
+                if let Some(cef_dir) = resolve_cef_dir_from_env() {
+                    let fw_path = cef_dir.join("Chromium Embedded Framework.framework");
+                    if fw_path.exists() {
+                        if let Some(fw_str) = fw_path.to_str() {
+                            settings.framework_dir_path = cef::CefString::from(fw_str);
+                        }
                     }
-                }
-                if let Ok(exe_path) = std::env::current_exe() {
-                    if let Some(exe_dir) = exe_path.parent() {
-                        if let Some(dir_str) = exe_dir.to_str() {
-                            settings.main_bundle_path = cef::CefString::from(dir_str);
+                    if let Ok(exe_path) = std::env::current_exe() {
+                        if let Some(exe_dir) = exe_path.parent() {
+                            if let Some(dir_str) = exe_dir.to_str() {
+                                settings.main_bundle_path = cef::CefString::from(dir_str);
+                            }
                         }
                     }
                 }

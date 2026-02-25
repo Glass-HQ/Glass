@@ -1,3 +1,7 @@
+# Repository
+
+This is a fork of zed-industries/zed. **NEVER push branches, create PRs, or interact with the upstream `zed-industries/zed` repo.** All branches and PRs must target `Glass-HQ/Glass` only. When using `gh pr create`, always pass `--repo Glass-HQ/Glass`.
+
 # Rust coding guidelines
 
 * Prioritize code correctness and clarity. Speed and efficiency are secondary priorities unless otherwise specified.
