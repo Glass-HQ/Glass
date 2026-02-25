@@ -143,6 +143,7 @@ pub struct BrowserView {
     history: Entity<BrowserHistory>,
     content_bounds: Bounds<Pixels>,
     cef_available: bool,
+    is_tab_owner: bool,
     message_pump_started: bool,
     last_viewport: Option<(u32, u32, u32)>,
     pending_new_tab_urls: Vec<String>,
@@ -150,6 +151,7 @@ pub struct BrowserView {
     new_tab_suggestions: Vec<crate::history::HistoryMatch>,
     new_tab_selected_index: Option<usize>,
     pub(crate) new_tab_search_bounds: Bounds<Pixels>,
+    pending_new_tab_focus: bool,
     context_menu: Option<BrowserContextMenu>,
     pending_context_menu: Option<PendingContextMenu>,
     is_incognito_window: bool,
@@ -199,6 +201,7 @@ impl BrowserView {
             history,
             content_bounds: Bounds::default(),
             cef_available,
+            is_tab_owner: false,
             message_pump_started: false,
             last_viewport: None,
             pending_new_tab_urls: Vec::new(),
@@ -206,6 +209,7 @@ impl BrowserView {
             new_tab_suggestions: Vec::new(),
             new_tab_selected_index: None,
             new_tab_search_bounds: Bounds::default(),
+            pending_new_tab_focus: false,
             context_menu: None,
             pending_context_menu: None,
             is_incognito_window: false,
@@ -238,10 +242,11 @@ impl BrowserView {
         if cef_available {
             this.restore_downloads();
             let already_restored = TABS_RESTORED.swap(true, Ordering::SeqCst);
+            this.is_tab_owner = !already_restored;
             let restored = if !already_restored {
                 this.restore_tabs(cx)
             } else {
-                false
+                this.restore_pinned_tabs(cx)
             };
             if !restored {
                 this.add_tab(cx);
@@ -607,6 +612,16 @@ impl BrowserView {
         );
     }
 
+    fn request_new_tab_search_focus(&mut self, cx: &mut Context<Self>) {
+        let is_new_tab = self
+            .active_tab()
+            .map(|t| t.read(cx).is_new_tab_page())
+            .unwrap_or(false);
+        if is_new_tab {
+            self.pending_new_tab_focus = true;
+        }
+    }
+
     fn sync_bookmark_bar_visibility(&self, cx: &mut Context<Self>) {
         let is_new_tab_page = self
             .active_tab()
@@ -863,6 +878,16 @@ impl Render for BrowserView {
                     }
                 }
             }
+        }
+
+        if self.pending_new_tab_focus {
+            self.pending_new_tab_focus = false;
+            cx.defer_in(window, |_this, window, _cx| {
+                window.focus_native_search_field(
+                    NativeSearchFieldTarget::ContentElement("new-tab-search".into()),
+                    true,
+                );
+            });
         }
 
         // Show/update suggestion panel for new tab page search.

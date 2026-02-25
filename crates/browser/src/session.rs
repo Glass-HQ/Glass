@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use util::ResultExt as _;
 
 const BROWSER_TABS_KEY: &str = "browser_tabs";
+const BROWSER_PINNED_TABS_KEY: &str = "browser_pinned_tabs";
 const BROWSER_HISTORY_KEY: &str = "browser_history";
 const BROWSER_BOOKMARKS_KEY: &str = "browser_bookmarks";
 const BROWSER_DOWNLOADS_KEY: &str = "browser_downloads";
@@ -54,6 +55,19 @@ pub fn restore() -> Option<SerializedBrowserTabs> {
 pub async fn save(json: String) -> anyhow::Result<()> {
     KEY_VALUE_STORE
         .write_kvp(BROWSER_TABS_KEY.to_string(), json)
+        .await
+}
+
+pub fn restore_pinned_tabs() -> Option<Vec<SerializedTab>> {
+    let json = KEY_VALUE_STORE
+        .read_kvp(BROWSER_PINNED_TABS_KEY)
+        .log_err()??;
+    serde_json::from_str(&json).log_err()
+}
+
+pub async fn save_pinned_tabs(json: String) -> anyhow::Result<()> {
+    KEY_VALUE_STORE
+        .write_kvp(BROWSER_PINNED_TABS_KEY.to_string(), json)
         .await
 }
 

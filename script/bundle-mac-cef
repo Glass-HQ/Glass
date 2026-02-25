@@ -71,6 +71,13 @@ cp "$BINARY_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 echo "Copying CEF framework..."
 cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
 
+# Copy component dylibs (CEF 146+ component builds produce separate dylibs)
+DYLIB_COUNT=$(ls "$CEF_PATH"/*.dylib 2>/dev/null | wc -l | tr -d ' ')
+if [[ "$DYLIB_COUNT" -gt 0 ]]; then
+    echo "Copying $DYLIB_COUNT CEF component dylibs..."
+    cp "$CEF_PATH"/*.dylib "$APP_PATH/Contents/Frameworks/"
+fi
+
 # Helper types required by CEF
 HELPERS=("Helper" "Helper (GPU)" "Helper (Renderer)" "Helper (Plugin)" "Helper (Alerts)")
 
@@ -227,7 +234,11 @@ echo "APPL????" > "$APP_PATH/Contents/PkgInfo"
 
 # Ad-hoc code sign (required for running on macOS)
 echo "Code signing bundle..."
-# Sign helpers first (inside out)
+# Sign component dylibs first (innermost)
+for dylib in "$APP_PATH/Contents/Frameworks"/*.dylib; do
+    [ -f "$dylib" ] && codesign --force --sign - "$dylib"
+done
+# Sign helpers (inside out)
 for helper_suffix in "${HELPERS[@]}"; do
     HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
     HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"

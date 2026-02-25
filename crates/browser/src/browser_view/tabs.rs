@@ -226,7 +226,7 @@ impl BrowserView {
         }
 
         self.update_toolbar_active_tab(window, cx);
-        self.focus_omnibox_if_new_tab(window, cx);
+        self.request_new_tab_search_focus(cx);
         self.schedule_save(cx);
         cx.notify();
     }
@@ -307,7 +307,7 @@ impl BrowserView {
     ) {
         self.add_tab(cx);
         self.update_toolbar_active_tab(window, cx);
-        self.focus_omnibox_if_new_tab(window, cx);
+        self.request_new_tab_search_focus(cx);
         cx.notify();
     }
 
@@ -361,7 +361,7 @@ impl BrowserView {
             self.add_tab(cx);
 
             self.update_toolbar_active_tab(window, cx);
-            self.focus_omnibox_if_new_tab(window, cx);
+            self.request_new_tab_search_focus(cx);
             self.schedule_save(cx);
             cx.notify();
             return;
@@ -379,7 +379,7 @@ impl BrowserView {
         self.activate_tab_for_close(cx);
 
         self.update_toolbar_active_tab(window, cx);
-        self.focus_omnibox_if_new_tab(window, cx);
+        self.request_new_tab_search_focus(cx);
         self.schedule_save(cx);
         cx.notify();
     }

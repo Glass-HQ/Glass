@@ -46,6 +46,39 @@ impl BrowserView {
         true
     }
 
+    pub(super) fn restore_pinned_tabs(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.is_incognito_window {
+            return false;
+        }
+
+        let pinned = match session::restore_pinned_tabs() {
+            Some(pinned) if !pinned.is_empty() => pinned,
+            _ => return false,
+        };
+
+        for serialized_tab in &pinned {
+            let url = serialized_tab.url.clone();
+            let title = serialized_tab.title.clone();
+            let is_new_tab_page = serialized_tab.is_new_tab_page;
+            let favicon_url = serialized_tab.favicon_url.clone();
+            let tab = cx.new(|cx| {
+                let mut tab =
+                    BrowserTab::new_with_state(url, title, is_new_tab_page, favicon_url, cx);
+                tab.set_pinned(true);
+                tab
+            });
+            self.configure_tab_request_context(&tab, cx);
+            let subscription = cx.subscribe(&tab, Self::handle_tab_event);
+            self._subscriptions.push(subscription);
+            self.tabs.push(tab);
+        }
+
+        self.sort_tabs_pinned_first(cx);
+        self.add_tab(cx);
+        self.sync_bookmark_bar_visibility(cx);
+        true
+    }
+
     pub(super) fn restore_downloads(&mut self) {
         if self.is_incognito_window {
             self.downloads.clear();
@@ -88,6 +121,29 @@ impl BrowserView {
         serde_json::to_string(&data).log_err()
     }
 
+    pub(super) fn serialize_pinned_tabs(&self, cx: &App) -> String {
+        let pinned: Vec<SerializedTab> = self
+            .tabs
+            .iter()
+            .filter_map(|tab| {
+                let tab = tab.read(cx);
+                if tab.is_pinned() {
+                    Some(SerializedTab {
+                        url: tab.url().to_string(),
+                        title: tab.title().to_string(),
+                        is_new_tab_page: tab.is_new_tab_page(),
+                        is_pinned: true,
+                        favicon_url: tab.favicon_url().map(|s| s.to_string()),
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        serde_json::to_string(&pinned).unwrap_or_else(|_| "[]".to_string())
+    }
+
     pub(super) fn serialize_downloads(&self) -> Option<String> {
         let downloads = self
             .downloads
@@ -103,28 +159,41 @@ impl BrowserView {
             return;
         }
 
+        let is_tab_owner = self.is_tab_owner;
         self._schedule_save = Some(cx.spawn(async move |this, cx| {
             cx.background_executor()
                 .timer(Duration::from_millis(500))
                 .await;
 
-            let (tabs_json, history_json, downloads_json) = this
+            let (tabs_json, pinned_json, history_json, downloads_json) = this
                 .read_with(cx, |this, cx| {
-                    if this.is_incognito_window {
-                        (None, None, None)
-                    } else {
-                        (
-                            this.serialize_tabs(cx),
-                            this.history.read(cx).serialize(),
-                            this.serialize_downloads(),
-                        )
-                    }
+                    (
+                        if is_tab_owner {
+                            this.serialize_tabs(cx)
+                        } else {
+                            None
+                        },
+                        Some(this.serialize_pinned_tabs(cx)),
+                        if is_tab_owner {
+                            this.history.read(cx).serialize()
+                        } else {
+                            None
+                        },
+                        if is_tab_owner {
+                            this.serialize_downloads()
+                        } else {
+                            None
+                        },
+                    )
                 })
                 .ok()
-                .unwrap_or((None, None, None));
+                .unwrap_or((None, None, None, None));
 
             if let Some(json) = tabs_json {
                 session::save(json).await.log_err();
+            }
+            if let Some(json) = pinned_json {
+                session::save_pinned_tabs(json).await.log_err();
             }
             if let Some(json) = history_json {
                 session::save_history(json).await.log_err();
@@ -145,13 +214,28 @@ impl BrowserView {
             return Task::ready(());
         }
 
-        let tabs_json = self.serialize_tabs(cx);
-        let history_json = self.history.read(cx).serialize();
-        let downloads_json = self.serialize_downloads();
+        let tabs_json = if self.is_tab_owner {
+            self.serialize_tabs(cx)
+        } else {
+            None
+        };
+        let pinned_json = self.serialize_pinned_tabs(cx);
+        let history_json = if self.is_tab_owner {
+            self.history.read(cx).serialize()
+        } else {
+            None
+        };
+        let downloads_json = if self.is_tab_owner {
+            self.serialize_downloads()
+        } else {
+            None
+        };
+
         cx.background_spawn(async move {
             if let Some(json) = tabs_json {
                 session::save(json).await.log_err();
             }
+            session::save_pinned_tabs(pinned_json).await.log_err();
             if let Some(json) = history_json {
                 session::save_history(json).await.log_err();
             }
