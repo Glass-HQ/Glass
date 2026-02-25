@@ -20,7 +20,7 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
-            runner: macos-15
+            runner: macos-26
             arch: aarch64
             cef_platform: macosarm64
           # Intel build disabled for now - uncomment to re-enable
