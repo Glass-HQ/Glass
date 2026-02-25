@@ -44,7 +44,7 @@ echo "Building for: $target_triple ($BUILD_TYPE)"
 
 # Build the main application
 echo "Building zed..."
-cargo build $BUILD_FLAG --package zed --target $target_triple
+cargo build $BUILD_FLAG --features mimalloc --package zed --target $target_triple
 
 # Build the helper executable
 echo "Building glass_helper..."
