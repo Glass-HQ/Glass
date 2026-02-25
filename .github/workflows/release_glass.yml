@@ -182,7 +182,7 @@ jobs:
         run: |
           export ZED_BUNDLE=true
           export CXXFLAGS="-stdlib=libc++"
-          cargo build --release --package zed --package cli --target ${{ matrix.target }}
+          cargo build --release --features mimalloc --package zed --package cli --target ${{ matrix.target }}
           cargo build --release --package remote_server --target ${{ matrix.target }}
 
       - name: Build glass_helper
