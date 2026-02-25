@@ -2411,7 +2411,7 @@ dependencies = [
 [[package]]
 name = "cef"
 version = "145.4.0+145.0.26"
-source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
+source = "git+https://github.com/Glass-HQ/cef-rs?branch=cef-146-compat#58b415410dd4f1d2e04829db98172792af6d265a"
 dependencies = [
  "cef-dll-sys",
  "libloading 0.9.0",
@@ -2422,7 +2422,7 @@ dependencies = [
 [[package]]
 name = "cef-dll-sys"
 version = "145.4.0+145.0.26"
-source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
+source = "git+https://github.com/Glass-HQ/cef-rs?branch=cef-146-compat#58b415410dd4f1d2e04829db98172792af6d265a"
 dependencies = [
  "anyhow",
  "cmake",
@@ -4433,7 +4433,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "download-cef"
 version = "2.3.0"
-source = "git+https://github.com/tauri-apps/cef-rs#96269bccc89ac392ecda7a4ca37577cdb04702f5"
+source = "git+https://github.com/Glass-HQ/cef-rs?branch=cef-146-compat#58b415410dd4f1d2e04829db98172792af6d265a"
 dependencies = [
  "bzip2",
  "clap",
@@ -15836,7 +15836,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2fb391ac70462b3097a755618fbf9c8f95ecc1eb379a414f7b46f202ed10db1f"
 dependencies = [
  "cc",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -17748,7 +17748,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

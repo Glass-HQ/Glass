@@ -38,7 +38,7 @@ workspace_modes.workspace = true
 zed_actions.workspace = true
 
 # CEF browser integration
-cef = { git = "https://github.com/tauri-apps/cef-rs", default-features = false }
+cef = { git = "https://github.com/Glass-HQ/cef-rs", branch = "cef-146-compat", default-features = false }
 parking_lot.workspace = true
 image.workspace = true
 log.workspace = true
