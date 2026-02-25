@@ -94,37 +94,29 @@ jobs:
       - name: Generate licenses
         run: script/generate-licenses
 
-      # Cache CEF download to avoid re-downloading on each build
-      - name: Cache CEF framework
-        id: cache-cef
+      # Cache stock CEF 145 headers for building libcef_dll_wrapper
+      - name: Cache CEF build headers
+        id: cache-cef-headers
         uses: actions/cache@v4
         with:
           path: ~/.local/share/cef
-          key: cef-${{ matrix.cef_platform }}-v144
+          key: cef-headers-${{ matrix.cef_platform }}-v145
 
-      - name: Download and extract CEF
+      - name: Download CEF headers for build
         run: |
           CEF_PATH="$HOME/.local/share/cef"
           mkdir -p "$CEF_PATH"
-
-          # Set CEF_PATH for the build
           echo "CEF_PATH=$CEF_PATH" >> $GITHUB_ENV
 
-          # Check if CEF is already cached and valid
-          if [ -d "$CEF_PATH/Chromium Embedded Framework.framework" ]; then
-            echo "CEF framework found in cache"
+          if [ -f "$CEF_PATH/include/cef_version.h" ]; then
+            echo "CEF headers found in cache"
           else
-            echo "Downloading CEF from Spotify CDN..."
-
-            # CEF version must match what cef-rs expects (check Cargo.lock: cef version 145.1.1+145.0.23)
+            echo "Downloading stock CEF 145 headers from Spotify CDN..."
             CEF_VERSION="145.0.23"
             CEF_CDN="https://cef-builds.spotifycdn.com"
 
-            # Fetch index to get the exact filename with chromium version
-            echo "Fetching CEF index..."
             INDEX_JSON=$(curl -sL "$CEF_CDN/index.json")
 
-            # Find the minimal archive for the target platform
             if [ "${{ matrix.cef_platform }}" = "macosarm64" ]; then
               CEF_FILE=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .name' | head -1)
               CEF_SHA1=$(echo "$INDEX_JSON" | jq -r '.macosarm64.versions[] | select(.cef_version | startswith("'"$CEF_VERSION"'+")) | .files[] | select(.type == "minimal") | .sha1' | head -1)
@@ -141,48 +133,50 @@ jobs:
             echo "Downloading: $CEF_FILE"
             curl -L -o "/tmp/cef.tar.bz2" "$CEF_CDN/$CEF_FILE"
 
-            # Verify SHA1
             DOWNLOADED_SHA1=$(shasum -a 1 /tmp/cef.tar.bz2 | cut -d' ' -f1)
             if [ "$DOWNLOADED_SHA1" != "$CEF_SHA1" ]; then
               echo "Error: SHA1 mismatch. Expected $CEF_SHA1, got $DOWNLOADED_SHA1"
               exit 1
             fi
-            echo "SHA1 verified: $CEF_SHA1"
 
-            # Extract archive
-            echo "Extracting CEF archive..."
-            cd /tmp
-            tar -xjf cef.tar.bz2
-
-            # Find extracted directory
+            cd /tmp && tar -xjf cef.tar.bz2
             EXTRACTED_DIR=$(ls -d cef_binary_* | head -1)
-            echo "Extracted to: $EXTRACTED_DIR"
 
-            # Copy Release folder contents (contains the framework on macOS)
+            # Copy headers, cmake, and build files (needed by cef-dll-sys)
             cp -R "/tmp/$EXTRACTED_DIR/Release/"* "$CEF_PATH/"
-
-            # Copy other needed files
             cp "/tmp/$EXTRACTED_DIR/CMakeLists.txt" "$CEF_PATH/" || true
             cp -R "/tmp/$EXTRACTED_DIR/cmake" "$CEF_PATH/" || true
             cp -R "/tmp/$EXTRACTED_DIR/include" "$CEF_PATH/" || true
             cp -R "/tmp/$EXTRACTED_DIR/libcef_dll" "$CEF_PATH/" || true
-
-            # Create archive.json for version tracking
             echo '{"type":"minimal","name":"'"$CEF_FILE"'","sha1":"'"$CEF_SHA1"'"}' > "$CEF_PATH/archive.json"
 
-            # Cleanup
             rm -rf /tmp/cef.tar.bz2 "/tmp/$EXTRACTED_DIR"
           fi
 
-          # Verify CEF was downloaded
-          if [ ! -d "$CEF_PATH/Chromium Embedded Framework.framework" ]; then
-            echo "Error: CEF framework not found after download"
-            ls -la "$CEF_PATH"
-            exit 1
-          fi
+          echo "CEF headers ready at: $CEF_PATH"
 
-          echo "CEF framework ready at: $CEF_PATH"
-          ls -la "$CEF_PATH"
+      - name: Download custom CEF framework with proprietary codecs
+        run: |
+          echo "Downloading custom CEF 146 build with proprietary codecs..."
+          CEF_CUSTOM_PATH="/tmp/cef-custom"
+          mkdir -p "$CEF_CUSTOM_PATH"
+
+          # Download from Glass-HQ/cef-builds release
+          gh release download v146.0.0-proprietary \
+            --repo Glass-HQ/cef-builds \
+            --pattern "cef-146-macosarm64-proprietary-codecs.tar.gz" \
+            --dir /tmp
+
+          echo "Extracting custom CEF framework..."
+          tar -xzf /tmp/cef-146-macosarm64-proprietary-codecs.tar.gz -C "$CEF_CUSTOM_PATH"
+
+          echo "CEF_CUSTOM_PATH=$CEF_CUSTOM_PATH" >> $GITHUB_ENV
+
+          echo "Custom CEF framework contents:"
+          ls "$CEF_CUSTOM_PATH/" | head -20
+          echo "... ($(ls "$CEF_CUSTOM_PATH/"*.dylib 2>/dev/null | wc -l) component dylibs)"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Build Glass
         run: |
@@ -259,9 +253,18 @@ jobs:
           # Create Frameworks directory
           mkdir -p "$APP_PATH/Contents/Frameworks"
 
-          # Copy CEF framework
-          echo "Copying CEF framework..."
-          cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+          # Copy custom CEF framework (with proprietary codecs)
+          echo "Copying custom CEF 146 framework with proprietary codecs..."
+          cp -R "$CEF_CUSTOM_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
+
+          # Copy component dylibs (CEF 146 component build produces ~514 separate dylibs)
+          echo "Copying CEF component dylibs..."
+          DYLIB_COUNT=0
+          for dylib in "$CEF_CUSTOM_PATH"/*.dylib; do
+            cp "$dylib" "$APP_PATH/Contents/Frameworks/"
+            DYLIB_COUNT=$((DYLIB_COUNT + 1))
+          done
+          echo "Copied $DYLIB_COUNT component dylibs to Frameworks/"
 
           # Create CEF helper app bundles
           APP_NAME="Glass"
@@ -498,23 +501,29 @@ jobs:
             echo "Signing with Developer ID: $SIGNING_IDENTITY"
             echo "Using entitlements: $ENTITLEMENTS"
 
-            # 1. Sign CEF framework first (innermost)
+            # 1. Sign CEF component dylibs first (innermost, no entitlements)
+            echo "Signing CEF component dylibs..."
+            for dylib in "$APP_PATH/Contents/Frameworks"/*.dylib; do
+              sign_file "$dylib" "$SIGNING_IDENTITY" ""
+            done
+
+            # 2. Sign CEF framework
             sign_framework "$CEF_FRAMEWORK" "$SIGNING_IDENTITY" ""
 
-            # 2. Sign CEF helper apps
+            # 3. Sign CEF helper apps
             for helper_suffix in "${HELPERS[@]}"; do
               HELPER_APP_NAME="${APP_NAME} ${helper_suffix}"
               HELPER_APP_PATH="$APP_PATH/Contents/Frameworks/${HELPER_APP_NAME}.app"
               sign_bundle "$HELPER_APP_PATH" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
             done
 
-            # 3. Sign main app binaries
+            # 4. Sign main app binaries
             echo "Signing main app binaries..."
             sign_file "$APP_PATH/Contents/MacOS/cli" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
             sign_file "$APP_PATH/Contents/MacOS/git" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
             sign_file "$APP_PATH/Contents/MacOS/Glass" "$SIGNING_IDENTITY" "$ENTITLEMENTS"
 
-            # 4. Sign the main app bundle
+            # 5. Sign the main app bundle
             echo "Signing main app bundle..."
             /usr/bin/codesign -f -s "$SIGNING_IDENTITY" --options runtime \
               --entitlements "$ENTITLEMENTS" "$APP_PATH"
@@ -525,6 +534,11 @@ jobs:
 
           else
             echo "No signing certificate available, using ad-hoc signing"
+
+            # Ad-hoc sign CEF component dylibs
+            for dylib in "$APP_PATH/Contents/Frameworks"/*.dylib; do
+              codesign -f -s - "$dylib"
+            done
 
             # Ad-hoc sign CEF framework
             find "$CEF_FRAMEWORK" -type f \( -name "*.dylib" -o -perm +111 \) -exec codesign -f -s - {} \;
