@@ -204,28 +204,10 @@ impl UnifiedSidebar {
 
 #[cfg(target_os = "macos")]
 impl Render for UnifiedSidebar {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         if self.active_mode == ModeId::BROWSER {
             if let Some(view) = &self.browser_sidebar_view {
-                // The browser sidebar replaces the left dock's content, but the
-                // DockButtonBar (segmented control) must remain visible as the top
-                // navigation. Without this, when the browser mode initialises its
-                // sidebar panel the left_dock is removed from the element tree,
-                // destroying the native NSSegmentedControl and making it
-                // unrecoverable until the app is relaunched.
-                let dock_button_bar = self.left_dock.read(cx).dock_button_bar();
-                log::info!(
-                    "UnifiedSidebar: BROWSER+browser_sidebar_view — rendering DockButtonBar as header (present={}), browser panel as content",
-                    dock_button_bar.is_some()
-                );
-                return div()
-                    .size_full()
-                    .flex()
-                    .flex_col()
-                    .overflow_hidden()
-                    .when_some(dock_button_bar, |this, bar| this.child(bar))
-                    .child(div().flex_1().size_full().overflow_hidden().child(view.clone()))
-                    .into_any_element();
+                return div().size_full().child(view.clone()).into_any_element();
             }
         }
         div()
@@ -4948,10 +4930,6 @@ impl Workspace {
 
                 #[cfg(target_os = "macos")]
                 if let Some(sidebar_view) = registered.sidebar_view {
-                    log::info!(
-                        "ensure_mode_view({:?}): setting browser_sidebar_view on UnifiedSidebar — segmented control will move to UnifiedSidebar header",
-                        mode_id
-                    );
                     self.unified_sidebar.update(cx, |sidebar, cx| {
                         sidebar.set_browser_sidebar_view(sidebar_view, cx);
                     });

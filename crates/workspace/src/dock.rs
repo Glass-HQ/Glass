@@ -83,16 +83,11 @@ impl DockButtonBar {
 impl Render for DockButtonBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let Some(workspace) = self.workspace.upgrade() else {
-            log::warn!("DockButtonBar: workspace entity has been dropped, segmented control hidden");
             return div().into_any_element();
         };
 
         let workspace_read = workspace.read(cx);
         if workspace_read.root_paths(cx).is_empty() {
-            log::info!(
-                "DockButtonBar (workspace {:?}): no visible worktrees, segmented control hidden",
-                workspace.entity_id()
-            );
             return div().into_any_element();
         }
 
@@ -589,10 +584,6 @@ impl Dock {
 
     pub fn is_open(&self) -> bool {
         self.is_open
-    }
-
-    pub fn dock_button_bar(&self) -> Option<Entity<DockButtonBar>> {
-        self.dock_button_bar.clone()
     }
 
     fn resizable(&self, cx: &App) -> bool {
