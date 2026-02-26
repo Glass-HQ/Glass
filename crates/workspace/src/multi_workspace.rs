@@ -686,6 +686,9 @@ impl Render for MultiWorkspace {
         self.sync_unified_sidebar(cx);
         let is_zoomed = self.workspace().read(cx).zoomed_item().is_some();
 
+        let ui_font = theme::setup_ui_font(window, cx);
+        let text_color = cx.theme().colors().text;
+
         let workspace = self.workspace().clone();
         let workspace_key_context = workspace.update(cx, |workspace, cx| workspace.key_context(cx));
         let root = workspace.update(cx, |workspace, cx| workspace.actions(h_flex(), window, cx));
@@ -694,6 +697,8 @@ impl Render for MultiWorkspace {
             root.key_context(workspace_key_context)
                 .relative()
                 .size_full()
+                .font(ui_font)
+                .text_color(text_color)
                 .on_action(cx.listener(Self::close_window))
                 .on_action(
                     cx.listener(|this: &mut Self, _: &NewWorkspaceInWindow, window, cx| {
