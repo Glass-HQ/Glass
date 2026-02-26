@@ -20,7 +20,7 @@ pub mod welcome;
 mod workspace_settings;
 
 pub use crate::notifications::NotificationFrame;
-pub use dock::{DeployProjectDiagnostics, Panel};
+pub use dock::{DeployProjectDiagnostics, Panel, ToggleProjectDiagnostics, ToggleProjectSearch};
 pub use multi_workspace::{
     DraggedSidebar, FocusWorkspaceSidebar, MultiWorkspace, NewWorkspaceInWindow,
     NextWorkspaceInWindow, PreviousWorkspaceInWindow, Sidebar, SidebarEvent, SidebarHandle,

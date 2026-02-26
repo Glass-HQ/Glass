@@ -1584,7 +1584,7 @@ impl EditPredictionButton {
 
         window.show_native_popover(
             popover,
-            NativePopoverAnchor::ToolbarItem("glass.status.predictions".into()),
+            NativePopoverAnchor::ToolbarItem("glass.status.dev_tools".into()),
         );
     }
 }

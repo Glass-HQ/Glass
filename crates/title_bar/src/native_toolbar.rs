@@ -516,34 +516,13 @@ impl NativeToolbarController {
                 )));
             }
 
-            let dev_tools_items = vec![
-                NativeToolbarMenuItem::action("Logs").icon("arrow.triangle.2.circlepath"),
-                NativeToolbarMenuItem::action("Language Servers").icon("bolt"),
-                NativeToolbarMenuItem::action("Edit Predictions").icon("sparkles"),
-            ];
-            toolbar = toolbar.item(NativeToolbarItem::MenuButton(
-                NativeToolbarMenuButton::new("glass.status.dev_tools", "", dev_tools_items)
-                    .tool_tip("Developer Tools")
-                    .icon("hammer")
-                    .on_select(|event, window, cx| match event.index {
-                        0 => window.dispatch_action(workspace::OpenLog.boxed_clone(), cx),
-                        1 => window.dispatch_action(
-                            language_tools::lsp_button::ToggleMenu.boxed_clone(),
-                            cx,
-                        ),
-                        2 => window
-                            .dispatch_action(edit_prediction_ui::ToggleMenu.boxed_clone(), cx),
-                        _ => {}
-                    }),
-            ));
-
             toolbar = toolbar.item(NativeToolbarItem::Button(
                 NativeToolbarButton::new("glass.nav.agent", "")
                     .tool_tip("Toggle Agent Panel")
                     .icon("sparkles")
                     .on_click(|_event, window, cx| {
                         window.dispatch_action(
-                            zed_actions::assistant::ToggleFocus.boxed_clone(),
+                            zed_actions::assistant::Toggle.boxed_clone(),
                             cx,
                         );
                     }),
@@ -555,7 +534,7 @@ impl NativeToolbarController {
                     .icon("magnifyingglass")
                     .on_click(|_event, window, cx| {
                         window.dispatch_action(
-                            workspace::DeploySearch::default().boxed_clone(),
+                            workspace::ToggleProjectSearch.boxed_clone(),
                             cx,
                         );
                     }),
@@ -574,7 +553,7 @@ impl NativeToolbarController {
                     .icon(diagnostics_icon)
                     .on_click(|_event, window, cx| {
                         window.dispatch_action(
-                            workspace::DeployProjectDiagnostics.boxed_clone(),
+                            workspace::ToggleProjectDiagnostics.boxed_clone(),
                             cx,
                         );
                     }),
@@ -585,7 +564,7 @@ impl NativeToolbarController {
                     .tool_tip("Toggle Debug Panel")
                     .icon("ladybug")
                     .on_click(|_event, window, cx| {
-                        window.dispatch_action(zed_actions::ToggleFocus.boxed_clone(), cx);
+                        window.dispatch_action(zed_actions::Toggle.boxed_clone(), cx);
                     }),
             ));
         }
@@ -609,6 +588,29 @@ impl NativeToolbarController {
 
         if !is_signed_in && title_bar_settings.show_sign_in {
             toolbar = toolbar.item(self.build_sign_in_item(cx));
+        }
+
+        {
+            let dev_tools_items = vec![
+                NativeToolbarMenuItem::action("Logs").icon("arrow.triangle.2.circlepath"),
+                NativeToolbarMenuItem::action("Language Servers").icon("bolt"),
+                NativeToolbarMenuItem::action("Edit Predictions").icon("sparkles"),
+            ];
+            toolbar = toolbar.item(NativeToolbarItem::MenuButton(
+                NativeToolbarMenuButton::new("glass.status.dev_tools", "", dev_tools_items)
+                    .tool_tip("Developer Tools")
+                    .icon("hammer")
+                    .on_select(|event, window, cx| match event.index {
+                        0 => window.dispatch_action(workspace::OpenLog.boxed_clone(), cx),
+                        1 => window.dispatch_action(
+                            language_tools::lsp_button::ToggleMenu.boxed_clone(),
+                            cx,
+                        ),
+                        2 => window
+                            .dispatch_action(edit_prediction_ui::ToggleMenu.boxed_clone(), cx),
+                        _ => {}
+                    }),
+            ));
         }
 
         if title_bar_settings.show_user_menu {

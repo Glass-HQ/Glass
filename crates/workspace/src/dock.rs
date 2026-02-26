@@ -40,7 +40,11 @@ actions!(
     workspace,
     [
         /// Opens the project diagnostics view from the dock button bar.
-        DeployProjectDiagnostics
+        DeployProjectDiagnostics,
+        /// Toggles the project search view open or closed.
+        ToggleProjectSearch,
+        /// Toggles the project diagnostics view open or closed.
+        ToggleProjectDiagnostics,
     ]
 );
 
