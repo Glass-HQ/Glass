@@ -45,7 +45,7 @@ pub use toolbar_controls::ToolbarControls;
 use ui::{Icon, IconName, Label, h_flex, prelude::*};
 use util::ResultExt;
 use workspace::{
-    ItemNavHistory, Workspace,
+    ItemNavHistory, SaveIntent, Workspace,
     item::{Item, ItemEvent, ItemHandle, SaveOptions, TabContentParams},
     searchable::SearchableItemHandle,
 };
@@ -55,6 +55,8 @@ actions!(
     [
         /// Opens the project diagnostics view.
         Deploy,
+        /// Toggles the project diagnostics view open or closed.
+        Toggle,
         /// Toggles the display of warning-level diagnostics.
         ToggleWarnings,
         /// Toggles automatic refresh of diagnostics.
@@ -163,6 +165,7 @@ impl ProjectDiagnosticsEditor {
         _: &mut Context<Workspace>,
     ) {
         workspace.register_action(Self::deploy);
+        workspace.register_action(Self::toggle);
     }
 
     fn new(
@@ -411,6 +414,31 @@ impl ProjectDiagnosticsEditor {
                 )
             });
             workspace.add_item_to_active_pane(Box::new(diagnostics), None, true, window, cx);
+        }
+    }
+
+    fn toggle(
+        workspace: &mut Workspace,
+        _: &Toggle,
+        window: &mut Window,
+        cx: &mut Context<Workspace>,
+    ) {
+        if let Some(existing) = workspace.item_of_type::<ProjectDiagnosticsEditor>(cx) {
+            let is_active = workspace
+                .active_item(cx)
+                .is_some_and(|item| item.item_id() == existing.item_id());
+            if is_active {
+                let entity_id = existing.entity_id();
+                let pane = workspace.active_pane().clone();
+                pane.update(cx, |pane, cx| {
+                    pane.close_item_by_id(entity_id, SaveIntent::Close, window, cx)
+                        .detach();
+                });
+            } else {
+                workspace.activate_item(&existing, true, true, window, cx);
+            }
+        } else {
+            Self::deploy(workspace, &Deploy, window, cx);
         }
     }
 

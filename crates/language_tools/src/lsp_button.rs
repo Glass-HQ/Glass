@@ -1337,7 +1337,7 @@ impl LspButton {
 
         window.show_native_popover(
             popover,
-            NativePopoverAnchor::ToolbarItem("glass.status.lsp".into()),
+            NativePopoverAnchor::ToolbarItem("glass.status.dev_tools".into()),
         );
     }
 }

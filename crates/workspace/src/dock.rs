@@ -40,7 +40,11 @@ actions!(
     workspace,
     [
         /// Opens the project diagnostics view from the dock button bar.
-        DeployProjectDiagnostics
+        DeployProjectDiagnostics,
+        /// Toggles the project search view open or closed.
+        ToggleProjectSearch,
+        /// Toggles the project diagnostics view open or closed.
+        ToggleProjectDiagnostics,
     ]
 );
 
@@ -55,27 +59,10 @@ pub struct DockButtonBar {
 }
 
 impl DockButtonBar {
-    pub fn new(
-        workspace: WeakEntity<Workspace>,
-        project: &Entity<project::Project>,
-        cx: &mut App,
-    ) -> Entity<Self> {
-        let project = project.clone();
-        cx.new(|cx| {
-            let subscription = cx.subscribe(&project, |_this, _project, event, cx| {
-                if matches!(
-                    event,
-                    project::Event::DiagnosticsUpdated { .. }
-                        | project::Event::DiskBasedDiagnosticsFinished { .. }
-                        | project::Event::LanguageServerRemoved(_)
-                ) {
-                    cx.notify();
-                }
-            });
-            Self {
-                workspace,
-                _subscriptions: vec![subscription],
-            }
+    pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
+        cx.new(|_cx| Self {
+            workspace,
+            _subscriptions: vec![],
         })
     }
 }
@@ -119,6 +106,10 @@ impl Render for DockButtonBar {
 
             for (i, entry) in dock.panel_entries.iter().enumerate() {
                 let panel = &entry.panel;
+                // Skip the agent panel — it has a dedicated button in the native toolbar.
+                if panel.persistent_name() == "AgentPanel" {
+                    continue;
+                }
                 let Some(icon) = panel.icon(window, cx) else {
                     continue;
                 };
@@ -139,27 +130,7 @@ impl Render for DockButtonBar {
             }
         }
 
-        // Add search and diagnostics as extra segments
-        let search_segment_index = panel_labels.len();
-        panel_labels.push("Project Search".into());
-        panel_symbols.push("magnifyingglass".into());
-
-        let summary = workspace_read
-            .project()
-            .read(cx)
-            .diagnostic_summary(false, cx);
-        let diagnostics_segment_index = panel_labels.len();
-        let diagnostics_symbol = if summary.error_count > 0 {
-            "xmark.circle"
-        } else if summary.warning_count > 0 {
-            "exclamationmark.triangle"
-        } else {
-            "checkmark.circle"
-        };
-        panel_labels.push("Project Diagnostics".into());
-        panel_symbols.push(diagnostics_symbol.into());
-
-        // Build the segmented control: [Workspaces] [panels...] [Search] [Diagnostics]
+        // Build the segmented control: [Workspaces] [panels...]
         let workspace_segment_index: usize = 0;
         let callback_panel_ids = panel_ids.clone();
         let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
@@ -191,15 +162,6 @@ impl Render for DockButtonBar {
 
                     if event.index == workspace_segment_index {
                         window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
-                    } else if event.index == search_segment_index {
-                        if let Some(workspace) = this.workspace.upgrade() {
-                            workspace.update(cx, |_workspace, cx| {
-                                window
-                                    .dispatch_action(Box::new(crate::DeploySearch::default()), cx);
-                            });
-                        }
-                    } else if event.index == diagnostics_segment_index {
-                        window.dispatch_action(Box::new(DeployProjectDiagnostics), cx);
                     } else if let Some(panel_id) = callback_panel_ids.get(event.index - 1).copied()
                     {
                         if let Some(workspace) = this.workspace.upgrade() {

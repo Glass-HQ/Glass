@@ -90,6 +90,7 @@ use workspace_modes::ModeId;
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
     WorkspaceSettings, create_and_open_local_file,
+    item::ItemHandle,
     notifications::simple_message_notification::MessageNotification, open_new,
 };
 use workspace::{
@@ -443,6 +444,42 @@ pub fn initialize_workspace(
         workspace.register_action(
             |_workspace, _: &workspace::DeployProjectDiagnostics, window, cx| {
                 window.dispatch_action(diagnostics::Deploy.boxed_clone(), cx);
+            },
+        );
+        workspace.register_action(
+            |_workspace, _: &workspace::ToggleProjectDiagnostics, window, cx| {
+                window.dispatch_action(diagnostics::Toggle.boxed_clone(), cx);
+            },
+        );
+        workspace.register_action(
+            |workspace, _: &workspace::ToggleProjectSearch, window, cx| {
+                if let Some(existing) =
+                    workspace.item_of_type::<search::project_search::ProjectSearchView>(cx)
+                {
+                    let is_active = workspace
+                        .active_item(cx)
+                        .is_some_and(|item| item.item_id() == existing.item_id());
+                    if is_active {
+                        let entity_id = existing.entity_id();
+                        let pane = workspace.active_pane().clone();
+                        pane.update(cx, |pane, cx| {
+                            pane.close_item_by_id(
+                                entity_id,
+                                workspace::SaveIntent::Close,
+                                window,
+                                cx,
+                            )
+                            .detach();
+                        });
+                    } else {
+                        workspace.activate_item(&existing, true, true, window, cx);
+                    }
+                } else {
+                    window.dispatch_action(
+                        workspace::DeploySearch::default().boxed_clone(),
+                        cx,
+                    );
+                }
             },
         );
 
