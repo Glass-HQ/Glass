@@ -23,7 +23,7 @@ impl BrowserView {
     }
 
     pub fn open_url(&mut self, url: &str, cx: &mut Context<Self>) {
-        log::info!(
+        log::trace!(
             "[default-browser] BrowserView::open_url called with: {}, message_pump_started: {}, last_viewport: {:?}",
             url,
             self.message_pump_started,
@@ -195,7 +195,7 @@ impl BrowserView {
             let is_new_tab_page = new_tab.read(cx).is_new_tab_page();
             let has_browser = new_tab.read(cx).has_browser();
             let url = new_tab.read(cx).url().to_string();
-            log::info!(
+            log::trace!(
                 "[browser::tabs] switch_to_tab: index={}, url={}, new_tab_page={}, browser={}, suspended={}",
                 index, url, is_new_tab_page, has_browser, is_suspended,
             );
@@ -243,7 +243,7 @@ impl BrowserView {
                             tab.set_scale_factor(scale_factor);
                             tab.set_size(width, height);
                             let url = tab.url().to_string();
-                            log::info!("[browser::tabs] creating browser for tab: {}", url);
+                            log::trace!("[browser::tabs] creating browser for tab: {}", url);
                             if let Err(e) = tab.create_browser(&url) {
                                 log::error!(
                                     "[browser::tabs] Failed to create browser on tab switch: {}",
@@ -424,7 +424,7 @@ impl BrowserView {
             return;
         };
 
-        log::info!(
+        log::trace!(
             "[browser::tabs] close_pinned_tab: url={}, index={}",
             tab.read(cx).url(),
             self.active_tab_index,
