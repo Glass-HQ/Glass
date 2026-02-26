@@ -40,7 +40,7 @@ pub(crate) fn close_all_browsers() -> usize {
     let handles = BROWSER_HANDLES.lock().take().unwrap_or_default();
     let count = handles.len();
     if count > 0 {
-        log::info!(
+        log::trace!(
             "[browser::tab] close_all_browsers: closing {} browser(s)",
             count,
         );
@@ -50,14 +50,14 @@ pub(crate) fn close_all_browsers() -> usize {
         match browser.host() {
             Some(host) => {
                 let ready_to_close = host.is_ready_to_be_closed();
-                log::info!(
+                log::trace!(
                     "[browser::tab] close_all_browsers: id={} is_valid={} ready_to_close={}, requesting close",
                     id, is_valid, ready_to_close,
                 );
                 host.close_browser(1);
             }
             None => {
-                log::info!(
+                log::trace!(
                     "[browser::tab] close_all_browsers: id={} is_valid={} no host",
                     id, is_valid,
                 );
@@ -235,7 +235,7 @@ impl BrowserTab {
 
     pub fn create_browser(&mut self, initial_url: &str) -> Result<()> {
         if self.browser_id.is_some() {
-            log::info!(
+            log::trace!(
                 "[browser::tab] create_browser: SKIPPED (already has browser), url={}",
                 initial_url,
             );
@@ -274,7 +274,7 @@ impl BrowserTab {
             if let Some(context) = host.request_context() {
                 let is_global = context.is_global() != 0;
                 let has_cookie_manager = context.cookie_manager(None).is_some();
-                log::info!(
+                log::trace!(
                     "[browser::tab] Created browser id={} url={} | context: is_global={}, has_cookie_manager={}",
                     browser_id, initial_url, is_global, has_cookie_manager,
                 );
@@ -353,7 +353,7 @@ impl BrowserTab {
             })
             .unwrap_or(false);
 
-        log::info!(
+        log::trace!(
             "[browser::tab] SUSPEND: browser_id={:?}, url={}, handle_in_registry={}",
             browser_id,
             self.url,
@@ -396,7 +396,7 @@ impl BrowserTab {
             })
             .flatten();
 
-        log::info!(
+        log::trace!(
             "[browser::tab] RESUME: browser_id={:?}, url={}, handle_in_registry={}, context={:?}",
             browser_id,
             url,
@@ -423,7 +423,7 @@ impl BrowserTab {
         if self.with_browser(|browser| browser.reload()).is_some() {
             self.is_loading = true;
         } else {
-            log::info!(
+            log::trace!(
                 "[browser] reload called but no browser exists, url={}",
                 self.url,
             );
@@ -674,7 +674,7 @@ impl BrowserTab {
                 let is_valid = browser.is_valid();
                 if let Some(host) = browser.host() {
                     let ready_to_close = host.is_ready_to_be_closed();
-                    log::info!(
+                    log::trace!(
                         "[browser::tab] close_browser: id={} url={} is_valid={} ready_to_close={}",
                         browser_id, self.url, is_valid, ready_to_close,
                     );
@@ -720,12 +720,12 @@ impl Drop for BrowserTab {
             // remove returns None and we skip all CEF API calls.
             let browser = BROWSER_HANDLES.lock().as_mut().and_then(|m| m.remove(&browser_id));
             if let Some(browser) = browser {
-                log::info!(
+                log::trace!(
                     "[browser::tab] Drop: id={} url={} is_valid={}",
                     browser_id, self.url, browser.is_valid(),
                 );
                 if let Some(host) = browser.host() {
-                    log::info!(
+                    log::trace!(
                         "[browser::tab] Drop: id={} ready_to_close={}, calling close_browser(1)",
                         browser_id, host.is_ready_to_be_closed(),
                     );
