@@ -934,10 +934,6 @@ impl Sidebar {
     fn update_entries(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let multi_workspace = self.multi_workspace.clone();
         cx.defer_in(window, move |this, window, cx| {
-            if !this.multi_workspace.read(cx).multi_workspace_enabled(cx) {
-                return;
-            }
-
             this._project_subscriptions = this.subscribe_to_projects(window, cx);
             this._agent_panel_subscriptions = this.subscribe_to_agent_panels(window, cx);
             this._thread_subscriptions = this.subscribe_to_threads(window, cx);
@@ -997,7 +993,6 @@ impl Render for Sidebar {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use feature_flags::FeatureFlagAppExt as _;
     use fs::FakeFs;
     use gpui::TestAppContext;
     use settings::SettingsStore;
@@ -1008,7 +1003,6 @@ mod tests {
             cx.set_global(settings_store);
             theme::init(theme::LoadThemes::JustBase, cx);
             editor::init(cx);
-            cx.update_flags(false, vec!["agent-v2".into()]);
         });
     }
 

@@ -30,7 +30,7 @@ use agent_settings::{AgentProfileId, AgentSettings};
 use assistant_slash_command::SlashCommandRegistry;
 use client::Client;
 use command_palette_hooks::CommandPaletteFilter;
-use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt as _};
+use feature_flags::FeatureFlagAppExt as _;
 use fs::Fs;
 use gpui::{Action, App, Context, Entity, SharedString, Window, actions};
 use language::{
@@ -346,7 +346,6 @@ pub fn init(
 fn update_command_palette_filter(cx: &mut App) {
     let disable_ai = DisableAiSettings::get_global(cx).disable_ai;
     let agent_enabled = AgentSettings::get_global(cx).enabled;
-    let agent_v2_enabled = cx.has_flag::<AgentV2FeatureFlag>();
     let edit_prediction_provider = AllLanguageSettings::get_global(cx)
         .edit_predictions
         .provider;
@@ -426,11 +425,7 @@ fn update_command_palette_filter(cx: &mut App) {
             filter.show_action_types(&[TypeId::of::<zed_actions::OpenZedPredictOnboarding>()]);
         }
 
-        if agent_v2_enabled {
-            filter.show_namespace("multi_workspace");
-        } else {
-            filter.hide_namespace("multi_workspace");
-        }
+        filter.show_namespace("multi_workspace");
     });
 }
 

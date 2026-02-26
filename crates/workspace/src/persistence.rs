@@ -2417,7 +2417,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4062,7 +4061,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4113,7 +4111,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4166,7 +4163,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4216,7 +4212,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4288,7 +4283,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());
@@ -4392,7 +4386,6 @@ mod tests {
 
         cx.update(|cx| {
             cx.set_staff(true);
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
         });
 
         let fs = fs::FakeFs::new(cx.executor());

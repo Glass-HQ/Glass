@@ -169,6 +169,8 @@ cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
     <string>6.0</string>
     <key>LSMinimumSystemVersion</key>
     <string>11.0</string>
+    <key>CFBundleIconFile</key>
+    <string>app-icon</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
@@ -231,6 +233,36 @@ PLIST
 
 # Create PkgInfo
 echo "APPL????" > "$APP_PATH/Contents/PkgInfo"
+
+# Copy app icon (select based on release channel)
+echo "Creating app icon..."
+ICON_DIR="crates/zed/resources"
+RELEASE_CHANNEL="${RELEASE_CHANNEL:-dev}"
+case "$RELEASE_CHANNEL" in
+    stable)  ICON_SUFFIX="" ;;
+    preview) ICON_SUFFIX="-preview" ;;
+    nightly) ICON_SUFFIX="-nightly" ;;
+    *)       ICON_SUFFIX="-dev" ;;
+esac
+ICON_SRC="$ICON_DIR/app-icon${ICON_SUFFIX}"
+ICON_SRC_2X="${ICON_SRC}@2x.png"
+ICON_SRC_1X="${ICON_SRC}.png"
+echo "  Using icon source: $ICON_SRC_2X / $ICON_SRC_1X"
+
+ICONSET_DIR=$(mktemp -d)/app-icon.iconset
+mkdir -p "$ICONSET_DIR"
+cp "$ICON_SRC_1X" "$ICONSET_DIR/icon_512x512.png"
+cp "$ICON_SRC_2X" "$ICONSET_DIR/icon_512x512@2x.png"
+sips -z 256 256 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_256x256.png" > /dev/null
+sips -z 512 512 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_256x256@2x.png" > /dev/null
+sips -z 128 128 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_128x128.png" > /dev/null
+sips -z 256 256 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_128x128@2x.png" > /dev/null
+sips -z 32 32 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_32x32.png" > /dev/null
+sips -z 64 64 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_32x32@2x.png" > /dev/null
+sips -z 16 16 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_16x16.png" > /dev/null
+sips -z 32 32 "$ICON_SRC_2X" --out "$ICONSET_DIR/icon_16x16@2x.png" > /dev/null
+iconutil -c icns "$ICONSET_DIR" -o "$APP_PATH/Contents/Resources/app-icon.icns"
+echo "  Icon created at: $APP_PATH/Contents/Resources/app-icon.icns"
 
 # Ad-hoc code sign (required for running on macOS)
 echo "Code signing bundle..."

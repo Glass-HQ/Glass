@@ -1,5 +1,4 @@
 use anyhow::Result;
-use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use gpui::{
     AnyView, App, Context, Entity, EntityId, EventEmitter, FocusHandle, Focusable, ManagedView,
     Pixels, Render, Subscription, Task, Tiling, Window, WindowId, actions,
@@ -164,15 +163,7 @@ impl MultiWorkspace {
             .map_or(false, |s| s.has_notifications(cx))
     }
 
-    pub fn multi_workspace_enabled(&self, cx: &App) -> bool {
-        cx.has_flag::<AgentV2FeatureFlag>()
-    }
-
     pub fn toggle_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.multi_workspace_enabled(cx) {
-            return;
-        }
-
         if self.sidebar_open {
             self.close_sidebar(window, cx);
         } else {
@@ -184,10 +175,6 @@ impl MultiWorkspace {
     }
 
     pub fn focus_sidebar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.multi_workspace_enabled(cx) {
-            return;
-        }
-
         if self.sidebar_open {
             let sidebar_is_focused = self
                 .sidebar
@@ -251,13 +238,6 @@ impl MultiWorkspace {
     }
 
     pub fn activate(&mut self, workspace: Entity<Workspace>, cx: &mut Context<Self>) {
-        if !self.multi_workspace_enabled(cx) {
-            self.workspaces[0] = workspace;
-            self.active_workspace_index = 0;
-            cx.notify();
-            return;
-        }
-
         let old_index = self.active_workspace_index;
         let new_index = self.set_active_workspace(workspace, cx);
         if old_index != new_index {
@@ -487,9 +467,6 @@ impl MultiWorkspace {
     }
 
     pub fn create_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.multi_workspace_enabled(cx) {
-            return;
-        }
         let app_state = self.workspace().read(cx).app_state().clone();
         let project = Project::local(
             app_state.client.clone(),
@@ -592,35 +569,14 @@ impl MultiWorkspace {
     ) -> Task<Result<()>> {
         let workspace = self.workspace().clone();
 
-        if self.multi_workspace_enabled(cx) {
-            workspace.update(cx, |workspace, cx| {
-                workspace.open_workspace_for_paths(true, paths, window, cx)
-            })
-        } else {
-            cx.spawn_in(window, async move |_this, cx| {
-                let should_continue = workspace
-                    .update_in(cx, |workspace, window, cx| {
-                        workspace.prepare_to_close(crate::CloseIntent::ReplaceWindow, window, cx)
-                    })?
-                    .await?;
-                if should_continue {
-                    workspace
-                        .update_in(cx, |workspace, window, cx| {
-                            workspace.open_workspace_for_paths(true, paths, window, cx)
-                        })?
-                        .await
-                } else {
-                    Ok(())
-                }
-            })
-        }
+        workspace.update(cx, |workspace, cx| {
+            workspace.open_workspace_for_paths(true, paths, window, cx)
+        })
     }
 }
 
 impl Render for MultiWorkspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let multi_workspace_enabled = self.multi_workspace_enabled(cx);
-
         client_side_decorations(
             h_flex()
                 .key_context("Workspace")
@@ -661,7 +617,7 @@ impl Render for MultiWorkspace {
             window,
             cx,
             Tiling {
-                left: multi_workspace_enabled && self.sidebar_open(),
+                left: self.sidebar_open(),
                 ..Tiling::default()
             },
         )

@@ -5465,7 +5465,7 @@ impl AcpThreadView {
                             ))
                             .when(is_collapsible || failed_or_canceled, |this| {
                                 let diff_for_discard =
-                                    if has_revealed_diff && is_cancelled_edit && cx.has_flag::<AgentV2FeatureFlag>() {
+                                    if has_revealed_diff && is_cancelled_edit {
                                         tool_call.diffs().next().cloned()
                                     } else {
                                         None

@@ -3927,7 +3927,6 @@ mod tests {
     async fn test_active_thread_serialize_and_load_round_trip(cx: &mut TestAppContext) {
         init_test(cx);
         cx.update(|cx| {
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
             agent::ThreadStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
         });
@@ -4063,7 +4062,6 @@ mod tests {
         let fs = FakeFs::new(cx.executor());
 
         cx.update(|cx| {
-            cx.update_flags(true, vec!["agent-v2".to_string()]);
             agent::ThreadStore::init_global(cx);
             language_model::LanguageModelRegistry::test(cx);
             let slash_command_registry =
