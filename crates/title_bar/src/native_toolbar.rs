@@ -516,57 +516,59 @@ impl NativeToolbarController {
                 )));
             }
 
-            toolbar = toolbar.item(NativeToolbarItem::Button(
-                NativeToolbarButton::new("glass.nav.agent", "")
-                    .tool_tip("Toggle Agent Panel")
-                    .icon("sparkles")
-                    .on_click(|_event, window, cx| {
-                        window.dispatch_action(
-                            zed_actions::assistant::Toggle.boxed_clone(),
-                            cx,
-                        );
-                    }),
-            ));
+            if active_mode == ModeId::EDITOR {
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.agent", "")
+                        .tool_tip("Toggle Agent Panel")
+                        .icon("sparkles")
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(
+                                zed_actions::assistant::Toggle.boxed_clone(),
+                                cx,
+                            );
+                        }),
+                ));
 
-            toolbar = toolbar.item(NativeToolbarItem::Button(
-                NativeToolbarButton::new("glass.nav.search", "")
-                    .tool_tip("Project Search")
-                    .icon("magnifyingglass")
-                    .on_click(|_event, window, cx| {
-                        window.dispatch_action(
-                            workspace::ToggleProjectSearch.boxed_clone(),
-                            cx,
-                        );
-                    }),
-            ));
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.search", "")
+                        .tool_tip("Project Search")
+                        .icon("magnifyingglass")
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(
+                                workspace::ToggleProjectSearch.boxed_clone(),
+                                cx,
+                            );
+                        }),
+                ));
 
-            let diagnostics_icon = if diagnostics.error_count > 0 {
-                "xmark.circle"
-            } else if diagnostics.warning_count > 0 {
-                "exclamationmark.triangle"
-            } else {
-                "checkmark.circle"
-            };
-            toolbar = toolbar.item(NativeToolbarItem::Button(
-                NativeToolbarButton::new("glass.nav.diagnostics", "")
-                    .tool_tip("Project Diagnostics")
-                    .icon(diagnostics_icon)
-                    .on_click(|_event, window, cx| {
-                        window.dispatch_action(
-                            workspace::ToggleProjectDiagnostics.boxed_clone(),
-                            cx,
-                        );
-                    }),
-            ));
+                let diagnostics_icon = if diagnostics.error_count > 0 {
+                    "xmark.circle"
+                } else if diagnostics.warning_count > 0 {
+                    "exclamationmark.triangle"
+                } else {
+                    "checkmark.circle"
+                };
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.diagnostics", "")
+                        .tool_tip("Project Diagnostics")
+                        .icon(diagnostics_icon)
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(
+                                workspace::ToggleProjectDiagnostics.boxed_clone(),
+                                cx,
+                            );
+                        }),
+                ));
 
-            toolbar = toolbar.item(NativeToolbarItem::Button(
-                NativeToolbarButton::new("glass.nav.debugger", "")
-                    .tool_tip("Toggle Debug Panel")
-                    .icon("ladybug")
-                    .on_click(|_event, window, cx| {
-                        window.dispatch_action(zed_actions::Toggle.boxed_clone(), cx);
-                    }),
-            ));
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.debugger", "")
+                        .tool_tip("Toggle Debug Panel")
+                        .icon("ladybug")
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(zed_actions::Toggle.boxed_clone(), cx);
+                        }),
+                ));
+            }
         }
 
         toolbar = toolbar.item(NativeToolbarItem::Space);
@@ -590,7 +592,7 @@ impl NativeToolbarController {
             toolbar = toolbar.item(self.build_sign_in_item(cx));
         }
 
-        {
+        if active_mode == ModeId::EDITOR {
             let dev_tools_items = vec![
                 NativeToolbarMenuItem::action("Logs").icon("arrow.triangle.2.circlepath"),
                 NativeToolbarMenuItem::action("Language Servers").icon("bolt"),
