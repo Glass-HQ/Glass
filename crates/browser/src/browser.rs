@@ -38,7 +38,7 @@ pub fn handle_cef_subprocess() -> anyhow::Result<()> {
     CefInstance::handle_subprocess()
 }
 
-use gpui::{App, AppContext as _, Focusable};
+use gpui::{App, AppContext as _, Entity, Focusable};
 use std::sync::Arc;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 
@@ -68,7 +68,7 @@ pub fn init(cx: &mut App) {
     ModeViewRegistry::global_mut(cx).register_factory(
         ModeId::BROWSER,
         Arc::new(|cx: &mut App| {
-            let browser_view = cx.new(|cx| BrowserView::new(cx));
+            let browser_view: Entity<BrowserView> = cx.new(|cx| BrowserView::new(cx));
             let focus_handle = browser_view.focus_handle(cx);
 
             #[cfg(target_os = "macos")]
@@ -79,11 +79,22 @@ pub fn init(cx: &mut App) {
             #[cfg(not(target_os = "macos"))]
             let sidebar_view = None;
 
+            let deactivate_view = browser_view.downgrade();
+            let on_deactivate: Arc<dyn Fn(&mut App) + Send + Sync> =
+                Arc::new(move |cx: &mut App| {
+                    if let Some(browser_view) = deactivate_view.upgrade() {
+                        browser_view.update(cx, |bv, cx| {
+                            bv.release_cef_focus(cx);
+                        });
+                    }
+                });
+
             RegisteredModeView {
                 view: browser_view.into(),
                 focus_handle,
                 titlebar_center_view: None,
                 sidebar_view,
+                on_deactivate: Some(on_deactivate),
             }
         }),
     );

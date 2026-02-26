@@ -9,6 +9,9 @@ use collections::HashMap;
 use gpui::{AnyView, App, FocusHandle, Global};
 use std::sync::Arc;
 
+/// Callback invoked when a mode is deactivated (switched away from).
+pub type ModeDeactivateCallback = Arc<dyn Fn(&mut App) + Send + Sync>;
+
 /// A view that can be displayed for a workspace mode.
 ///
 /// Mode views are registered with the `ModeViewRegistry` and retrieved by
@@ -22,6 +25,8 @@ pub struct RegisteredModeView {
     pub titlebar_center_view: Option<AnyView>,
     /// Optional sidebar view shown in the unified native sidebar when this mode is active
     pub sidebar_view: Option<AnyView>,
+    /// Optional callback invoked when this mode is deactivated
+    pub on_deactivate: Option<ModeDeactivateCallback>,
 }
 
 /// Factory function that creates a new mode view instance.

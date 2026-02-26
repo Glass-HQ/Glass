@@ -136,7 +136,8 @@ use uuid::Uuid;
 #[cfg(target_os = "macos")]
 use workspace_modes::BrowserSidebarState;
 use workspace_modes::{
-    ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode,
+    ModeDeactivateCallback, ModeId, ModeViewRegistry, SwitchToBrowserMode, SwitchToEditorMode,
+    SwitchToTerminalMode,
 };
 pub use workspace_settings::{
     AutosaveSetting, BottomDockLayout, RestoreOnStartupBehavior, TabBarSettings, WorkspaceSettings,
@@ -1249,6 +1250,7 @@ struct DispatchingKeystrokes {
 struct PerWorkspaceModeView {
     view: AnyView,
     focus_handle: FocusHandle,
+    on_deactivate: Option<ModeDeactivateCallback>,
 }
 
 /// Collects everything project-related for a certain window opened.
@@ -1860,13 +1862,12 @@ impl Workspace {
                         .as_ref()
                         .map(|w| w.centered_layout)
                         .unwrap_or(false);
-                    let active_mode = serialized_workspace
-                        .as_ref()
-                        .and_then(|w| w.active_mode.as_ref())
-                        .map(|s| ModeId::from_str(s))
-                        .unwrap_or(ModeId::BROWSER);
-
                     let workspace = window.update(cx, |multi_workspace, window, cx| {
+                        // Inherit the active mode from the current workspace so that
+                        // opening a project from the editor doesn't switch to browser.
+                        let active_mode =
+                            multi_workspace.workspace().read(cx).active_mode;
+
                         let workspace = cx.new(|cx| {
                             let mut workspace = Workspace::new(
                                 Some(workspace_id),
@@ -4938,6 +4939,7 @@ impl Workspace {
                 entry.insert(PerWorkspaceModeView {
                     view: registered.view,
                     focus_handle: registered.focus_handle,
+                    on_deactivate: registered.on_deactivate,
                 });
             }
         }
@@ -4965,6 +4967,15 @@ impl Workspace {
     pub fn switch_to_mode(&mut self, mode_id: ModeId, window: &mut Window, cx: &mut Context<Self>) {
         if self.active_mode != mode_id {
             let previous_mode = self.active_mode;
+
+            if let Some(deactivate) = self
+                .per_workspace_mode_views
+                .get(&previous_mode)
+                .and_then(|v| v.on_deactivate.clone())
+            {
+                deactivate(cx);
+            }
+
             self.active_mode = mode_id;
 
             match mode_id {

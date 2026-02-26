@@ -40,17 +40,34 @@ impl BrowserView {
     pub(super) fn handle_reload(
         &mut self,
         _: &Reload,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         if let Some(tab) = self.active_tab().cloned() {
-            tab.update(cx, |tab, _| {
-                if tab.is_suspended() {
+            let is_suspended = tab.read(cx).is_suspended();
+            if is_suspended {
+                tab.update(cx, |tab, _| {
                     tab.resume();
-                } else {
+                });
+                let (width, height, scale_factor) = self.current_dimensions(window);
+                let url = tab.read(cx).url().to_string();
+                tab.update(cx, |tab, _| {
+                    if !tab.has_browser() && width > 0 && height > 0 {
+                        tab.set_scale_factor(scale_factor);
+                        tab.set_size(width, height);
+                        if let Err(e) = tab.create_browser(&url) {
+                            log::error!("[browser] Failed to create browser on reload: {}", e);
+                            return;
+                        }
+                    }
+                    tab.set_hidden(false);
+                    tab.set_focus(true);
+                });
+            } else {
+                tab.update(cx, |tab, _| {
                     tab.reload();
-                }
-            });
+                });
+            }
         }
     }
 
