@@ -73,9 +73,10 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
 pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is_held: bool) {
     // CEF OSR on macOS doesn't have the Cocoa text input system, so editing
     // commands that macOS normally handles via `interpretKeyEvents:` selectors
-    // (e.g. `deleteToBeginningOfLine:` for Cmd+Backspace) don't work. We
-    // synthesize equivalent key sequences that Chromium's renderer-side editing
-    // behavior table does understand.
+    // (e.g. `deleteToBeginningOfLine:` for Cmd+Backspace) don't work.
+    // Chromium's renderer-side editing behavior table doesn't map
+    // Meta+VK_BACK or Meta+Shift+Arrow either — those also rely on the
+    // native text system. We use Selection.modify() via JS injection instead.
     #[cfg(target_os = "macos")]
     if keystroke.modifiers.platform
         && !keystroke.modifiers.control
@@ -83,13 +84,19 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     {
         match keystroke.key.as_str() {
             "backspace" => {
-                log::trace!("[browser::input] Cmd+Backspace -> synthesize select-to-line-start + delete");
-                send_select_and_delete(browser, 0x25, 0x7B, true);
+                log::trace!("[browser::input] Cmd+Backspace -> JS select-to-line-start + delete");
+                browser.execute_javascript(
+                    "window.getSelection().modify('extend','backward','lineboundary');\
+                     document.execCommand('delete');"
+                );
                 return;
             }
             "delete" => {
-                log::trace!("[browser::input] Cmd+Delete -> synthesize select-to-line-end + delete");
-                send_select_and_delete(browser, 0x27, 0x7C, false);
+                log::trace!("[browser::input] Cmd+Delete -> JS select-to-line-end + forwardDelete");
+                browser.execute_javascript(
+                    "window.getSelection().modify('extend','forward','lineboundary');\
+                     document.execCommand('forwardDelete');"
+                );
                 return;
             }
             _ => {}
@@ -263,80 +270,6 @@ fn create_char_event(char_code: u16, modifiers: &Modifiers) -> KeyEvent {
         focus_on_editable_field: 1,
         ..Default::default()
     }
-}
-
-/// Synthesize "select to line boundary + delete" for editing commands that
-/// macOS normally handles via the Cocoa text input system but which are
-/// absent from Chromium's renderer-side editing behavior table in OSR mode.
-///
-/// `arrow_vk` / `arrow_native`: the arrow key (Left or Right) Windows VK and
-/// macOS native keycode used for the Cmd+Shift+Arrow selection step.
-/// `use_backspace`: true for backward delete (Cmd+Backspace), false for
-/// forward delete (Cmd+Delete).
-#[cfg(target_os = "macos")]
-fn send_select_and_delete(
-    browser: &BrowserTab,
-    arrow_vk: i32,
-    arrow_native: i32,
-    use_backspace: bool,
-) {
-    let select_modifiers = EVENTFLAG_COMMAND_DOWN | EVENTFLAG_SHIFT_DOWN;
-
-    // Step 1: Cmd+Shift+Arrow to select from cursor to line boundary.
-    let select_down = KeyEvent {
-        type_: KeyEventType::RAWKEYDOWN,
-        modifiers: select_modifiers,
-        windows_key_code: arrow_vk,
-        native_key_code: arrow_native,
-        character: 0,
-        unmodified_character: 0,
-        focus_on_editable_field: 1,
-        ..Default::default()
-    };
-    browser.send_key_event(&select_down);
-
-    let select_up = KeyEvent {
-        type_: KeyEventType::KEYUP,
-        modifiers: select_modifiers,
-        windows_key_code: arrow_vk,
-        native_key_code: arrow_native,
-        character: 0,
-        unmodified_character: 0,
-        focus_on_editable_field: 1,
-        ..Default::default()
-    };
-    browser.send_key_event(&select_up);
-
-    // Step 2: Backspace/Delete to remove the selection.
-    let (delete_vk, delete_native, delete_char) = if use_backspace {
-        (0x08, 0x33, 0x08u16) // VK_BACK, kVK_Delete, BS char
-    } else {
-        (0x2E, 0x75, 0x7Fu16) // VK_DELETE, kVK_ForwardDelete, DEL char
-    };
-
-    let delete_down = KeyEvent {
-        type_: KeyEventType::RAWKEYDOWN,
-        modifiers: 0,
-        windows_key_code: delete_vk,
-        native_key_code: delete_native,
-        character: delete_char,
-        unmodified_character: delete_char,
-        focus_on_editable_field: 1,
-        ..Default::default()
-    };
-    browser.send_key_event(&delete_down);
-
-    let delete_up = KeyEvent {
-        type_: KeyEventType::KEYUP,
-        modifiers: 0,
-        windows_key_code: delete_vk,
-        native_key_code: delete_native,
-        character: delete_char,
-        unmodified_character: delete_char,
-        focus_on_editable_field: 1,
-        ..Default::default()
-    };
-    browser.send_key_event(&delete_up);
 }
 
 pub fn convert_modifiers(modifiers: &Modifiers) -> u32 {

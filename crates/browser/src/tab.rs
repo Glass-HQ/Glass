@@ -475,6 +475,14 @@ impl BrowserTab {
         self.with_focused_frame(|frame| frame.del());
     }
 
+    pub fn execute_javascript(&self, code: &str) {
+        self.with_focused_frame(|frame| {
+            let code = cef::CefString::from(code);
+            let url = cef::CefString::from("");
+            frame.execute_java_script(Some(&code), Some(&url), 0);
+        });
+    }
+
     pub fn open_devtools(&self) {
         self.with_host(|host| {
             let window_info = cef::WindowInfo::default();
