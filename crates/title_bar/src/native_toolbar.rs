@@ -24,7 +24,7 @@ use workspace::{
     MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorktreeSecurity,
     Workspace, notifications::NotifyResultExt,
 };
-use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode};
+use workspace_modes::ModeId;
 use zed_actions::OpenRemote;
 
 const MAX_PROJECT_NAME_LENGTH: usize = 40;
@@ -648,18 +648,17 @@ impl NativeToolbarController {
                 .shows_indicator(true)
                 .on_select(move |event, window, cx| {
                     if let Some(workspace) = workspace.upgrade() {
-                        workspace.update(cx, |_workspace, cx| match event.index {
-                            0 => {
-                                window.dispatch_action(SwitchToBrowserMode.boxed_clone(), cx);
-                            }
-                            1 => {
-                                window.dispatch_action(SwitchToEditorMode.boxed_clone(), cx);
-                            }
-                            2 => {
-                                window.dispatch_action(SwitchToTerminalMode.boxed_clone(), cx);
-                            }
-                            _ => {}
-                        });
+                        let mode = match event.index {
+                            0 => Some(ModeId::BROWSER),
+                            1 => Some(ModeId::EDITOR),
+                            2 => Some(ModeId::TERMINAL),
+                            _ => None,
+                        };
+                        if let Some(mode) = mode {
+                            workspace.update(cx, |workspace, cx| {
+                                workspace.switch_to_mode(mode, window, cx);
+                            });
+                        }
                     }
                 }),
         )
