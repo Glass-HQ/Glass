@@ -14,7 +14,7 @@ use crate::context_menu_handler::ContextMenuContext;
 use crate::events::{self, BrowserEvent, DownloadUpdatedEvent, EventReceiver, FindResultEvent};
 use crate::render_handler::RenderState;
 use anyhow::{Context as _, Result};
-use cef::{ImplBrowser, ImplBrowserHost, ImplFrame, MouseButtonType};
+use cef::{ImplBrowser, ImplBrowserHost, ImplCookieManager, ImplFrame, MouseButtonType};
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{Context, EventEmitter};
 use parking_lot::Mutex;
@@ -320,10 +320,17 @@ impl BrowserTab {
             self.browser_id.is_some(),
         );
         self.suspended_url = Some(self.url.clone());
-        self.set_audio_muted(true);
-        self.set_hidden(true);
-        self.set_focus(false);
-        self.render_state.lock().current_frame = None;
+
+        // Flush the global cookie store to disk before destroying the browser,
+        // so cookies survive the close→recreate cycle.
+        if let Some(cookie_manager) = cef::cookie_manager_get_global_manager(None) {
+            let result = cookie_manager.flush_store(None);
+            log::info!("[browser] Cookie flush_store result: {}", result);
+        } else {
+            log::warn!("[browser] Could not get global cookie manager for flush");
+        }
+
+        self.close_browser();
     }
 
     pub fn resume(&mut self) {
@@ -331,13 +338,13 @@ impl BrowserTab {
             return;
         };
         log::info!(
-            "[browser] Resuming tab: url={}, has_browser={}",
+            "[browser] Resuming suspended tab: url={}, has_browser={}",
             url,
             self.browser_id.is_some(),
         );
-        self.set_hidden(false);
-        self.set_focus(true);
-        self.set_audio_muted(false);
+        // Browser was destroyed during suspend; it will be recreated by
+        // switch_to_tab / ensure_browser_created when this tab becomes active.
+        self.url = url;
     }
 
     pub fn reload(&mut self) {

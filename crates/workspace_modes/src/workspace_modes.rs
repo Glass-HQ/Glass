@@ -20,7 +20,9 @@ mod mode_switcher;
 mod mode_view_registry;
 
 pub use mode_switcher::ModeSwitcher;
-pub use mode_view_registry::{ModeViewFactory, ModeViewRegistry, RegisteredModeView};
+pub use mode_view_registry::{
+    ModeDeactivateCallback, ModeViewFactory, ModeViewRegistry, RegisteredModeView,
+};
 
 use gpui::{App, Global, actions};
 use schemars::JsonSchema;

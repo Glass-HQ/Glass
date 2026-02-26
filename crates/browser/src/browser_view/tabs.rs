@@ -201,8 +201,28 @@ impl BrowserView {
             );
 
             if is_suspended {
+                let new_tab = new_tab.clone();
                 new_tab.update(cx, |tab, _| {
                     tab.resume();
+                });
+                // Browser was destroyed during suspend; recreate it
+                let (width, height, scale_factor) = self.current_dimensions(window);
+                let url = new_tab.read(cx).url().to_string();
+                log::info!("[browser] Recreating browser for resumed tab: {}", url);
+                new_tab.update(cx, |tab, _| {
+                    if !tab.has_browser() && width > 0 && height > 0 {
+                        tab.set_scale_factor(scale_factor);
+                        tab.set_size(width, height);
+                        if let Err(e) = tab.create_browser(&url) {
+                            log::error!(
+                                "[browser] Failed to create browser for resumed tab: {}",
+                                e
+                            );
+                            return;
+                        }
+                    }
+                    tab.set_hidden(false);
+                    tab.set_focus(true);
                 });
             } else if !is_new_tab_page {
                 let has_pending = new_tab.read(cx).has_pending_url();

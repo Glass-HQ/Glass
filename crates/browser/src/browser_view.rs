@@ -253,7 +253,12 @@ impl BrowserView {
             }
         }
 
-        this.sync_browser_sidebar_state(cx);
+        // Only initialize the global if it doesn't exist yet; don't overwrite
+        // an existing value, since that would reset the sidebar when a new
+        // workspace creates its own BrowserView.
+        if cx.try_global::<BrowserSidebarState>().is_none() {
+            this.sync_browser_sidebar_state(cx);
+        }
         this
     }
 
@@ -261,6 +266,15 @@ impl BrowserView {
         cx.set_global(BrowserSidebarState {
             sidebar_active: self.tab_bar_mode == TabBarMode::Sidebar,
         });
+    }
+
+    /// Tell CEF to release focus on the active tab.
+    /// Called when the browser mode is deactivated so that native key events
+    /// are no longer intercepted by the CEF browser host.
+    pub fn release_cef_focus(&self, cx: &App) {
+        if let Some(tab) = self.tabs.get(self.active_tab_index) {
+            tab.read(cx).set_focus(false);
+        }
     }
 
     pub fn active_tab(&self) -> Option<&Entity<BrowserTab>> {
