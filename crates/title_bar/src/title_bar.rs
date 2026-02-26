@@ -26,8 +26,6 @@ use crate::application_menu::{
 use auto_update::AutoUpdateStatus;
 use client::{Client, UserStore, zed_urls};
 use cloud_api_types::Plan;
-#[cfg(not(target_os = "macos"))]
-use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 #[allow(unused_imports)]
 use gpui::{
     Action, AnyElement, App, Context, Corner, Element, Entity, FocusHandle, Focusable,
@@ -829,10 +827,6 @@ impl TitleBar {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Option<AnyElement> {
-        if !cx.has_flag::<AgentV2FeatureFlag>() {
-            return None;
-        }
-
         let is_sidebar_open = self.platform_titlebar.read(cx).is_workspace_sidebar_open();
 
         if is_sidebar_open {

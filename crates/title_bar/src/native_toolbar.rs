@@ -59,7 +59,17 @@ pub struct NativeToolbarController {
 
 impl Render for NativeToolbarController {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        self.update_native_toolbar(window, cx);
+        // Schedule the native toolbar update as an async task so it runs outside
+        // the current window borrow. set_native_toolbar triggers synchronous macOS
+        // layout/resize events, which re-enter the on_resize callback and fail if
+        // the window RefCell is still borrowed (during render or deferred effects).
+        cx.spawn_in(window, async move |this, cx| {
+            this.update_in(cx, |this, window, cx| {
+                this.update_native_toolbar(window, cx);
+            })
+            .ok();
+        })
+        .detach();
         self.platform_titlebar.clone().into_any_element()
     }
 }

@@ -4309,11 +4309,25 @@ impl Render for Pane {
                                 .child(self.toolbar.clone())
                                 .child(item.to_any_view())
                         } else {
+                            let show_welcome = !has_worktrees && self.should_display_welcome_page;
                             let placeholder = div
                                 .id("pane_placeholder")
-                                .h_flex()
-                                .size_full()
+                                .v_flex()
+                                .items_center()
                                 .justify_center()
+                                .size_full()
+                                .when(!show_welcome, |div| {
+                                    let logo_file = match cx.theme().appearance {
+                                        theme::Appearance::Light => "images/glass_logo_light.png",
+                                        theme::Appearance::Dark => "images/glass_logo_dark.png",
+                                    };
+                                    div.child(
+                                        gpui::img(logo_file)
+                                            .w(rems_from_px(80.))
+                                            .h(rems_from_px(92.))
+                                            .opacity(0.15)
+                                    )
+                                })
                                 .on_click(cx.listener(
                                     move |this, event: &ClickEvent, window, cx| {
                                         if event.click_count() == 2 {
@@ -4324,7 +4338,7 @@ impl Render for Pane {
                                         }
                                     },
                                 ));
-                            if has_worktrees || !self.should_display_welcome_page {
+                            if !show_welcome {
                                 placeholder
                             } else {
                                 if self.welcome_page.is_none() {

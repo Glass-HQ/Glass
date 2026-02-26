@@ -44,7 +44,15 @@ use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 
 pub fn init(cx: &mut App) {
     match CefInstance::initialize(cx) {
-        Ok(_) => {}
+        Ok(_) => {
+            // Ensure CEF is shut down before the process exits. Without this,
+            // exit() triggers CEF's static CefShutdownChecker destructor which
+            // asserts that CefShutdown() was already called.
+            std::mem::forget(cx.on_app_quit(|_| {
+                CefInstance::shutdown();
+                async {}
+            }));
+        }
         Err(e) => {
             log::error!(
                 "[browser] init() Failed to initialize CEF: {}. Browser mode will show placeholder.",

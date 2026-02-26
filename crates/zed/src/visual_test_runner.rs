@@ -2533,11 +2533,6 @@ fn run_multi_workspace_sidebar_visual_tests(
     std::fs::create_dir_all(&recent3_dir)?;
     std::fs::create_dir_all(&recent4_dir)?;
 
-    // Enable the agent-v2 feature flag so multi-workspace is active
-    cx.update(|cx| {
-        cx.update_flags(true, vec!["agent-v2".to_string()]);
-    });
-
     // Create both projects upfront so we can build both workspaces during
     // window creation, before the MultiWorkspace entity exists.
     // This avoids a re-entrant read panic that occurs when Workspace::new

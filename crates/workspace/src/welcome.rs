@@ -12,7 +12,7 @@ use gpui::{
 use menu::{SelectNext, SelectPrevious};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use ui::{ButtonLike, Divider, DividerColor, KeyBinding, Vector, VectorName, prelude::*};
+use ui::{ButtonLike, Divider, DividerColor, KeyBinding, prelude::*};
 use util::ResultExt;
 use zed_actions::{Extensions, OpenOnboarding, OpenSettings, agent, command_palette};
 
@@ -374,9 +374,9 @@ impl Render for WelcomePage {
         };
 
         let welcome_label = if self.fallback_to_recent_projects {
-            "Welcome back to Zed"
+            "Welcome back to Glass"
         } else {
-            "Welcome to Zed"
+            "Welcome to Glass"
         };
 
         h_flex()
@@ -409,7 +409,15 @@ impl Render for WelcomePage {
                                     .justify_center()
                                     .mb_4()
                                     .gap_4()
-                                    .child(Vector::square(VectorName::ZedLogo, rems_from_px(45.)))
+                                    .child({
+                                        let logo = match cx.theme().appearance {
+                                            theme::Appearance::Light => "images/glass_logo_light.png",
+                                            theme::Appearance::Dark => "images/glass_logo_dark.png",
+                                        };
+                                        gpui::img(logo)
+                                            .w(rems_from_px(45.))
+                                            .h(rems_from_px(45.))
+                                    })
                                     .child(
                                         v_flex().child(Headline::new(welcome_label)).child(
                                             Label::new("The editor for what's next")
