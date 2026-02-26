@@ -46,21 +46,19 @@ impl BrowserView {
         if let Some(tab) = self.active_tab().cloned() {
             let is_suspended = tab.read(cx).is_suspended();
             if is_suspended {
-                tab.update(cx, |tab, _| {
-                    tab.resume();
-                });
                 let (width, height, scale_factor) = self.current_dimensions(window);
                 let url = tab.read(cx).url().to_string();
                 tab.update(cx, |tab, _| {
+                    tab.set_scale_factor(scale_factor);
+                    tab.set_size(width, height);
+                    tab.resume();
                     if !tab.has_browser() && width > 0 && height > 0 {
-                        tab.set_scale_factor(scale_factor);
-                        tab.set_size(width, height);
                         if let Err(e) = tab.create_browser(&url) {
-                            log::error!("[browser] Failed to create browser on reload: {}", e);
+                            log::error!("[browser::nav] Failed to create browser on reload: {}", e);
                             return;
                         }
                     }
-                    tab.set_hidden(false);
+                    tab.reload();
                     tab.set_focus(true);
                 });
             } else {

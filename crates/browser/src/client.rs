@@ -52,11 +52,14 @@ wrap_keyboard_handler! {
             _os_event: *mut u8,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            if MANUAL_KEY_EVENT.load(Ordering::Relaxed) {
-                0
-            } else {
-                1
-            }
+            let is_manual = MANUAL_KEY_EVENT.load(Ordering::Relaxed);
+            let suppress = if is_manual { 0 } else { 1 };
+            log::trace!(
+                "[browser::client] on_pre_key_event: is_manual={} suppress={}",
+                is_manual,
+                suppress == 1,
+            );
+            suppress
         }
     }
 }

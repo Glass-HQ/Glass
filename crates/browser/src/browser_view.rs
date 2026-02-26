@@ -253,10 +253,11 @@ impl BrowserView {
             }
         }
 
-        // Only initialize the global if it doesn't exist yet; don't overwrite
-        // an existing value, since that would reset the sidebar when a new
-        // workspace creates its own BrowserView.
-        if cx.try_global::<BrowserSidebarState>().is_none() {
+        // The tab owner has the authoritative restored state (including
+        // tab_bar_mode from the saved session), so it must always sync.
+        // Non-tab-owner BrowserViews keep the default mode and must not
+        // overwrite the owner's state.
+        if this.is_tab_owner {
             this.sync_browser_sidebar_state(cx);
         }
         this

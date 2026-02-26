@@ -60,19 +60,22 @@ impl BrowserView {
         }
 
         if let Some(tab) = self.active_tab() {
-            tab.update(cx, |tab, _| {
-                tab.set_focus(true);
-            });
-
             let keystroke = event.keystroke.clone();
             let is_held = event.is_held;
             let tab = tab.clone();
+
+            log::trace!(
+                "[browser::view] handle_key_down: key={:?} native_key_code={:?}",
+                keystroke.key,
+                keystroke.native_key_code,
+            );
 
             cx.defer(move |cx| {
                 tab.update(cx, |tab, _| {
                     input::handle_key_down_deferred(tab, &keystroke, is_held);
                 });
             });
+            cx.stop_propagation();
         }
     }
 
@@ -90,11 +93,18 @@ impl BrowserView {
             let keystroke = event.keystroke.clone();
             let tab = tab.clone();
 
+            log::trace!(
+                "[browser::view] handle_key_up: key={:?} native_key_code={:?}",
+                keystroke.key,
+                keystroke.native_key_code,
+            );
+
             cx.defer(move |cx| {
                 tab.update(cx, |tab, _| {
                     input::handle_key_up_deferred(tab, &keystroke);
                 });
             });
+            cx.stop_propagation();
         }
     }
 }

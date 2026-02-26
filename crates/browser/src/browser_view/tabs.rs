@@ -196,33 +196,34 @@ impl BrowserView {
             let has_browser = new_tab.read(cx).has_browser();
             let url = new_tab.read(cx).url().to_string();
             log::info!(
-                "[browser] switch_to_tab: index={}, url={}, is_new_tab_page={}, has_browser={}, is_suspended={}",
-                index, url, is_new_tab_page, has_browser, is_suspended
+                "[browser::tabs] switch_to_tab: index={}, url={}, new_tab_page={}, browser={}, suspended={}",
+                index, url, is_new_tab_page, has_browser, is_suspended,
             );
 
             if is_suspended {
                 let new_tab = new_tab.clone();
-                new_tab.update(cx, |tab, _| {
-                    tab.resume();
-                });
-                // Browser was destroyed during suspend; recreate it
                 let (width, height, scale_factor) = self.current_dimensions(window);
                 let url = new_tab.read(cx).url().to_string();
-                log::info!("[browser] Recreating browser for resumed tab: {}", url);
                 new_tab.update(cx, |tab, _| {
+                    tab.set_scale_factor(scale_factor);
+                    tab.set_size(width, height);
+                    // Resume un-hides and un-mutes; the page is still loaded
+                    tab.resume();
                     if !tab.has_browser() && width > 0 && height > 0 {
-                        tab.set_scale_factor(scale_factor);
-                        tab.set_size(width, height);
+                        log::warn!(
+                            "[browser::tabs] suspended tab had no browser, creating: {}",
+                            url,
+                        );
                         if let Err(e) = tab.create_browser(&url) {
                             log::error!(
-                                "[browser] Failed to create browser for resumed tab: {}",
-                                e
+                                "[browser::tabs] Failed to create browser for resumed tab: {}",
+                                e,
                             );
                             return;
                         }
                     }
-                    tab.set_hidden(false);
                     tab.set_focus(true);
+                    tab.invalidate();
                 });
             } else if !is_new_tab_page {
                 let has_pending = new_tab.read(cx).has_pending_url();
@@ -242,11 +243,11 @@ impl BrowserView {
                             tab.set_scale_factor(scale_factor);
                             tab.set_size(width, height);
                             let url = tab.url().to_string();
-                            log::info!("[browser] Recreating browser for tab: {}", url);
+                            log::info!("[browser::tabs] creating browser for tab: {}", url);
                             if let Err(e) = tab.create_browser(&url) {
                                 log::error!(
-                                    "[browser] Failed to create browser on tab switch: {}",
-                                    e
+                                    "[browser::tabs] Failed to create browser on tab switch: {}",
+                                    e,
                                 );
                                 return;
                             }
@@ -423,22 +424,24 @@ impl BrowserView {
             return;
         };
 
-        let url = tab.read(cx).url().to_string();
-        log::info!("[browser] Closing pinned tab: url={}, index={}", url, self.active_tab_index);
+        log::info!(
+            "[browser::tabs] close_pinned_tab: url={}, index={}",
+            tab.read(cx).url(),
+            self.active_tab_index,
+        );
 
         self.clear_find_for_tab_switch(&tab, window, cx);
 
+        // Suspend hides and mutes the browser, leaving the page fully loaded
+        // so all cookies, localStorage, and session state are preserved.
         tab.update(cx, |tab, _| {
             tab.suspend();
         });
 
         let next_index = self.find_next_unpinned_tab(cx);
-
         if let Some(index) = next_index {
-            log::info!("[browser] Switching to unpinned tab at index {}", index);
             self.switch_to_tab(index, window, cx);
         } else {
-            log::info!("[browser] No unpinned tabs, creating new tab");
             self.add_tab(cx);
             self.switch_to_tab(self.tabs.len() - 1, window, cx);
         }
