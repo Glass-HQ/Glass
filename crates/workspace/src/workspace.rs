@@ -1572,7 +1572,7 @@ impl Workspace {
         )
         .detach();
 
-        let dock_button_bar = DockButtonBar::new(weak_handle.clone(), &project, cx);
+        let dock_button_bar = DockButtonBar::new(weak_handle.clone(), cx);
         let left_dock = Dock::new(
             DockPosition::Left,
             modal_layer.clone(),
