@@ -15,6 +15,9 @@ use gpui::{
 const EVENTFLAG_SHIFT_DOWN: u32 = 1 << 1;
 const EVENTFLAG_CONTROL_DOWN: u32 = 1 << 2;
 const EVENTFLAG_ALT_DOWN: u32 = 1 << 3;
+const EVENTFLAG_LEFT_MOUSE_BUTTON: u32 = 1 << 4;
+const EVENTFLAG_MIDDLE_MOUSE_BUTTON: u32 = 1 << 5;
+const EVENTFLAG_RIGHT_MOUSE_BUTTON: u32 = 1 << 6;
 const EVENTFLAG_COMMAND_DOWN: u32 = 1 << 7;
 
 pub fn handle_mouse_down(browser: &BrowserTab, event: &MouseDownEvent, offset: Point<Pixels>) {
@@ -42,7 +45,8 @@ pub fn handle_mouse_move(browser: &BrowserTab, event: &MouseMoveEvent, offset: P
     let position = event.position - offset;
     let x = f32::from(position.x) as i32;
     let y = f32::from(position.y) as i32;
-    let modifiers = convert_modifiers(&event.modifiers);
+    let mut modifiers = convert_modifiers(&event.modifiers);
+    modifiers |= pressed_button_flags(event.pressed_button);
 
     browser.send_mouse_move(x, y, false, modifiers);
 }
@@ -177,6 +181,15 @@ pub fn handle_key_up_deferred(browser: &BrowserTab, keystroke: &Keystroke) {
     );
 
     browser.send_key_event(&cef_event);
+}
+
+fn pressed_button_flags(pressed_button: Option<MouseButton>) -> u32 {
+    match pressed_button {
+        Some(MouseButton::Left) | Some(MouseButton::Navigate(_)) => EVENTFLAG_LEFT_MOUSE_BUTTON,
+        Some(MouseButton::Middle) => EVENTFLAG_MIDDLE_MOUSE_BUTTON,
+        Some(MouseButton::Right) => EVENTFLAG_RIGHT_MOUSE_BUTTON,
+        None => 0,
+    }
 }
 
 fn convert_mouse_button(button: MouseButton) -> MouseButtonType {
