@@ -60,6 +60,20 @@ wrap_display_handler! {
             let _ = self.handler.sender.send(BrowserEvent::LoadingProgress(progress));
         }
 
+        fn on_fullscreen_mode_change(
+            &self,
+            _browser: Option<&mut Browser>,
+            fullscreen: ::std::os::raw::c_int,
+        ) {
+            // Implementing this callback prevents CEF from triggering native
+            // window fullscreen when a website calls requestFullscreen().
+            // The web content still renders fullscreen within the browser view.
+            log::trace!(
+                "[browser::display] on_fullscreen_mode_change: fullscreen={}",
+                fullscreen != 0,
+            );
+        }
+
         fn on_favicon_urlchange(
             &self,
             _browser: Option<&mut Browser>,

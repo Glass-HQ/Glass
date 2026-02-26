@@ -65,9 +65,14 @@ impl BrowserView {
             let tab = tab.clone();
 
             log::trace!(
-                "[browser::view] handle_key_down: key={:?} native_key_code={:?}",
+                "[browser::view] handle_key_down: key={:?} native_key_code={:?} modifiers=[{}{}{}{}{}]",
                 keystroke.key,
                 keystroke.native_key_code,
+                if keystroke.modifiers.platform { "cmd " } else { "" },
+                if keystroke.modifiers.control { "ctrl " } else { "" },
+                if keystroke.modifiers.alt { "alt " } else { "" },
+                if keystroke.modifiers.shift { "shift " } else { "" },
+                if keystroke.modifiers.function { "fn " } else { "" },
             );
 
             cx.defer(move |cx| {
