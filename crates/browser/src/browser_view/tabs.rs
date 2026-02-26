@@ -191,8 +191,20 @@ impl BrowserView {
         self.active_tab_index = index;
 
         if let Some(new_tab) = self.active_tab() {
+            let is_suspended = new_tab.read(cx).is_suspended();
             let is_new_tab_page = new_tab.read(cx).is_new_tab_page();
-            if !is_new_tab_page {
+            let has_browser = new_tab.read(cx).has_browser();
+            let url = new_tab.read(cx).url().to_string();
+            log::info!(
+                "[browser] switch_to_tab: index={}, url={}, is_new_tab_page={}, has_browser={}, is_suspended={}",
+                index, url, is_new_tab_page, has_browser, is_suspended
+            );
+
+            if is_suspended {
+                new_tab.update(cx, |tab, _| {
+                    tab.resume();
+                });
+            } else if !is_new_tab_page {
                 let has_pending = new_tab.read(cx).has_pending_url();
                 if has_pending {
                     let new_tab = new_tab.clone();
@@ -206,10 +218,11 @@ impl BrowserView {
                 } else {
                     let (width, height, scale_factor) = self.current_dimensions(window);
                     new_tab.update(cx, |tab, _| {
-                        if tab.current_frame().is_none() && width > 0 && height > 0 {
+                        if !tab.has_browser() && width > 0 && height > 0 {
                             tab.set_scale_factor(scale_factor);
                             tab.set_size(width, height);
                             let url = tab.url().to_string();
+                            log::info!("[browser] Recreating browser for tab: {}", url);
                             if let Err(e) = tab.create_browser(&url) {
                                 log::error!(
                                     "[browser] Failed to create browser on tab switch: {}",
@@ -337,6 +350,7 @@ impl BrowserView {
     ) {
         if let Some(tab) = self.active_tab() {
             if tab.read(cx).is_pinned() {
+                self.close_pinned_tab(window, cx);
                 return;
             }
         }
@@ -382,6 +396,52 @@ impl BrowserView {
         self.request_new_tab_search_focus(cx);
         self.schedule_save(cx);
         cx.notify();
+    }
+
+    fn close_pinned_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.active_tab().cloned() else {
+            return;
+        };
+
+        let url = tab.read(cx).url().to_string();
+        log::info!("[browser] Closing pinned tab: url={}, index={}", url, self.active_tab_index);
+
+        self.clear_find_for_tab_switch(&tab, window, cx);
+
+        tab.update(cx, |tab, _| {
+            tab.suspend();
+        });
+
+        let next_index = self.find_next_unpinned_tab(cx);
+
+        if let Some(index) = next_index {
+            log::info!("[browser] Switching to unpinned tab at index {}", index);
+            self.switch_to_tab(index, window, cx);
+        } else {
+            log::info!("[browser] No unpinned tabs, creating new tab");
+            self.add_tab(cx);
+            self.switch_to_tab(self.tabs.len() - 1, window, cx);
+        }
+
+        self.update_toolbar_active_tab(window, cx);
+        self.schedule_save(cx);
+        cx.notify();
+    }
+
+    fn find_next_unpinned_tab(&self, cx: &App) -> Option<usize> {
+        // First try tabs after the current one
+        for i in (self.active_tab_index + 1)..self.tabs.len() {
+            if !self.tabs[i].read(cx).is_pinned() {
+                return Some(i);
+            }
+        }
+        // Then try tabs before
+        for i in (0..self.active_tab_index).rev() {
+            if !self.tabs[i].read(cx).is_pinned() {
+                return Some(i);
+            }
+        }
+        None
     }
 
     pub(super) fn handle_reopen_closed_tab(

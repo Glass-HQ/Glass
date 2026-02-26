@@ -436,11 +436,37 @@ impl CefInstance {
             return;
         }
 
-        CEF_INITIALIZED.store(false, Ordering::SeqCst);
+        log::info!("[browser::cef_instance] shutdown: starting");
+
+        // Force-close all tracked browsers and drop their CEF handles.
+        // This must happen before cef::shutdown() because CEF asserts
+        // that all BrowserContext instances are destroyed (DCHECK all_.empty()).
+        // Dropping the Rust cef::Browser handles releases the ref counts
+        // that keep BrowserContext alive.
+        //
+        // We cannot rely on BrowserTab::Drop for this — GPUI's entity
+        // lifecycle doesn't guarantee entities are dropped before quit
+        // futures run.
+        let closed_count = crate::tab::close_all_browsers();
+
+        // Prevent regular pump scheduling from interfering.
         CEF_CONTEXT_READY.store(false, Ordering::SeqCst);
+
+        // Pump the message loop to let CEF process close events.
+        // With external_message_pump=1, close_browser() is async and
+        // requires message loop iterations to fully complete.
+        if closed_count > 0 {
+            for _ in 0..10 {
+                cef::do_message_loop_work();
+            }
+        }
+
+        CEF_INITIALIZED.store(false, Ordering::SeqCst);
         *CEF_INSTANCE.lock() = None;
 
+        log::info!("[browser::cef_instance] shutdown: calling cef::shutdown()");
         cef::shutdown();
+        log::info!("[browser::cef_instance] shutdown: cef::shutdown() returned");
 
         *CEF_APP.lock() = None;
     }

@@ -2205,6 +2205,7 @@ impl AgentPanel {
 
             if thread_with_messages | text_thread_with_messages {
                 items.push(NativeMenuItem::action("Current Thread").enabled(false));
+                actions.push(Box::new(|_, _| {}));
 
                 if let Some(text_thread_view) = text_thread_view.clone() {
                     items.push(NativeMenuItem::action("Regenerate Thread Title"));
@@ -2224,6 +2225,7 @@ impl AgentPanel {
             }
 
             items.push(NativeMenuItem::action("MCP Servers").enabled(false));
+            actions.push(Box::new(|_, _| {}));
             items.push(NativeMenuItem::action("View Server Extensions"));
             actions.push(Box::new({
                 let focus_handle = focus_handle.clone();
@@ -2462,6 +2464,7 @@ impl AgentPanel {
                                             NativeMenuItem::action("Recently Updated")
                                                 .enabled(false),
                                         );
+                                        actions.push(Box::new(|_, _| {}));
                                         for entry in entries {
                                             let title = entry
                                                 .title
@@ -2500,6 +2503,7 @@ impl AgentPanel {
                                             NativeMenuItem::action("Recent Text Threads")
                                                 .enabled(false),
                                         );
+                                        actions.push(Box::new(|_, _| {}));
                                         for entry in entries {
                                             let title = if entry.title.is_empty() {
                                                 SharedString::new_static(DEFAULT_THREAD_TITLE)
@@ -2698,6 +2702,7 @@ impl AgentPanel {
 
             items.push(NativeMenuItem::separator());
             items.push(NativeMenuItem::action("External Agents").enabled(false));
+            actions.push(Box::new(|_, _| {}));
 
             items.push(NativeMenuItem::action("Claude Code"));
             actions.push(Box::new({

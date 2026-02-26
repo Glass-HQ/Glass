@@ -449,7 +449,8 @@ impl AgentConfiguration {
                         window,
                         cx,
                         move |index, window, cx| {
-                            if index == 0 {
+                            // Index 0 is the disabled "Compatible APIs" header
+                            if index == 1 {
                                 workspace
                                     .update(cx, |workspace, cx| {
                                         AddLlmProviderModal::toggle(
@@ -1226,7 +1227,8 @@ impl AgentConfiguration {
                                         .detach_and_log_err(cx);
                                 }
                             }
-                            2 => {
+                            // Index 2 is the disabled "Learn More" header
+                            3 => {
                                 window.dispatch_action(
                                     Box::new(OpenBrowser {
                                         url: zed_urls::agent_server_docs(cx),
@@ -1234,7 +1236,7 @@ impl AgentConfiguration {
                                     cx,
                                 );
                             }
-                            3 => {
+                            4 => {
                                 window.dispatch_action(
                                     Box::new(OpenBrowser {
                                         url: "https://agentclientprotocol.com/".into(),
