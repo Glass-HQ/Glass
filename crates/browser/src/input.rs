@@ -4,7 +4,7 @@
 //! GPUI provides coordinates in logical pixels, but CEF's view_rect
 //! expects logical pixels and screen_info provides the scale factor.
 
-use crate::keycodes::{key_to_macos_keycode, key_to_windows_keycode};
+use crate::keycodes::{key_name_to_windows_vk, macos_keycode_to_windows_vk};
 use crate::tab::BrowserTab;
 use cef::{KeyEvent, KeyEventType, MouseButtonType};
 use gpui::{
@@ -71,7 +71,43 @@ pub fn handle_scroll_wheel(browser: &BrowserTab, event: &ScrollWheelEvent, offse
 /// Deferred key down handler - called outside the GPUI event handler context
 /// to avoid re-entrant borrow panics when CEF triggers macOS menu checking.
 pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is_held: bool) {
+    // CEF OSR on macOS doesn't have the Cocoa text input system, so editing
+    // commands that macOS normally handles via `interpretKeyEvents:` selectors
+    // (e.g. `deleteToBeginningOfLine:` for Cmd+Backspace) don't work. We
+    // synthesize equivalent key sequences that Chromium's renderer-side editing
+    // behavior table does understand.
+    #[cfg(target_os = "macos")]
+    if keystroke.modifiers.platform
+        && !keystroke.modifiers.control
+        && !keystroke.modifiers.alt
+    {
+        match keystroke.key.as_str() {
+            "backspace" => {
+                log::trace!("[browser::input] Cmd+Backspace -> synthesize select-to-line-start + delete");
+                send_select_and_delete(browser, 0x25, 0x7B, true);
+                return;
+            }
+            "delete" => {
+                log::trace!("[browser::input] Cmd+Delete -> synthesize select-to-line-end + delete");
+                send_select_and_delete(browser, 0x27, 0x7C, false);
+                return;
+            }
+            _ => {}
+        }
+    }
+
     let cef_event = convert_key_event(keystroke, true);
+
+    log::trace!(
+        "[browser::input] key_down: key={:?} key_char={:?} native_key_code={:?} -> windows_vk=0x{:02X} native=0x{:02X} char=0x{:04X}",
+        keystroke.key,
+        keystroke.key_char,
+        keystroke.native_key_code,
+        cef_event.windows_key_code,
+        cef_event.native_key_code,
+        cef_event.character,
+    );
+
     browser.send_key_event(&cef_event);
 
     // For text input, send a CHAR event after the KEYDOWN event.
@@ -112,6 +148,11 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     };
 
     if let Some(char_code) = char_to_send {
+        log::trace!(
+            "[browser::input] sending CHAR event: char=0x{:04X} ('{}')",
+            char_code,
+            char::from_u32(char_code as u32).unwrap_or('?'),
+        );
         let char_event = create_char_event(char_code, &keystroke.modifiers);
         browser.send_key_event(&char_event);
     }
@@ -120,6 +161,14 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
 /// Deferred key up handler - called outside the GPUI event handler context.
 pub fn handle_key_up_deferred(browser: &BrowserTab, keystroke: &Keystroke) {
     let cef_event = convert_key_event(keystroke, false);
+
+    log::trace!(
+        "[browser::input] key_up: key={:?} native_key_code={:?} -> windows_vk=0x{:02X}",
+        keystroke.key,
+        keystroke.native_key_code,
+        cef_event.windows_key_code,
+    );
+
     browser.send_key_event(&cef_event);
 }
 
@@ -133,8 +182,14 @@ fn convert_mouse_button(button: MouseButton) -> MouseButtonType {
 
 fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
     let modifiers = convert_modifiers(&keystroke.modifiers);
-    let windows_key_code = key_to_windows_keycode(&keystroke.key);
-    let native_key_code = key_to_macos_keycode(&keystroke.key);
+
+    let windows_key_code = if let Some(code) = keystroke.native_key_code {
+        macos_keycode_to_windows_vk(code)
+    } else {
+        key_name_to_windows_vk(&keystroke.key)
+    };
+
+    let native_key_code = keystroke.native_key_code.unwrap_or(0) as i32;
 
     let event_type = if is_down {
         KeyEventType::RAWKEYDOWN
@@ -142,9 +197,8 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         KeyEventType::KEYUP
     };
 
-    // CEF on macOS needs character info to create proper NSKeyDown/NSKeyUp events.
-    // Without it, CEF falls back to NSFlagsChanged events which produce wrong JS
-    // events (keyup becomes keydown, key shows as "Unidentified").
+    // `character`: the character with modifiers applied (what the user typed)
+    // `unmodified_character`: the character without modifiers (the base key)
     let character = match keystroke.key.as_str() {
         "enter" => 0x0D,
         "backspace" => 0x08,
@@ -153,7 +207,9 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         "space" => ' ' as u16,
         "delete" => 0x7F,
         _ => {
-            if keystroke.key.len() == 1 {
+            if let Some(key_char) = &keystroke.key_char {
+                key_char.chars().next().map(|c| c as u16).unwrap_or(0)
+            } else if keystroke.key.len() == 1 {
                 keystroke
                     .key
                     .chars()
@@ -167,6 +223,23 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         }
     };
 
+    let unmodified_character = match keystroke.key.as_str() {
+        "enter" => 0x0D,
+        "backspace" => 0x08,
+        "tab" => 0x09,
+        "escape" => 0x1B,
+        "space" => ' ' as u16,
+        "delete" => 0x7F,
+        key if key.len() == 1 => {
+            key.chars()
+                .next()
+                .filter(|c| c.is_ascii_graphic())
+                .map(|c| c as u16)
+                .unwrap_or(0)
+        }
+        _ => 0,
+    };
+
     KeyEvent {
         type_: event_type,
         modifiers,
@@ -174,7 +247,7 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         native_key_code,
         is_system_key: 0,
         character,
-        unmodified_character: character,
+        unmodified_character,
         focus_on_editable_field: 1,
         ..Default::default()
     }
@@ -190,6 +263,80 @@ fn create_char_event(char_code: u16, modifiers: &Modifiers) -> KeyEvent {
         focus_on_editable_field: 1,
         ..Default::default()
     }
+}
+
+/// Synthesize "select to line boundary + delete" for editing commands that
+/// macOS normally handles via the Cocoa text input system but which are
+/// absent from Chromium's renderer-side editing behavior table in OSR mode.
+///
+/// `arrow_vk` / `arrow_native`: the arrow key (Left or Right) Windows VK and
+/// macOS native keycode used for the Cmd+Shift+Arrow selection step.
+/// `use_backspace`: true for backward delete (Cmd+Backspace), false for
+/// forward delete (Cmd+Delete).
+#[cfg(target_os = "macos")]
+fn send_select_and_delete(
+    browser: &BrowserTab,
+    arrow_vk: i32,
+    arrow_native: i32,
+    use_backspace: bool,
+) {
+    let select_modifiers = EVENTFLAG_COMMAND_DOWN | EVENTFLAG_SHIFT_DOWN;
+
+    // Step 1: Cmd+Shift+Arrow to select from cursor to line boundary.
+    let select_down = KeyEvent {
+        type_: KeyEventType::RAWKEYDOWN,
+        modifiers: select_modifiers,
+        windows_key_code: arrow_vk,
+        native_key_code: arrow_native,
+        character: 0,
+        unmodified_character: 0,
+        focus_on_editable_field: 1,
+        ..Default::default()
+    };
+    browser.send_key_event(&select_down);
+
+    let select_up = KeyEvent {
+        type_: KeyEventType::KEYUP,
+        modifiers: select_modifiers,
+        windows_key_code: arrow_vk,
+        native_key_code: arrow_native,
+        character: 0,
+        unmodified_character: 0,
+        focus_on_editable_field: 1,
+        ..Default::default()
+    };
+    browser.send_key_event(&select_up);
+
+    // Step 2: Backspace/Delete to remove the selection.
+    let (delete_vk, delete_native, delete_char) = if use_backspace {
+        (0x08, 0x33, 0x08u16) // VK_BACK, kVK_Delete, BS char
+    } else {
+        (0x2E, 0x75, 0x7Fu16) // VK_DELETE, kVK_ForwardDelete, DEL char
+    };
+
+    let delete_down = KeyEvent {
+        type_: KeyEventType::RAWKEYDOWN,
+        modifiers: 0,
+        windows_key_code: delete_vk,
+        native_key_code: delete_native,
+        character: delete_char,
+        unmodified_character: delete_char,
+        focus_on_editable_field: 1,
+        ..Default::default()
+    };
+    browser.send_key_event(&delete_down);
+
+    let delete_up = KeyEvent {
+        type_: KeyEventType::KEYUP,
+        modifiers: 0,
+        windows_key_code: delete_vk,
+        native_key_code: delete_native,
+        character: delete_char,
+        unmodified_character: delete_char,
+        focus_on_editable_field: 1,
+        ..Default::default()
+    };
+    browser.send_key_event(&delete_up);
 }
 
 pub fn convert_modifiers(modifiers: &Modifiers) -> u32 {

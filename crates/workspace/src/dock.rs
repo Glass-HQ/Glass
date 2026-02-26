@@ -862,7 +862,18 @@ impl Dock {
             if let Some(active_panel) = serialized.active_panel.filter(|_| serialized.visible)
                 && let Some(idx) = self.panel_index_for_persistent_name(active_panel.as_str(), cx)
             {
-                self.activate_panel(idx, window, cx);
+                // Activate the panel directly without querying visible_content_size,
+                // which would try to read the window root entity (MultiWorkspace) and
+                // panic if we're already inside a window.update closure.
+                if let Some(previously_active) =
+                    self.active_panel_entry().map(|entry| entry.panel.clone())
+                {
+                    previously_active.set_active(false, window, cx);
+                }
+                self.active_panel_index = Some(idx);
+                if let Some(entry) = self.panel_entries.get(idx) {
+                    entry.panel.set_active(true, window, cx);
+                }
                 activated_panel = true;
             }
 

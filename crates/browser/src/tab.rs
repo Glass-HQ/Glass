@@ -14,7 +14,7 @@ use crate::context_menu_handler::ContextMenuContext;
 use crate::events::{self, BrowserEvent, DownloadUpdatedEvent, EventReceiver, FindResultEvent};
 use crate::render_handler::RenderState;
 use anyhow::{Context as _, Result};
-use cef::{ImplBrowser, ImplBrowserHost, ImplCookieManager, ImplFrame, MouseButtonType};
+use cef::{ImplBrowser, ImplBrowserHost, ImplFrame, ImplRequestContext, MouseButtonType};
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{Context, EventEmitter};
 use parking_lot::Mutex;
@@ -167,13 +167,21 @@ impl BrowserTab {
     }
 
     pub fn drain_events(&mut self, cx: &mut Context<Self>) {
+        let is_suspended = self.suspended_url.is_some();
         while let Ok(event) = self.event_receiver.try_recv() {
             match event {
                 BrowserEvent::AddressChanged(url) => {
+                    // While suspended, ignore address changes from the hidden page
+                    if is_suspended {
+                        continue;
+                    }
                     self.url.clone_from(&url);
                     cx.emit(TabEvent::AddressChanged(url));
                 }
                 BrowserEvent::TitleChanged(title) => {
+                    if is_suspended {
+                        continue;
+                    }
                     self.title.clone_from(&title);
                     cx.emit(TabEvent::TitleChanged(title));
                 }
@@ -209,6 +217,9 @@ impl BrowserTab {
                     cx.emit(TabEvent::ContextMenuOpen { context });
                 }
                 BrowserEvent::FaviconUrlChanged(urls) => {
+                    if is_suspended {
+                        continue;
+                    }
                     self.favicon_url = urls.into_iter().next();
                     cx.emit(TabEvent::FaviconChanged(self.favicon_url.clone()));
                 }
@@ -223,12 +234,11 @@ impl BrowserTab {
     }
 
     pub fn create_browser(&mut self, initial_url: &str) -> Result<()> {
-        log::info!(
-            "[browser] create_browser called, url={}, already_has_browser={}",
-            initial_url,
-            self.browser_id.is_some(),
-        );
         if self.browser_id.is_some() {
+            log::info!(
+                "[browser::tab] create_browser: SKIPPED (already has browser), url={}",
+                initial_url,
+            );
             return Ok(());
         }
 
@@ -246,6 +256,7 @@ impl BrowserTab {
         let url = cef::CefString::from(initial_url);
 
         let mut request_context = self.request_context.clone();
+
         let browser = cef::browser_host_create_browser_sync(
             Some(&window_info),
             Some(&mut self.client.clone()),
@@ -257,11 +268,28 @@ impl BrowserTab {
         .context("Failed to create CEF browser")?;
 
         let browser_id = browser.identifier();
-        log::info!(
-            "[browser::tab] Created browser id={} url={}",
-            browser_id,
-            initial_url,
-        );
+
+        // Diagnostic: verify the browser's actual request context
+        if let Some(host) = browser.host() {
+            if let Some(context) = host.request_context() {
+                let is_global = context.is_global() != 0;
+                let has_cookie_manager = context.cookie_manager(None).is_some();
+                log::info!(
+                    "[browser::tab] Created browser id={} url={} | context: is_global={}, has_cookie_manager={}",
+                    browser_id, initial_url, is_global, has_cookie_manager,
+                );
+            } else {
+                log::warn!(
+                    "[browser::tab] Created browser id={} url={} | WARNING: no request context!",
+                    browser_id, initial_url,
+                );
+            }
+        } else {
+            log::warn!(
+                "[browser::tab] Created browser id={} url={} | WARNING: no host!",
+                browser_id, initial_url,
+            );
+        }
 
         BROWSER_HANDLES
             .lock()
@@ -314,37 +342,81 @@ impl BrowserTab {
         if self.suspended_url.is_some() {
             return;
         }
+
+        let browser_id = self.browser_id;
+        let handle_exists = browser_id
+            .and_then(|id| {
+                BROWSER_HANDLES
+                    .lock()
+                    .as_ref()
+                    .map(|m| m.contains_key(&id))
+            })
+            .unwrap_or(false);
+
         log::info!(
-            "[browser] Suspending tab: url={}, has_browser={}",
+            "[browser::tab] SUSPEND: browser_id={:?}, url={}, handle_in_registry={}",
+            browser_id,
             self.url,
-            self.browser_id.is_some(),
+            handle_exists,
         );
+
         self.suspended_url = Some(self.url.clone());
 
-        // Flush the global cookie store to disk before destroying the browser,
-        // so cookies survive the close→recreate cycle.
-        if let Some(cookie_manager) = cef::cookie_manager_get_global_manager(None) {
-            let result = cookie_manager.flush_store(None);
-            log::info!("[browser] Cookie flush_store result: {}", result);
-        } else {
-            log::warn!("[browser] Could not get global cookie manager for flush");
-        }
-
-        self.close_browser();
+        // Just hide and mute — leave the page fully loaded so all cookies,
+        // localStorage, sessionStorage, and JS state are preserved intact.
+        self.set_hidden(true);
+        self.set_audio_muted(true);
     }
 
     pub fn resume(&mut self) {
         let Some(url) = self.suspended_url.take() else {
             return;
         };
+
+        let browser_id = self.browser_id;
+        let handle_exists = browser_id
+            .and_then(|id| {
+                BROWSER_HANDLES
+                    .lock()
+                    .as_ref()
+                    .map(|m| m.contains_key(&id))
+            })
+            .unwrap_or(false);
+
+        // Verify the browser's request context is still valid
+        let context_info = self
+            .with_browser(|browser| {
+                browser.host().and_then(|host| {
+                    host.request_context().map(|ctx| {
+                        let is_global = ctx.is_global() != 0;
+                        let has_cookies = ctx.cookie_manager(None).is_some();
+                        (is_global, has_cookies)
+                    })
+                })
+            })
+            .flatten();
+
         log::info!(
-            "[browser] Resuming suspended tab: url={}, has_browser={}",
+            "[browser::tab] RESUME: browser_id={:?}, url={}, handle_in_registry={}, context={:?}",
+            browser_id,
             url,
-            self.browser_id.is_some(),
+            handle_exists,
+            context_info,
         );
-        // Browser was destroyed during suspend; it will be recreated by
-        // switch_to_tab / ensure_browser_created when this tab becomes active.
+
+        if !handle_exists {
+            log::error!(
+                "[browser::tab] RESUME FAILED: browser handle missing from registry! \
+                 browser_id={:?}, url={}. The browser was destroyed while suspended.",
+                browser_id,
+                url,
+            );
+        }
+
         self.url = url;
+        // Page is still loaded — just un-hide and un-mute
+        self.set_hidden(false);
+        self.set_audio_muted(false);
     }
 
     pub fn reload(&mut self) {
@@ -512,6 +584,13 @@ impl BrowserTab {
 
     pub fn send_key_event(&self, event: &cef::KeyEvent) {
         self.with_host(|host| {
+            log::trace!(
+                "[browser::tab] send_key_event: type={:?} windows_vk=0x{:02X} native=0x{:02X} char=0x{:04X}",
+                event.type_,
+                event.windows_key_code,
+                event.native_key_code,
+                event.character,
+            );
             MANUAL_KEY_EVENT.store(true, Ordering::Relaxed);
             host.send_key_event(Some(event));
             MANUAL_KEY_EVENT.store(false, Ordering::Relaxed);
