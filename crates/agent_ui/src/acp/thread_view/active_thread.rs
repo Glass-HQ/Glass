@@ -3102,7 +3102,9 @@ impl AcpThreadView {
             use gpui::{NativeMenuItem, show_native_popup_menu};
 
             let mut items = vec![NativeMenuItem::action("Change Thinking Effort").enabled(false)];
-            let mut effort_values: Vec<String> = Vec::new();
+            // Pad with an empty entry to account for the disabled header item,
+            // which still gets an action index in the native menu.
+            let mut effort_values: Vec<String> = vec![String::new()];
 
             for effort_level in supported_effort_levels.clone() {
                 let is_selected = selected
@@ -3381,38 +3383,39 @@ impl AcpThreadView {
                         window,
                         cx,
                         move |index, window, cx| {
+                            // Index 0 is the disabled "Context" header
                             match index {
-                                0 => {
+                                1 => {
                                     me.focus_handle(cx).focus(window, cx);
                                     me.update(cx, |editor, cx| {
                                         editor.insert_context_type("file", window, cx);
                                     });
                                 }
-                                1 => {
+                                2 => {
                                     me.focus_handle(cx).focus(window, cx);
                                     me.update(cx, |editor, cx| {
                                         editor.insert_context_type("symbol", window, cx);
                                     });
                                 }
-                                2 => {
+                                3 => {
                                     me.focus_handle(cx).focus(window, cx);
                                     me.update(cx, |editor, cx| {
                                         editor.insert_context_type("thread", window, cx);
                                     });
                                 }
-                                3 => {
+                                4 => {
                                     me.focus_handle(cx).focus(window, cx);
                                     me.update(cx, |editor, cx| {
                                         editor.insert_context_type("rule", window, cx);
                                     });
                                 }
-                                4 => {
+                                5 => {
                                     me.focus_handle(cx).focus(window, cx);
                                     me.update(cx, |editor, cx| {
                                         editor.add_images_from_picker(window, cx);
                                     });
                                 }
-                                5 => {
+                                6 => {
                                     window.dispatch_action(
                                         zed_actions::agent::AddSelectionToThread.boxed_clone(),
                                         cx,

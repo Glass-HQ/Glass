@@ -2,6 +2,12 @@
 //!
 //! GPUI Entity wrapping a CEF Browser instance. Owns all navigation state
 //! and drains the event channel from CEF handlers to emit GPUI events.
+//!
+//! CEF browser handles are stored in a centralized global registry
+//! (`BROWSER_HANDLES`) rather than directly on BrowserTab. This allows
+//! CEF shutdown to take all handles, close browsers, and release ref
+//! counts before calling `cef::shutdown()` — regardless of whether
+//! GPUI has dropped the BrowserTab entities yet.
 
 use crate::client::{ClientBuilder, MANUAL_KEY_EVENT};
 use crate::context_menu_handler::ContextMenuContext;
@@ -12,8 +18,54 @@ use cef::{ImplBrowser, ImplBrowserHost, ImplFrame, MouseButtonType};
 use core_video::pixel_buffer::CVPixelBuffer;
 use gpui::{Context, EventEmitter};
 use parking_lot::Mutex;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+
+/// All live CEF browser handles, keyed by browser ID.
+///
+/// BrowserTab stores only the integer ID and accesses the handle through
+/// this map. During shutdown, `close_all_browsers()` takes the entire map,
+/// force-closes every browser, and drops the handles — releasing all CEF
+/// ref counts before `cef::shutdown()` is called.
+static BROWSER_HANDLES: Mutex<Option<HashMap<i32, cef::Browser>>> = Mutex::new(None);
+
+/// Force-close all tracked browsers and release their CEF handles.
+///
+/// This takes every handle out of the global map, calls
+/// `host.close_browser(force_close=1)` on each, then drops them all.
+/// After this returns, no Rust code holds `cef::Browser` references,
+/// so CEF's internal `BrowserContext` ref counts can reach zero.
+pub(crate) fn close_all_browsers() -> usize {
+    let handles = BROWSER_HANDLES.lock().take().unwrap_or_default();
+    let count = handles.len();
+    if count > 0 {
+        log::info!(
+            "[browser::tab] close_all_browsers: closing {} browser(s)",
+            count,
+        );
+    }
+    for (id, browser) in handles {
+        let is_valid = browser.is_valid();
+        match browser.host() {
+            Some(host) => {
+                let ready_to_close = host.is_ready_to_be_closed();
+                log::info!(
+                    "[browser::tab] close_all_browsers: id={} is_valid={} ready_to_close={}, requesting close",
+                    id, is_valid, ready_to_close,
+                );
+                host.close_browser(1);
+            }
+            None => {
+                log::info!(
+                    "[browser::tab] close_all_browsers: id={} is_valid={} no host",
+                    id, is_valid,
+                );
+            }
+        }
+    }
+    count
+}
 
 /// Events emitted by BrowserTab to subscribers (toolbar, browser_view).
 pub enum TabEvent {
@@ -37,7 +89,7 @@ pub enum TabEvent {
 }
 
 pub struct BrowserTab {
-    browser: Option<cef::Browser>,
+    browser_id: Option<i32>,
     client: cef::Client,
     render_state: Arc<Mutex<RenderState>>,
     event_receiver: EventReceiver,
@@ -51,6 +103,7 @@ pub struct BrowserTab {
     is_pinned: bool,
     favicon_url: Option<String>,
     pending_url: Option<String>,
+    suspended_url: Option<String>,
     request_context: Option<cef::RequestContext>,
 }
 
@@ -63,7 +116,7 @@ impl BrowserTab {
         let client = ClientBuilder::build(render_state.clone(), sender);
 
         Self {
-            browser: None,
+            browser_id: None,
             client,
             render_state,
             event_receiver: receiver,
@@ -77,6 +130,7 @@ impl BrowserTab {
             is_pinned: false,
             favicon_url: None,
             pending_url: None,
+            suspended_url: None,
             request_context: None,
         }
     }
@@ -93,7 +147,7 @@ impl BrowserTab {
         let client = ClientBuilder::build(render_state.clone(), sender);
 
         Self {
-            browser: None,
+            browser_id: None,
             client,
             render_state,
             event_receiver: receiver,
@@ -107,6 +161,7 @@ impl BrowserTab {
             is_pinned: false,
             favicon_url,
             pending_url: None,
+            suspended_url: None,
             request_context: None,
         }
     }
@@ -168,7 +223,12 @@ impl BrowserTab {
     }
 
     pub fn create_browser(&mut self, initial_url: &str) -> Result<()> {
-        if self.browser.is_some() {
+        log::info!(
+            "[browser] create_browser called, url={}, already_has_browser={}",
+            initial_url,
+            self.browser_id.is_some(),
+        );
+        if self.browser_id.is_some() {
             return Ok(());
         }
 
@@ -196,8 +256,20 @@ impl BrowserTab {
         )
         .context("Failed to create CEF browser")?;
 
+        let browser_id = browser.identifier();
+        log::info!(
+            "[browser::tab] Created browser id={} url={}",
+            browser_id,
+            initial_url,
+        );
+
+        BROWSER_HANDLES
+            .lock()
+            .get_or_insert_with(HashMap::new)
+            .insert(browser_id, browser);
+        self.browser_id = Some(browser_id);
+
         self.url = initial_url.to_string();
-        self.browser = Some(browser);
 
         self.with_host(|host| {
             host.was_resized();
@@ -208,10 +280,19 @@ impl BrowserTab {
 
     pub fn navigate(&mut self, url: &str, cx: &mut Context<Self>) {
         self.favicon_url = None;
-        if let Some(browser) = &self.browser {
-            if let Some(frame) = browser.main_frame() {
-                let url_string = cef::CefString::from(url);
-                frame.load_url(Some(&url_string));
+        if self.browser_id.is_some() {
+            let loaded = self
+                .with_browser(|browser| {
+                    if let Some(frame) = browser.main_frame() {
+                        let url_string = cef::CefString::from(url);
+                        frame.load_url(Some(&url_string));
+                        return true;
+                    }
+                    false
+                })
+                .unwrap_or(false);
+
+            if loaded {
                 self.url = url.to_string();
                 self.is_loading = true;
             }
@@ -221,33 +302,69 @@ impl BrowserTab {
         }
     }
 
+    pub fn has_browser(&self) -> bool {
+        self.browser_id.is_some()
+    }
+
+    pub fn is_suspended(&self) -> bool {
+        self.suspended_url.is_some()
+    }
+
+    pub fn suspend(&mut self) {
+        if self.suspended_url.is_some() {
+            return;
+        }
+        log::info!(
+            "[browser] Suspending tab: url={}, has_browser={}",
+            self.url,
+            self.browser_id.is_some(),
+        );
+        self.suspended_url = Some(self.url.clone());
+        self.set_audio_muted(true);
+        self.set_hidden(true);
+        self.set_focus(false);
+        self.render_state.lock().current_frame = None;
+    }
+
+    pub fn resume(&mut self) {
+        let Some(url) = self.suspended_url.take() else {
+            return;
+        };
+        log::info!(
+            "[browser] Resuming tab: url={}, has_browser={}",
+            url,
+            self.browser_id.is_some(),
+        );
+        self.set_hidden(false);
+        self.set_focus(true);
+        self.set_audio_muted(false);
+    }
+
     pub fn reload(&mut self) {
-        if let Some(browser) = &self.browser {
-            browser.reload();
+        if self.with_browser(|browser| browser.reload()).is_some() {
             self.is_loading = true;
+        } else {
+            log::info!(
+                "[browser] reload called but no browser exists, url={}",
+                self.url,
+            );
         }
     }
 
     pub fn stop(&mut self) {
-        if let Some(browser) = &self.browser {
-            browser.stop_load();
-            self.is_loading = false;
-        }
+        self.with_browser(|browser| browser.stop_load());
+        self.is_loading = false;
     }
 
     pub fn go_back(&mut self) {
-        if let Some(browser) = &self.browser {
-            if self.can_go_back {
-                browser.go_back();
-            }
+        if self.can_go_back {
+            self.with_browser(|browser| browser.go_back());
         }
     }
 
     pub fn go_forward(&mut self) {
-        if let Some(browser) = &self.browser {
-            if self.can_go_forward {
-                browser.go_forward();
-            }
+        if self.can_go_forward {
+            self.with_browser(|browser| browser.go_forward());
         }
     }
 
@@ -457,35 +574,69 @@ impl BrowserTab {
     }
 
     pub fn close_browser(&mut self) {
-        if let Some(browser) = self.browser.take() {
-            if let Some(host) = browser.host() {
-                host.close_browser(1);
+        if let Some(browser_id) = self.browser_id.take() {
+            let browser = BROWSER_HANDLES.lock().as_mut().and_then(|m| m.remove(&browser_id));
+            if let Some(browser) = browser {
+                let is_valid = browser.is_valid();
+                if let Some(host) = browser.host() {
+                    let ready_to_close = host.is_ready_to_be_closed();
+                    log::info!(
+                        "[browser::tab] close_browser: id={} url={} is_valid={} ready_to_close={}",
+                        browser_id, self.url, is_valid, ready_to_close,
+                    );
+                    host.close_browser(1);
+                }
             }
         }
+        self.render_state.lock().current_frame = None;
+    }
+
+    /// Access the CEF browser handle from the global registry.
+    /// Returns None if the browser was never created or was already
+    /// taken by shutdown / close_browser.
+    fn with_browser<R>(&self, callback: impl FnOnce(&cef::Browser) -> R) -> Option<R> {
+        let browser_id = self.browser_id?;
+        let handles = BROWSER_HANDLES.lock();
+        handles.as_ref()?.get(&browser_id).map(callback)
     }
 
     fn with_host(&self, callback: impl FnOnce(&cef::BrowserHost)) {
-        if let Some(browser) = &self.browser {
+        self.with_browser(|browser| {
             if let Some(host) = browser.host() {
                 callback(&host);
             }
-        }
+        });
     }
 
     fn with_focused_frame(&self, callback: impl FnOnce(&cef::Frame)) {
-        if let Some(browser) = &self.browser {
+        self.with_browser(|browser| {
             if let Some(frame) = browser.focused_frame() {
                 callback(&frame);
             }
-        }
+        });
     }
 }
 
 impl Drop for BrowserTab {
     fn drop(&mut self) {
-        if let Some(browser) = self.browser.take() {
-            if let Some(host) = browser.host() {
-                host.close_browser(1);
+        if let Some(browser_id) = self.browser_id.take() {
+            // If the handle is still in the registry, this is a normal drop
+            // (not during CEF shutdown). Take it out and close it.
+            // If shutdown already took it via close_all_browsers(), the
+            // remove returns None and we skip all CEF API calls.
+            let browser = BROWSER_HANDLES.lock().as_mut().and_then(|m| m.remove(&browser_id));
+            if let Some(browser) = browser {
+                log::info!(
+                    "[browser::tab] Drop: id={} url={} is_valid={}",
+                    browser_id, self.url, browser.is_valid(),
+                );
+                if let Some(host) = browser.host() {
+                    log::info!(
+                        "[browser::tab] Drop: id={} ready_to_close={}, calling close_browser(1)",
+                        browser_id, host.is_ready_to_be_closed(),
+                    );
+                    host.close_browser(1);
+                }
             }
         }
     }

@@ -43,9 +43,13 @@ impl BrowserView {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(tab) = self.active_tab() {
+        if let Some(tab) = self.active_tab().cloned() {
             tab.update(cx, |tab, _| {
-                tab.reload();
+                if tab.is_suspended() {
+                    tab.resume();
+                } else {
+                    tab.reload();
+                }
             });
         }
     }

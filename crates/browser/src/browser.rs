@@ -48,9 +48,13 @@ pub fn init(cx: &mut App) {
             // Ensure CEF is shut down before the process exits. Without this,
             // exit() triggers CEF's static CefShutdownChecker destructor which
             // asserts that CefShutdown() was already called.
-            std::mem::forget(cx.on_app_quit(|_| {
+            //
+            // CefInstance::shutdown() handles everything: it takes all browser
+            // handles from the global registry, force-closes them, drops the
+            // Rust refs (so CEF's BrowserContext ref counts reach zero), pumps
+            // the message loop, then calls cef::shutdown().
+            std::mem::forget(cx.on_app_quit(|_| async {
                 CefInstance::shutdown();
-                async {}
             }));
         }
         Err(e) => {
