@@ -3,16 +3,16 @@ use crate::build_controller::{BuildController, PipelineKind};
 use anyhow::Result;
 use db::kvp::KEY_VALUE_STORE;
 use gpui::{
-    Action, App, AsyncWindowContext, Context, Entity, EventEmitter, FocusHandle, Focusable, Pixels,
-    DropdownSelectEvent, NativeButtonStyle, NativeButtonTint, Render, Subscription, Task,
-    WeakEntity, Window, actions, native_button, native_dropdown, px,
+    Action, App, AsyncWindowContext, Context, DropdownSelectEvent, Entity, EventEmitter,
+    FocusHandle, Focusable, FontWeight, NativeButtonStyle, NativeButtonTint, NativeProgressStyle,
+    Pixels, Render, Subscription, Task, WeakEntity, Window, actions, div, native_button,
+    native_dropdown, native_icon_button, native_progress_bar, px,
 };
 use native_platforms::apple::{build, simulator, xcode};
 use native_platforms::{BuildConfiguration, Device, DeviceState};
 use project::Project;
 use serde::{Deserialize, Serialize};
 use ui::prelude::*;
-use ui::Divider;
 use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::Workspace;
 
@@ -305,245 +305,281 @@ impl NativePlatformsPanel {
         });
     }
 
-    fn render_project_section(&self, _cx: &Context<Self>) -> impl IntoElement {
+    fn render_project_header(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
         let has_project = self.xcode_project.is_some();
-        log::debug!(
-            "render_project_section: has_project={}, schemes_count={}",
-            has_project,
-            self.schemes.len()
-        );
-
-        let content = if has_project {
-            let project = self.xcode_project.as_ref().unwrap();
-            let name = project.path.file_stem()
+        let (name, subtitle) = if let Some(project) = &self.xcode_project {
+            let n = project
+                .path
+                .file_stem()
                 .and_then(|s| s.to_str())
-                .unwrap_or("Unknown");
-            h_flex()
-                .w_full()
-                .min_w_0()
-                .gap_2()
-                .items_center()
-                .child(
-                    Label::new("Xcode Project")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-                .child(Icon::new(IconName::Folder).size(IconSize::Small))
-                .child(Label::new(name.to_string()).size(LabelSize::Small).truncate())
+                .unwrap_or("Unknown")
+                .to_string();
+            (n, "Xcode Project")
         } else {
-            h_flex()
-                .w_full()
-                .min_w_0()
-                .gap_2()
-                .items_center()
-                .child(
-                    Label::new("Xcode Project")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-                .child(
-                    Label::new("No Xcode project found")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
-                        .truncate(),
-                )
+            (
+                "No Project".to_string(),
+                "Open a folder with an Xcode project",
+            )
         };
 
-        v_flex()
-            .w_full()
-            .min_w_0()
-            .p_2()
-            .gap_2()
-            .child(content)
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(2.0))
+            .child(
+                div()
+                    .text_sm()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(if has_project {
+                        colors.text
+                    } else {
+                        colors.text_muted
+                    })
+                    .min_w_0()
+                    .overflow_hidden()
+                    .child(name),
+            )
+            .child(
+                div()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child(subtitle),
+            )
     }
 
     fn render_scheme_section(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
         let schemes = self.schemes.clone();
-        let selected_scheme_index = self
+        let selected_index = self
             .selected_scheme
             .as_ref()
-            .and_then(|selected_scheme| schemes.iter().position(|scheme| scheme == selected_scheme))
+            .and_then(|selected| schemes.iter().position(|s| s == selected))
             .unwrap_or(0);
         let has_schemes = !schemes.is_empty();
 
-        v_flex()
-            .w_full()
-            .min_w_0()
-            .p_2()
-            .gap_2()
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
             .child(
-                Label::new("Scheme")
-                    .size(LabelSize::Small)
-                    .color(Color::Muted),
+                div()
+                    .text_xs()
+                    .text_color(colors.text_muted)
+                    .child("Scheme"),
             )
-            .when(has_schemes, |this| {
-                this.child(
+            .when(has_schemes, |el| {
+                el.child(
                     native_dropdown("scheme-selector", &schemes)
                         .w_full()
-                        .selected_index(selected_scheme_index)
-                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
-                            let Some(selected_scheme) = this.schemes.get(event.index).cloned() else {
-                                return;
-                            };
-
-                            this.selected_scheme = Some(selected_scheme);
-                            this.serialize(cx);
-                            cx.notify();
-                        })),
+                        .selected_index(selected_index)
+                        .on_select(cx.listener(
+                            |this, event: &DropdownSelectEvent, _, cx| {
+                                let Some(scheme) =
+                                    this.schemes.get(event.index).cloned()
+                                else {
+                                    return;
+                                };
+                                this.selected_scheme = Some(scheme);
+                                this.serialize(cx);
+                                cx.notify();
+                            },
+                        )),
                 )
             })
-            .when(!has_schemes, |this| {
-                this.child(
-                    Label::new("No schemes available")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
+            .when(!has_schemes, |el| {
+                el.child(
+                    div()
+                        .text_xs()
+                        .text_color(colors.text_muted)
+                        .child("No schemes available"),
                 )
             })
     }
 
     fn render_devices_section(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
         let devices = self.devices.clone();
         let device_labels: Vec<String> = devices
             .iter()
-            .map(|device| {
-                let os_version = device.os_version.clone().unwrap_or_default();
-                let base_label = if os_version.is_empty() {
-                    device.name.clone()
+            .map(|d| {
+                let os = d.os_version.as_deref().unwrap_or("");
+                let name_with_os = if os.is_empty() {
+                    d.name.clone()
                 } else {
-                    format!("{} ({})", device.name, os_version)
+                    format!("{} ({})", d.name, os)
                 };
-
-                match device.device_type {
+                match d.device_type {
                     native_platforms::DeviceType::PhysicalDevice => {
-                        format!("{base_label} [Physical]")
+                        format!("{name_with_os} · Physical")
                     }
                     native_platforms::DeviceType::Simulator => {
-                        format!("{base_label} [Simulator]")
+                        format!("{name_with_os} · Simulator")
                     }
                 }
             })
             .collect();
         let has_devices = !devices.is_empty();
         let loading = self.loading_devices;
-        let selected_device_index = self
+        let selected_index = self
             .selected_device
             .as_ref()
-            .and_then(|selected_device| {
-                devices
-                    .iter()
-                    .position(|device| device.id == selected_device.id)
-            })
+            .and_then(|sel| devices.iter().position(|d| d.id == sel.id))
             .unwrap_or(0);
 
-        v_flex()
-            .w_full()
-            .min_w_0()
-            .p_2()
-            .gap_2()
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
             .child(
-                h_flex()
-                    .w_full()
-                    .min_w_0()
+                div()
+                    .flex()
+                    .items_center()
                     .justify_between()
                     .child(
-                        Label::new("Destination")
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
+                        div()
+                            .text_xs()
+                            .text_color(colors.text_muted)
+                            .child("Destination"),
                     )
-                    .when(loading, |this| {
-                        this.child(Label::new("Loading...").size(LabelSize::XSmall).color(Color::Muted))
-                    })
+                    .child(
+                        native_icon_button("refresh-devices", "arrow.clockwise")
+                            .tooltip("Refresh Devices")
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.refresh_devices(cx);
+                            })),
+                    ),
             )
-            .when(has_devices, |this| {
-                this.child(
-                    native_dropdown("device-selector", &device_labels)
+            .when(loading, |el| {
+                el.child(
+                    native_progress_bar("devices-loading")
+                        .indeterminate(true)
+                        .progress_style(NativeProgressStyle::Bar)
                         .w_full()
-                        .disabled(loading)
-                        .selected_index(selected_device_index)
-                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
-                            let Some(selected_device) = this.devices.get(event.index).cloned() else {
-                                return;
-                            };
-
-                            this.selected_device = Some(selected_device);
-                            this.serialize(cx);
-                            cx.notify();
-                        })),
+                        .h(px(2.0)),
                 )
             })
-            .when(!has_devices && !loading, |this| {
-                this.child(
-                    Label::new("No devices available")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted)
+            .when(has_devices && !loading, |el| {
+                el.child(
+                    native_dropdown("device-selector", &device_labels)
+                        .w_full()
+                        .selected_index(selected_index)
+                        .on_select(cx.listener(
+                            |this, event: &DropdownSelectEvent, _, cx| {
+                                let Some(device) =
+                                    this.devices.get(event.index).cloned()
+                                else {
+                                    return;
+                                };
+                                this.selected_device = Some(device);
+                                this.serialize(cx);
+                                cx.notify();
+                            },
+                        )),
+                )
+            })
+            .when(!has_devices && !loading, |el| {
+                el.child(
+                    div()
+                        .text_xs()
+                        .text_color(colors.text_muted)
+                        .child("No devices available"),
                 )
             })
     }
 
-    fn render_actions(&self, cx: &Context<Self>) -> impl IntoElement {
+    fn render_footer(&self, cx: &Context<Self>) -> impl IntoElement {
+        let colors = cx.theme().colors();
         let has_project = self.xcode_project.is_some();
         let has_scheme = self.selected_scheme.is_some();
         let is_active = self.controller.is_active();
         let can_build = has_project && has_scheme && !is_active;
-        let has_launched_app = self.controller.last_launched().is_some() && !is_active;
+        let has_launched = self.controller.last_launched().is_some() && !is_active;
 
-        v_flex()
-            .w_full()
-            .min_w_0()
-            .p_2()
-            .gap_2()
-            .child(Divider::horizontal())
-            .child(
-                h_flex()
-                    .w_full()
-                    .flex_wrap()
-                    .gap_2()
-                    .child(
-                        native_button("build", "Build")
-                            .button_style(NativeButtonStyle::Filled)
-                            .tint(NativeButtonTint::Accent)
-                            .disabled(!can_build)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.start_pipeline(PipelineKind::Build, window, cx);
-                            }))
-                    )
-                    .child(
-                        native_button("run", "Run")
-                            .button_style(NativeButtonStyle::Filled)
-                            .tint(NativeButtonTint::Accent)
-                            .disabled(!can_build)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.start_pipeline(PipelineKind::Run, window, cx);
-                            }))
-                    )
-                    .when(is_active, |this| {
-                        this.child(
-                            native_button("stop", "Stop")
-                                .button_style(NativeButtonStyle::Filled)
-                                .tint(NativeButtonTint::Destructive)
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.stop_build(cx);
-                                }))
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .border_t_1()
+            .border_color(colors.border)
+            .p(px(12.0))
+            .when(is_active, |el| {
+                el.child(
+                    native_progress_bar("build-progress")
+                        .indeterminate(true)
+                        .progress_style(NativeProgressStyle::Bar)
+                        .w_full()
+                        .h(px(2.0)),
+                )
+            })
+            .when(is_active, |el| {
+                el.child(
+                    native_button("stop", "Stop")
+                        .button_style(NativeButtonStyle::Filled)
+                        .tint(NativeButtonTint::Destructive)
+                        .w_full()
+                        .on_click(cx.listener(|this, _, _, cx| {
+                            this.stop_build(cx);
+                        })),
+                )
+            })
+            .when(!is_active, |el| {
+                el.child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(
+                            native_button("build", "Build")
+                                .button_style(NativeButtonStyle::Rounded)
+                                .flex_1()
+                                .disabled(!can_build)
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.start_pipeline(
+                                        PipelineKind::Build,
+                                        window,
+                                        cx,
+                                    );
+                                })),
                         )
-                    })
-                    .when(has_launched_app, |this| {
-                        this.child(
-                            native_button("terminate", "Terminate")
+                        .child(
+                            native_button("run", "Run")
                                 .button_style(NativeButtonStyle::Filled)
-                                .tint(NativeButtonTint::Warning)
-                                .on_click(cx.listener(|this, _, _, cx| {
-                                    this.terminate_app(cx);
-                                }))
+                                .tint(NativeButtonTint::Accent)
+                                .flex_1()
+                                .disabled(!can_build)
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.start_pipeline(
+                                        PipelineKind::Run,
+                                        window,
+                                        cx,
+                                    );
+                                })),
                         )
-                    })
-            )
+                        .when(has_launched, |el| {
+                            el.child(
+                                native_icon_button("terminate", "xmark.circle")
+                                    .tooltip("Terminate App")
+                                    .tint(NativeButtonTint::Warning)
+                                    .on_click(cx.listener(|this, _, _, cx| {
+                                        this.terminate_app(cx);
+                                    })),
+                            )
+                        }),
+                )
+            })
             .child(
-                native_button("deploy", "Deploy to App Store")
-                    .button_style(NativeButtonStyle::Inline)
-                    .w_full()
-                    .on_click(cx.listener(|this, _, window, cx| {
-                        this.deploy(window, cx);
-                    }))
+                div()
+                    .flex()
+                    .justify_center()
+                    .pt(px(2.0))
+                    .child(
+                        native_button("deploy", "Deploy to App Store")
+                            .button_style(NativeButtonStyle::Borderless)
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                this.deploy(window, cx);
+                            })),
+                    ),
             )
     }
 }
@@ -560,24 +596,30 @@ impl Render for NativePlatformsPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.controller.poll_completion();
 
-        v_flex()
+        div()
             .key_context("NativePlatformsPanel")
             .track_focus(&self.focus_handle)
             .size_full()
             .min_w_0()
             .overflow_hidden()
             .bg(cx.theme().colors().panel_background)
+            .flex()
+            .flex_col()
             .child(
-                v_flex()
+                div()
                     .id("native-platforms-content")
                     .flex_1()
                     .min_w_0()
                     .overflow_y_scroll()
-                    .child(self.render_project_section(cx))
+                    .flex()
+                    .flex_col()
+                    .p(px(12.0))
+                    .gap(px(16.0))
+                    .child(self.render_project_header(cx))
                     .child(self.render_scheme_section(cx))
-                    .child(self.render_devices_section(cx))
+                    .child(self.render_devices_section(cx)),
             )
-            .child(self.render_actions(cx))
+            .child(self.render_footer(cx))
     }
 }
 
