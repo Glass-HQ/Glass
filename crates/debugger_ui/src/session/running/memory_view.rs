@@ -878,7 +878,7 @@ impl Render for MemoryView {
                     .child(
                         h_flex()
                             .w_full()
-                            .rounded_md()
+                            .theme_rounded_md(cx)
                             .border_1()
                             .gap_x_2()
                             .px_2()

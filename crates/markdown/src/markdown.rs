@@ -1126,7 +1126,7 @@ impl Element for MarkdownElement {
                                             .notify_content();
 
                                         parent_container
-                                            .rounded_lg()
+                                            .theme_rounded_lg(cx)
                                             .custom_scrollbars(scrollbars, window, cx)
                                             .into()
                                     } else {
@@ -1137,7 +1137,7 @@ impl Element for MarkdownElement {
                                         &self.code_block_renderer
                                     {
                                         parent_container = parent_container
-                                            .rounded_md()
+                                            .theme_rounded_md(cx)
                                             .border_1()
                                             .border_color(cx.theme().colors().border_variant);
                                     }
@@ -1147,7 +1147,7 @@ impl Element for MarkdownElement {
 
                                     let code_block = div()
                                         .id(("code-block", range.start))
-                                        .rounded_lg()
+                                        .theme_rounded_lg(cx)
                                         .map(|mut code_block| {
                                             if let Some(scroll_handle) = scroll_handle.as_ref() {
                                                 code_block.style().restrict_scroll_to_axis =
@@ -1258,7 +1258,7 @@ impl Element for MarkdownElement {
                                     .mb_2()
                                     .border(px(1.5))
                                     .border_color(cx.theme().colors().border)
-                                    .rounded_sm()
+                                    .theme_rounded_sm(cx)
                                     .overflow_hidden(),
                                 range,
                                 markdown_end,

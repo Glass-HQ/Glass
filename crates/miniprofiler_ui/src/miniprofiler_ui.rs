@@ -448,14 +448,14 @@ impl ProfilerWindow {
                     .flex_1()
                     .h(px(24.0))
                     .bg(cx.theme().colors().background)
-                    .rounded_md()
+                    .rounded(cx.theme().border_radius().medium)
                     .p(px(2.0))
                     .relative()
                     .child(
                         div()
                             .absolute()
                             .h_full()
-                            .rounded_sm()
+                            .rounded(cx.theme().border_radius().small)
                             .bg(item.color)
                             .left(relative(start_fraction.max(0.0)))
                             .w(relative(bar_width)),

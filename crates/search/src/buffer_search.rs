@@ -330,7 +330,7 @@ impl Render for BufferSearchBar {
         let input_width = SearchInputWidth::calc_width(container_width);
 
         let input_base_styles =
-            |border_color| input_base_styles(border_color, |div| div.w(input_width));
+            |border_color| input_base_styles(border_color, |div| div.w(input_width), cx);
 
         let input_style = if find_in_results {
             filter_search_results_input(query_border, |div| div.w(input_width), cx)

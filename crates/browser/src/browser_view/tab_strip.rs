@@ -84,13 +84,13 @@ fn show_tab_context_menu(
     );
 }
 
-fn render_tab_favicon(id: SharedString, favicon_url: Option<&str>) -> gpui::AnyElement {
+fn render_tab_favicon(id: SharedString, favicon_url: Option<&str>, cx: &App) -> gpui::AnyElement {
     if let Some(url) = favicon_url {
         native_image_view(id)
             .image_uri(url.to_string())
             .scaling(NativeImageScaling::ScaleUpOrDown)
             .size(px(14.))
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .flex_shrink_0()
             .into_any_element()
     } else {
@@ -214,6 +214,7 @@ impl Render for BrowserSidebarPanel {
                                                     "native-sidebar-tab-favicon-{index}"
                                                 )),
                                                 favicon_url,
+                                                cx,
                                             );
 
                                             let switch_tab_view = browser_view.clone();
@@ -230,7 +231,7 @@ impl Render for BrowserSidebarPanel {
                                                 .justify_center()
                                                 .h(px(36.))
                                                 .flex_shrink_0()
-                                                .rounded(px(7.))
+                                                .rounded(cx.theme().border_radius().large)
                                                 .cursor_pointer()
                                                 .when(is_active, |this| {
                                                     this.bg(selected_background)
@@ -339,6 +340,7 @@ impl Render for BrowserSidebarPanel {
                                         "native-sidebar-tab-favicon-{index}"
                                     )),
                                     favicon_url,
+                                    cx,
                                 );
 
                                 let switch_tab_view = browser_view.clone();
@@ -363,7 +365,7 @@ impl Render for BrowserSidebarPanel {
                                     .px_2()
                                     .gap_1()
                                     .flex_shrink_0()
-                                    .rounded(px(7.))
+                                    .rounded(cx.theme().border_radius().large)
                                     .cursor_pointer()
                                     .when(is_active, |this| this.bg(selected_background))
                                     .when(is_hovered && !is_active, |this| {
@@ -406,7 +408,7 @@ impl Render for BrowserSidebarPanel {
                                         .justify_center()
                                         .w(px(16.))
                                         .h(px(16.))
-                                        .rounded(px(4.))
+                                        .rounded(cx.theme().border_radius().small)
                                         .cursor_pointer()
                                         .when(is_close_hovered, |this| {
                                             this.bg(hover_background)
@@ -527,7 +529,7 @@ impl Render for BrowserSidebarPanel {
                         .w_full()
                         .h(px(28.))
                         .flex_shrink_0()
-                        .rounded(px(7.))
+                        .rounded(cx.theme().border_radius().large)
                         .cursor_pointer()
                         .when(self.hovered_new_tab_button, |this| {
                             this.bg(theme.colors().text.opacity(0.09))
@@ -614,7 +616,7 @@ impl BrowserView {
                         .gap_1()
                         .px_1()
                         .h(px(28.))
-                        .rounded(px(8.))
+                        .rounded(cx.theme().border_radius().large)
                         .bg(theme.colors().text.opacity(0.06))
                         .border_1()
                         .border_color(theme.colors().border.opacity(0.4))
@@ -630,6 +632,7 @@ impl BrowserView {
                                 let favicon_element = render_tab_favicon(
                                     SharedString::from(format!("browser-tab-favicon-{index}")),
                                     favicon_url,
+                                    cx,
                                 );
 
                                 let hover_view = view.clone();
@@ -643,7 +646,7 @@ impl BrowserView {
                                     .h(px(22.))
                                     .w(px(30.))
                                     .flex_shrink_0()
-                                    .rounded(px(5.))
+                                    .rounded(cx.theme().border_radius().small)
                                     .cursor_pointer()
                                     .when(is_active, |this| this.bg(selected_bg))
                                     .when(is_hovered && !is_active, |this| this.bg(hover_bg))
@@ -728,6 +731,7 @@ impl BrowserView {
                         let favicon_element = render_tab_favicon(
                             SharedString::from(format!("browser-tab-favicon-{index}")),
                             favicon_url,
+                            cx,
                         );
 
                         let display_title = if title.len() > 24 {
@@ -752,7 +756,7 @@ impl BrowserView {
                             .gap_1()
                             .min_w(px(92.))
                             .max_w(px(220.))
-                            .rounded(px(7.))
+                            .rounded(cx.theme().border_radius().large)
                             .cursor_pointer()
                             .when(is_active, |this| this.bg(selected_bg))
                             .when(is_hovered && !is_active, |this| this.bg(hover_bg))
@@ -801,7 +805,7 @@ impl BrowserView {
                                         .justify_center()
                                         .w(px(16.))
                                         .h(px(16.))
-                                        .rounded(px(4.))
+                                        .rounded(cx.theme().border_radius().small)
                                         .cursor_pointer()
                                         .when(is_close_hovered, |this| this.bg(hover_bg))
                                         .on_click(cx.listener(move |this, _, window, cx| {
@@ -898,7 +902,7 @@ impl BrowserView {
                     .justify_center()
                     .w(px(20.))
                     .h(px(20.))
-                    .rounded(px(4.))
+                    .rounded(cx.theme().border_radius().small)
                     .cursor_pointer()
                     .when(self.hovered_top_new_tab_button, |this| {
                         this.bg(theme.colors().text.opacity(0.09))
@@ -1019,6 +1023,7 @@ impl BrowserView {
                                                     "sidebar-tab-favicon-{index}"
                                                 )),
                                                 favicon_url,
+                                                cx,
                                             );
 
                                             let hover_view = view.clone();
@@ -1033,7 +1038,7 @@ impl BrowserView {
                                                 .justify_center()
                                                 .h(px(36.))
                                                 .flex_shrink_0()
-                                                .rounded(px(7.))
+                                                .rounded(cx.theme().border_radius().large)
                                                 .cursor_pointer()
                                                 .when(is_active, |this| {
                                                     this.bg(selected_bg)
@@ -1131,6 +1136,7 @@ impl BrowserView {
                             let favicon_element = render_tab_favicon(
                                 SharedString::from(format!("sidebar-tab-favicon-{index}")),
                                 favicon_url,
+                                cx,
                             );
 
                             let display_title = if title.len() > 24 {
@@ -1155,7 +1161,7 @@ impl BrowserView {
                                 .px_2()
                                 .gap_1()
                                 .flex_shrink_0()
-                                .rounded(px(7.))
+                                .rounded(cx.theme().border_radius().large)
                                 .cursor_pointer()
                                 .when(is_active, |this| this.bg(selected_bg))
                                 .when(is_hovered && !is_active, |this| this.bg(hover_bg))
@@ -1193,7 +1199,7 @@ impl BrowserView {
                                             .justify_center()
                                             .w(px(16.))
                                             .h(px(16.))
-                                            .rounded(px(4.))
+                                            .rounded(cx.theme().border_radius().small)
                                             .cursor_pointer()
                                             .when(is_close_hovered, |this| this.bg(hover_bg))
                                             .on_click(cx.listener(
@@ -1321,7 +1327,7 @@ impl BrowserView {
                             .w(px(SIDEBAR_WIDTH_PX - 8.0))
                             .h(px(28.))
                             .flex_shrink_0()
-                            .rounded(px(7.))
+                            .rounded(cx.theme().border_radius().large)
                             .cursor_pointer()
                             .when(self.hovered_sidebar_new_tab_button, |this| {
                                 this.bg(theme.colors().text.opacity(0.09))

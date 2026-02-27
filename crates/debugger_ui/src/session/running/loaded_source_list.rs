@@ -44,7 +44,7 @@ impl LoadedSourceList {
         };
 
         v_flex()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .w_full()
             .group("")
             .p_1()

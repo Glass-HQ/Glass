@@ -1102,7 +1102,7 @@ impl Render for ImageHover {
             div()
                 .p_1p5()
                 .elevation_2(cx)
-                .child(gpui::img(image).h_auto().max_w_96().rounded_sm())
+                .child(gpui::img(image).h_auto().max_w_96().theme_rounded_sm(cx))
                 .into_any_element()
         } else {
             gpui::Empty.into_any_element()

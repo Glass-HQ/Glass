@@ -186,6 +186,7 @@ pub struct RenderContext<'a> {
     text_muted_color: Hsla,
     code_block_background_color: Hsla,
     code_span_background_color: Hsla,
+    border_radius_small: Pixels,
     syntax_theme: Arc<SyntaxTheme>,
     indent: usize,
     checkbox_clicked_callback: Option<CheckboxClickedCallback>,
@@ -227,6 +228,7 @@ impl<'a> RenderContext<'a> {
             text_muted_color: theme.colors().text_muted,
             code_block_background_color: theme.colors().surface_background,
             code_span_background_color: theme.colors().editor_document_highlight_read_background,
+            border_radius_small: theme.border_radius().small,
             checkbox_clicked_callback: None,
             is_last_child: false,
             mermaid_state,
@@ -700,7 +702,7 @@ fn render_markdown_table(parsed: &ParsedMarkdownTable, cx: &mut RenderContext) -
         })
         .border_1()
         .border_color(cx.border_color)
-        .rounded_sm()
+        .rounded(cx.border_radius_small)
         .overflow_hidden()
         .child(
             div()
@@ -775,7 +777,7 @@ fn render_markdown_code_block(
         .px_3()
         .py_3()
         .bg(cx.code_block_background_color)
-        .rounded_sm()
+        .rounded(cx.border_radius_small)
         .child(body)
         .child(
             div()
@@ -801,7 +803,7 @@ fn render_mermaid_diagram(
                 .px_3()
                 .py_3()
                 .bg(cx.code_block_background_color)
-                .rounded_sm()
+                .rounded(cx.border_radius_small)
                 .child(
                     div().w_full().child(
                         img(ImageSource::Render(render_image.clone()))
@@ -819,7 +821,7 @@ fn render_mermaid_diagram(
                 .px_3()
                 .py_3()
                 .bg(cx.code_block_background_color)
-                .rounded_sm()
+                .rounded(cx.border_radius_small)
                 .child(StyledText::new(parsed.contents.contents.clone()))
                 .into_any(),
         }
@@ -828,7 +830,7 @@ fn render_mermaid_diagram(
             .px_3()
             .py_3()
             .bg(cx.code_block_background_color)
-            .rounded_sm()
+            .rounded(cx.border_radius_small)
             .child(
                 div()
                     .w_full()
@@ -855,7 +857,7 @@ fn render_mermaid_diagram(
             .px_3()
             .py_3()
             .bg(cx.code_block_background_color)
-            .rounded_sm()
+            .rounded(cx.border_radius_small)
             .child(
                 Label::new("Rendering mermaid diagram...")
                     .color(Color::Muted)

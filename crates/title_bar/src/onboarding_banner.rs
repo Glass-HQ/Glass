@@ -117,7 +117,7 @@ impl Render for OnboardingBanner {
 
         let border_color = cx.theme().colors().editor_foreground.opacity(0.3);
         let banner = h_flex()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .border_1()
             .border_color(border_color)
             .occlude()

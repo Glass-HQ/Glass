@@ -27,7 +27,7 @@ impl RenderOnce for AgentPanelOnboardingCard {
             .m_2p5()
             .p(px(3.))
             .elevation_2(cx)
-            .rounded_lg()
+            .theme_rounded_lg(cx)
             .bg(cx.theme().colors().background.alpha(0.5))
             .child(
                 v_flex()
@@ -37,7 +37,7 @@ impl RenderOnce for AgentPanelOnboardingCard {
                     .py_3()
                     .gap_2()
                     .border_1()
-                    .rounded(px(5.))
+                    .rounded(cx.theme().border_radius().medium)
                     .border_color(cx.theme().colors().text.alpha(0.1))
                     .overflow_hidden()
                     .bg(cx.theme().colors().panel_background)
@@ -49,7 +49,7 @@ impl RenderOnce for AgentPanelOnboardingCard {
                             .right_0()
                             .w(px(400.))
                             .h(px(92.))
-                            .rounded_md()
+                            .theme_rounded_md(cx)
                             .child(
                                 Vector::new(
                                     VectorName::AiGrid,
@@ -67,7 +67,7 @@ impl RenderOnce for AgentPanelOnboardingCard {
                             .w(px(660.))
                             .h(px(401.))
                             .overflow_hidden()
-                            .rounded_md()
+                            .theme_rounded_md(cx)
                             .bg(linear_gradient(
                                 75.,
                                 linear_color_stop(

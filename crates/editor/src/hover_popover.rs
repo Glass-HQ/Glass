@@ -998,7 +998,7 @@ impl DiagnosticPopover {
                     .bg(self.background_color)
                     .border_1()
                     .border_color(self.border_color)
-                    .rounded_lg()
+                    .theme_rounded_lg(cx)
                     .child(
                         div()
                             .id("diagnostic-content-container")

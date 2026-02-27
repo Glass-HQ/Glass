@@ -1035,7 +1035,7 @@ impl TextThreadEditor {
             .child("Press")
             .child(
                 h_flex()
-                    .rounded_sm()
+                    .theme_rounded_sm(cx)
                     .px_1()
                     .mr_0p5()
                     .border_1()
@@ -2935,7 +2935,7 @@ fn invoked_slash_command_fold_placeholder(
                 .ml_6()
                 .gap_2()
                 .bg(cx.theme().colors().surface_background)
-                .rounded_sm()
+                .theme_rounded_sm(cx)
                 .child(Label::new(format!("/{}", command.name)))
                 .map(|parent| match &command.status {
                     InvokedSlashCommandStatus::Running(_) => {

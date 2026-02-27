@@ -115,7 +115,7 @@ impl Render for AgentNotification {
             .text_ui(cx)
             .font(ui_font)
             .border_color(cx.theme().colors().border)
-            .rounded_xl()
+            .theme_rounded_xl(cx)
             .child(
                 h_flex()
                     .items_start()

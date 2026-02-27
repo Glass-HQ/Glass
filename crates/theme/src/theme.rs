@@ -49,8 +49,8 @@ pub use crate::schema::*;
 pub use crate::settings::*;
 pub use crate::styles::*;
 pub use ::settings::{
-    FontStyleContent, HighlightStyleContent, StatusColorsContent, ThemeColorsContent,
-    ThemeStyleContent,
+    FontStyleContent, HighlightStyleContent, StatusColorsContent, ThemeBorderRadiusContent,
+    ThemeColorsContent, ThemeStyleContent,
 };
 
 /// Defines window border radius for platforms that use client side decorations.
@@ -297,6 +297,8 @@ impl ThemeFamily {
             adjust_borders_for_transparency(&mut refined_theme_colors, appearance);
         }
 
+        let border_radius = parse_border_radius(&theme.style.border_radius);
+
         Theme {
             id: uuid::Uuid::new_v4().to_string(),
             name: theme.name.clone().into(),
@@ -309,6 +311,7 @@ impl ThemeFamily {
                 status: refined_status_colors,
                 player: refined_player_colors,
                 syntax: syntax_theme,
+                border_radius,
             },
         }
     }
@@ -387,6 +390,12 @@ impl Theme {
     #[inline(always)]
     pub fn status(&self) -> &StatusColors {
         &self.styles.status
+    }
+
+    /// Returns the [`ThemeBorderRadius`] for the theme.
+    #[inline(always)]
+    pub fn border_radius(&self) -> &ThemeBorderRadius {
+        &self.styles.border_radius
     }
 
     /// Returns the color for the syntax node with the given name.

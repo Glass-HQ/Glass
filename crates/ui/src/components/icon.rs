@@ -328,7 +328,7 @@ impl Component for Icon {
                                         .border_1()
                                         .border_color(cx.theme().colors().border_variant)
                                         .bg(cx.theme().colors().element_disabled)
-                                        .rounded_sm()
+                                        .theme_rounded_sm(cx)
                                         .items_center()
                                         .child(Icon::new(icon_name))
                                         .child(Label::new(name).size(LabelSize::XSmall).truncate())

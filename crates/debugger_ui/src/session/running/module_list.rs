@@ -125,7 +125,7 @@ impl ModuleList {
         let module = self.entries[ix].clone();
 
         v_flex()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .w_full()
             .group("")
             .id(("module-list", ix))

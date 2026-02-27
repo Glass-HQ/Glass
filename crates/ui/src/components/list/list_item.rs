@@ -234,13 +234,13 @@ impl RenderOnce for ListItem {
                     .when(self.selectable, |this| {
                         this.hover(|style| style.bg(cx.theme().colors().ghost_element_hover))
                             .active(|style| style.bg(cx.theme().colors().ghost_element_active))
-                            .when(self.outlined, |this| this.rounded_sm())
+                            .when(self.outlined, |this| this.theme_rounded_sm(cx))
                             .when(self.selected, |this| {
                                 this.bg(cx.theme().colors().ghost_element_selected)
                             })
                     })
             })
-            .when(self.rounded, |this| this.rounded_sm())
+            .when(self.rounded, |this| this.theme_rounded_sm(cx))
             .when_some(self.on_hover, |this, on_hover| this.on_hover(on_hover))
             .child(
                 h_flex()
@@ -284,7 +284,7 @@ impl RenderOnce for ListItem {
                     .when(self.outlined, |this| {
                         this.border_1()
                             .border_color(cx.theme().colors().border)
-                            .rounded_sm()
+                            .theme_rounded_sm(cx)
                             .overflow_hidden()
                     })
                     .when_some(self.on_secondary_mouse_down, |this, on_mouse_down| {
@@ -295,7 +295,7 @@ impl RenderOnce for ListItem {
                     .when_some(self.tooltip, |this, tooltip| this.tooltip(tooltip))
                     .map(|this| {
                         if self.inset {
-                            this.rounded_sm()
+                            this.theme_rounded_sm(cx)
                         } else {
                             // When an item is not inset draw the indent spacing inside of the item
                             this.ml(self.indent_level as f32 * self.indent_step_size)

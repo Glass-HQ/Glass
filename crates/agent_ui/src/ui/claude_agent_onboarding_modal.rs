@@ -76,7 +76,7 @@ impl Render for ClaudeCodeOnboardingModal {
                 .px_1()
                 .py_0p5()
                 .gap_1()
-                .rounded_sm()
+                .theme_rounded_sm(cx)
                 .bg(cx.theme().colors().element_active.opacity(0.05))
                 .border_1()
                 .border_color(cx.theme().colors().border)
@@ -114,7 +114,7 @@ impl Render for ClaudeCodeOnboardingModal {
             .border_color(cx.theme().colors().border_variant)
             .justify_center()
             .gap_8()
-            .rounded_t_md()
+            .theme_rounded_t_md(cx)
             .overflow_hidden()
             .child(
                 div().absolute().inset_0().w(px(515.)).h(px(126.)).child(
@@ -163,7 +163,7 @@ impl Render for ClaudeCodeOnboardingModal {
                             .pr_2()
                             .py_0p5()
                             .gap_1()
-                            .rounded_sm()
+                            .theme_rounded_sm(cx)
                             .bg(cx.theme().colors().element_active.opacity(0.2))
                             .border_1()
                             .border_color(cx.theme().colors().border)

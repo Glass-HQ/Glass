@@ -4606,7 +4606,7 @@ impl GitPanel {
                         .id("commit-msg-hover")
                         .cursor_pointer()
                         .px_1()
-                        .rounded_sm()
+                        .theme_rounded_sm(cx)
                         .line_clamp(1)
                         .hover(|s| s.bg(cx.theme().colors().element_hover))
                         .child(

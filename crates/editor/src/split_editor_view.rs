@@ -339,7 +339,7 @@ impl Element for SplitBufferHeadersElement {
 
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
                     for header_layout in &mut prepaint.non_sticky_headers {
                         header_layout.element.paint(window, cx);
                     }

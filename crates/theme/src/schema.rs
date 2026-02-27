@@ -775,6 +775,25 @@ pub fn theme_colors_refinement(
     }
 }
 
+pub fn parse_border_radius(
+    content: &settings::ThemeBorderRadiusContent,
+) -> crate::ThemeBorderRadius {
+    let defaults = crate::ThemeBorderRadius::default();
+    crate::ThemeBorderRadius {
+        extra_small: content
+            .extra_small
+            .map(gpui::px)
+            .unwrap_or(defaults.extra_small),
+        small: content.small.map(gpui::px).unwrap_or(defaults.small),
+        medium: content.medium.map(gpui::px).unwrap_or(defaults.medium),
+        large: content.large.map(gpui::px).unwrap_or(defaults.large),
+        extra_large: content
+            .extra_large
+            .map(gpui::px)
+            .unwrap_or(defaults.extra_large),
+    }
+}
+
 pub(crate) fn try_parse_color(color: &str) -> anyhow::Result<Hsla> {
     let rgba = gpui::Rgba::try_from(color)?;
     let rgba = palette::rgb::Srgba::from_components((rgba.r, rgba.g, rgba.b, rgba.a));

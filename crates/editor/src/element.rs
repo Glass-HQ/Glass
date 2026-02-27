@@ -2451,7 +2451,7 @@ impl EditorElement {
                 .h(line_height)
                 .w_full()
                 .px_1()
-                .rounded_xs()
+                .theme_rounded_xs(cx)
                 .opacity(opacity)
                 .bg(severity_to_color(&diagnostic_to_render.severity)
                     .color(cx)
@@ -6371,6 +6371,8 @@ impl EditorElement {
         window.with_content_mask(
             Some(ContentMask {
                 bounds: layout.position_map.text_hitbox.bounds,
+                corner_radii: Default::default(),
+                corner_radii_bounds: Default::default(),
             }),
             |window| {
                 let editor = self.editor.read(cx);
@@ -7425,7 +7427,7 @@ impl EditorElement {
             } else {
                 let mut bounds = layout.hitbox.bounds;
                 bounds.origin.x += layout.gutter_hitbox.bounds.size.width;
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
                     block.element.paint(window, cx);
                 })
             }
@@ -8079,7 +8081,7 @@ pub(crate) fn render_buffer_header(
                 .flex_basis(Length::Definite(DefiniteLength::Fraction(0.667)))
                 .pl_1()
                 .pr_2()
-                .rounded_sm()
+                .theme_rounded_sm(cx)
                 .gap_1p5()
                 .when(is_sticky, |el| el.shadow_md())
                 .border_1()
@@ -8104,7 +8106,7 @@ pub(crate) fn render_buffer_header(
                     header.child(
                         div()
                             .hover(|style| style.bg(colors.element_selected))
-                            .rounded_xs()
+                            .theme_rounded_xs(cx)
                             .child(
                                 ButtonLike::new("toggle-buffer-fold")
                                     .style(ButtonStyle::Transparent)
@@ -9477,7 +9479,7 @@ impl Element for EditorElement {
         let rem_size = self.rem_size(cx);
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
                     let (mut snapshot, is_read_only) = self.editor.update(cx, |editor, cx| {
                         (editor.snapshot(window, cx), editor.read_only(cx))
                     });
@@ -10887,7 +10889,7 @@ impl Element for EditorElement {
         let rem_size = self.rem_size(cx);
         window.with_rem_size(rem_size, |window| {
             window.with_text_style(Some(text_style), |window| {
-                window.with_content_mask(Some(ContentMask { bounds }), |window| {
+                window.with_content_mask(Some(ContentMask { bounds, corner_radii: Default::default(), corner_radii_bounds: Default::default() }), |window| {
                     self.paint_mouse_listeners(layout, window, cx);
                     self.paint_background(layout, window, cx);
                     self.paint_indent_guides(layout, window, cx);
@@ -11172,6 +11174,8 @@ impl StickyHeaderLine {
                         + point(Pixels::ZERO, self.offset),
                     size(available_text_width, line_height),
                 ),
+                corner_radii: Default::default(),
+                corner_radii_bounds: Default::default(),
             }),
             |window| {
                 self.line.draw_with_custom_offset(

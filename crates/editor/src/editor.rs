@@ -9727,7 +9727,7 @@ impl Editor {
                     .border(BORDER_WIDTH)
                     .shadow_xs()
                     .border_color(cx.theme().colors().border)
-                    .rounded_l_lg()
+                    .rounded_l(cx.theme().border_radius().large)
                     .when(line_count > 1, |el| el.rounded_br_lg())
                     .pr_1()
                     .child(styled_text),
@@ -9748,7 +9748,7 @@ impl Editor {
                     .bg(Editor::edit_prediction_line_popover_bg_color(cx))
                     .border(BORDER_WIDTH)
                     .border_color(cx.theme().colors().border)
-                    .rounded_r_lg()
+                    .rounded_r(cx.theme().border_radius().large)
                     .id("edit_prediction_diff_popover_keybind")
                     .when(!has_keybind, |el| {
                         let status_colors = cx.theme().status();
@@ -9929,7 +9929,7 @@ impl Editor {
             .pl_1()
             .pr(padding_right)
             .gap_1()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .border_1()
             .bg(Self::edit_prediction_line_popover_bg_color(cx))
             .border_color(Self::edit_prediction_callout_popover_border_color(cx))
@@ -9992,7 +9992,7 @@ impl Editor {
             .py_1()
             .px_2()
             .gap_1()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .border_1()
             .bg(Self::edit_prediction_line_popover_bg_color(cx))
             .border_color(Self::edit_prediction_callout_popover_border_color(cx))
@@ -10221,7 +10221,7 @@ impl Editor {
                         h_flex()
                             .h_full()
                             .border_l_1()
-                            .rounded_r_lg()
+                            .rounded_r(cx.theme().border_radius().large)
                             .border_color(cx.theme().colors().border)
                             .bg(Self::edit_prediction_line_popover_bg_color(cx))
                             .gap_1()
@@ -21448,7 +21448,7 @@ impl Editor {
             .w(width - px(1.))
             .h(relative(0.9))
             .justify_center()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .border_1()
             .border_color(text_color.opacity(0.1))
             .bg(text_color.opacity(0.15))
@@ -22399,7 +22399,7 @@ impl Editor {
                     .gap_2()
                     .px_2()
                     .py_1p5()
-                    .rounded_md()
+                    .theme_rounded_md(cx)
                     .bg(colors.surface_background)
                     .child(
                         div()
@@ -22423,7 +22423,7 @@ impl Editor {
                             .flex_1()
                             .border_1()
                             .border_color(colors.border)
-                            .rounded_md()
+                            .theme_rounded_md(cx)
                             .bg(colors.editor_background)
                             .px_2()
                             .py_1()
@@ -22463,6 +22463,7 @@ impl Editor {
                     avatar_size,
                     action_icon_size,
                     colors,
+                    cx,
                 ))
             })
             .into_any_element()
@@ -22476,6 +22477,7 @@ impl Editor {
         avatar_size: Pixels,
         action_icon_size: IconSize,
         colors: &theme::ThemeColors,
+        cx: &App,
     ) -> impl IntoElement {
         let comment_count = comments.len();
 
@@ -22492,7 +22494,7 @@ impl Editor {
                     .px_2()
                     .py_1()
                     .cursor_pointer()
-                    .rounded_md()
+                    .theme_rounded_md(cx)
                     .hover(|style| style.bg(colors.ghost_element_hover))
                     .on_click(|_, window: &mut Window, cx| {
                         window.dispatch_action(
@@ -22530,6 +22532,7 @@ impl Editor {
                         avatar_size,
                         action_icon_size,
                         colors,
+                        cx,
                     )
                 }))
             })
@@ -22542,6 +22545,7 @@ impl Editor {
         avatar_size: Pixels,
         _action_icon_size: IconSize,
         colors: &theme::ThemeColors,
+        cx: &App,
     ) -> impl IntoElement {
         let comment_id = comment.id;
         let is_editing = inline_editor.is_some();
@@ -22552,7 +22556,7 @@ impl Editor {
             .gap_2()
             .px_2()
             .py_1p5()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .bg(colors.surface_background)
             .child(
                 div()
@@ -22577,7 +22581,7 @@ impl Editor {
                     .flex_1()
                     .border_1()
                     .border_color(colors.border)
-                    .rounded_md()
+                    .theme_rounded_md(cx)
                     .bg(colors.editor_background)
                     .px_2()
                     .py_1()
@@ -28932,7 +28936,7 @@ fn render_diff_hunk_controls(
         .border_x_1()
         .border_b_1()
         .border_color(cx.theme().colors().border_variant)
-        .rounded_b_lg()
+        .theme_rounded_b_lg(cx)
         .bg(cx.theme().colors().editor_background)
         .gap_1()
         .block_mouse_except_scroll()

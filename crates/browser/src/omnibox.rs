@@ -417,7 +417,7 @@ impl Omnibox {
             .bg(theme.colors().elevated_surface_background)
             .border_1()
             .border_color(theme.colors().border)
-            .rounded_md()
+            .theme_rounded_md(cx)
             .shadow_md()
             .py_1()
             .children(rows);
@@ -475,7 +475,7 @@ impl Render for Omnibox {
                 div()
                     .h(px(24.))
                     .px_2()
-                    .rounded_md()
+                    .theme_rounded_md(cx)
                     .bg(theme.colors().editor_background)
                     .border_1()
                     .border_color(theme.colors().border)

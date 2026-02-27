@@ -139,7 +139,7 @@ impl Render for MultibufferHint {
             .bg(cx.theme().status().info_background.opacity(0.5))
             .border_1()
             .border_color(cx.theme().colors().border_variant)
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .overflow_hidden()
             .child(
                 h_flex()

@@ -230,7 +230,7 @@ impl RenderOnce for Checkbox {
                     .items_center()
                     .m_1()
                     .size_4()
-                    .rounded_xs()
+                    .theme_rounded_xs(cx)
                     .bg(bg_color)
                     .border_1()
                     .border_color(border_color)

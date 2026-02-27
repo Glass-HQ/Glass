@@ -2,6 +2,7 @@ use crate::ToggleWorkspaceSidebar;
 use crate::Workspace;
 use crate::multi_workspace::MultiWorkspace;
 use crate::persistence::model::DockData;
+use crate::workspace_settings::WorkspaceSettings;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
 use anyhow::Context as _;
 use client::proto;
@@ -12,7 +13,7 @@ use gpui::{
     ParentElement, Render, SegmentSelectEvent, SharedString, StyleRefinement, Styled, Subscription,
     WeakEntity, Window, actions, deferred, div, native_toggle_group,
 };
-use settings::SettingsStore;
+use settings::{Settings, SettingsStore};
 use std::{
     collections::hash_map::DefaultHasher,
     hash::{Hash, Hasher},
@@ -1222,26 +1223,37 @@ impl Render for Dock {
                 .key_context(dispatch_context)
                 .track_focus(&self.focus_handle(cx))
                 .flex()
-                .bg(cx.theme().colors().panel_background)
-                .border_color(cx.theme().colors().border)
-                .overflow_hidden()
+                .map(|this| match self.position() {
+                    // 8px on window-facing sides, 4px on the single side facing other panels,
+                    // so adjacent docks share 4+4=8px between them (matching the window edge gap).
+                    DockPosition::Left => this.pl(px(8.)).pt(px(8.)).pb(px(8.)).pr(px(4.)),
+                    DockPosition::Right => this.pr(px(8.)).pt(px(8.)).pb(px(8.)).pl(px(4.)),
+                    DockPosition::Bottom => {
+                        use settings::BottomDockLayout;
+                        let layout = WorkspaceSettings::get_global(cx).bottom_dock_layout;
+                        let (pl, pr) = match layout {
+                            BottomDockLayout::Full => (px(8.), px(8.)),
+                            BottomDockLayout::LeftAligned => (px(8.), px(4.)),
+                            BottomDockLayout::RightAligned => (px(4.), px(8.)),
+                            BottomDockLayout::Contained => (px(4.), px(4.)),
+                        };
+                        this.pb(px(8.)).pt(px(4.)).pl(pl).pr(pr)
+                    }
+                })
                 .map(|this| match self.position().axis() {
                     Axis::Horizontal => this.w(size).h_full().flex_row(),
                     Axis::Vertical => this.h(size).w_full().flex_col(),
                 })
-                .map(|this| match self.position() {
-                    DockPosition::Left => this.border_r_1(),
-                    DockPosition::Right => this.border_l_1(),
-                    DockPosition::Bottom => this.border_t_1(),
-                })
                 .child(
                     div()
-                        .map(|this| match self.position().axis() {
-                            Axis::Horizontal => this.min_w(size).h_full(),
-                            Axis::Vertical => this.min_h(size).w_full(),
-                        })
                         .flex()
+                        .flex_1()
                         .flex_col()
+                        .bg(cx.theme().colors().panel_background)
+                        .border_1()
+                        .border_color(cx.theme().colors().border)
+                        .rounded(cx.theme().border_radius().medium)
+                        .overflow_hidden()
                         .when_some(self.dock_button_bar.clone(), |this, dock_button_bar| {
                             this.child(dock_button_bar)
                         })

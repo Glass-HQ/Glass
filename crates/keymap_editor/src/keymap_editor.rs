@@ -1741,7 +1741,7 @@ impl Render for KeymapEditor {
                                     .py_1()
                                     .border_1()
                                     .border_color(theme.colors().border)
-                                    .rounded_md()
+                                    .theme_rounded_md(cx)
                                     .child(self.filter_editor.clone()),
                             )
                             .child(
@@ -3254,7 +3254,7 @@ impl Render for ActionArgumentsEditor {
             .min_w_48()
             .px_2()
             .flex_grow()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .bg(cx.theme().colors().editor_background)
             .border_1()
             .border_color(border_color)

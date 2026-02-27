@@ -457,7 +457,7 @@ impl PickerDelegate for RulePickerDelegate {
             .px_1p5()
             .mx_1()
             .gap_1p5()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .bg(cx.theme().colors().editor_background)
             .border_1()
             .border_color(cx.theme().colors().border)
@@ -1190,7 +1190,7 @@ impl RulesLibrary {
             .pl_1()
             .border_1()
             .border_color(transparent_black())
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .when(!read_only, |this| {
                 this.group_hover("active-editor-header", |this| {
                     this.border_color(cx.theme().colors().border_variant)

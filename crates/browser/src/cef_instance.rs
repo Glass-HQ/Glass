@@ -113,7 +113,6 @@ wrap_app! {
             command_line.append_switch(Some(&"no-startup-window".into()));
             command_line.append_switch(Some(&"noerrdialogs".into()));
             command_line.append_switch(Some(&"hide-crash-restore-bubble".into()));
-            command_line.append_switch(Some(&"use-mock-keychain".into()));
             command_line.append_switch(Some(&"disable-gpu-sandbox".into()));
             command_line.append_switch_with_value(
                 Some(&"autoplay-policy".into()),
@@ -123,7 +122,6 @@ wrap_app! {
                 Some(&"component-updater".into()),
                 Some(&"fast-update".into()),
             );
-
             #[cfg(debug_assertions)]
             {
                 command_line.append_switch(Some(&"enable-logging=stderr".into()));
@@ -309,6 +307,17 @@ impl CefInstance {
         settings.external_message_pump = 1;
         settings.no_sandbox = 1;
         settings.log_severity = cef::sys::cef_log_severity_t::LOGSEVERITY_WARNING.into();
+
+        // Override the user-agent to match the current stable Chrome release.
+        // CEF 146 is based on a Chromium version that hasn't reached Chrome
+        // stable yet, and Google's sign-in endpoints reject unrecognized
+        // browser versions with 400 errors on the browserinfo fingerprint
+        // check. Using Chrome 145's stable UA keeps auth flows working.
+        settings.user_agent = cef::CefString::from(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) \
+             AppleWebKit/537.36 (KHTML, like Gecko) \
+             Chrome/145.0.7632.75 Safari/537.36",
+        );
 
         #[cfg(target_os = "macos")]
         {

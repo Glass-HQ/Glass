@@ -27,7 +27,7 @@ impl OsrLifeSpanHandler {
     fn popup_client() -> cef::Client {
         let render_state = Arc::new(Mutex::new(RenderState::default()));
         let (popup_sender, _popup_receiver) = crate::events::event_channel();
-        ClientBuilder::build(render_state, popup_sender)
+        ClientBuilder::build_for_popup(render_state, popup_sender)
     }
 }
 

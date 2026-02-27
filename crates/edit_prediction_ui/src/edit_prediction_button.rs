@@ -1878,7 +1878,7 @@ fn render_zeta_tab_animation(cx: &App) -> impl IntoElement {
         .p_4()
         .justify_center()
         .gap_2()
-        .rounded_xs()
+        .theme_rounded_xs(cx)
         .border_1()
         .border_dashed()
         .border_color(cx.theme().colors().border)

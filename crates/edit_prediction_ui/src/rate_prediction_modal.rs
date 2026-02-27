@@ -913,7 +913,7 @@ impl Render for RatePredictionsModal {
             .border_color(border_color)
             .w(window.viewport_size().width - px(320.))
             .h(window.viewport_size().height - px(300.))
-            .rounded_lg()
+            .theme_rounded_lg(cx)
             .shadow_lg()
             .child(
                 v_flex()

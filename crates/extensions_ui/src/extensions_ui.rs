@@ -1300,7 +1300,7 @@ impl ExtensionsPage {
             .gap_2()
             .border_1()
             .border_color(editor_border)
-            .rounded_md()
+            .theme_rounded_md(cx)
             .child(Icon::new(IconName::MagnifyingGlass).color(Color::Muted))
             .child(self.render_text_input(&self.query_editor, cx))
     }

@@ -96,7 +96,7 @@ impl RenderOnce for AgentRegistryCard {
                 .bg(cx.theme().colors().elevated_surface_background.opacity(0.5))
                 .border_1()
                 .border_color(cx.theme().colors().border_variant)
-                .rounded_md()
+                .theme_rounded_md(cx)
                 .children(self.children),
         )
     }
@@ -360,7 +360,7 @@ impl AgentRegistryPage {
             .gap_2()
             .border_1()
             .border_color(cx.theme().colors().border)
-            .rounded_md()
+            .theme_rounded_md(cx)
             .child(Icon::new(IconName::MagnifyingGlass).color(Color::Muted))
             .child(self.render_text_input(&self.query_editor, cx))
     }

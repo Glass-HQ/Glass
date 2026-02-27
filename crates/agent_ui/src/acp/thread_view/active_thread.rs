@@ -1743,7 +1743,7 @@ impl AcpThreadView {
             .border_1()
             .border_b_0()
             .border_color(cx.theme().colors().border)
-            .rounded_t_md()
+            .theme_rounded_t_md(cx)
             .shadow(vec![gpui::BoxShadow {
                 color: gpui::black().opacity(0.15),
                 offset: point(px(1.), px(-1.)),
@@ -1885,7 +1885,7 @@ impl AcpThreadView {
                                     .cursor_pointer()
                                     .pr_0p5()
                                     .gap_0p5()
-                                    .rounded_xs()
+                                    .theme_rounded_xs(cx)
                                     .child(file_icon)
                                     .children(file_name)
                                     .children(file_path)
@@ -3747,7 +3747,7 @@ impl AcpThreadView {
                                 div()
                                     .py_3()
                                     .px_2()
-                                    .rounded_md()
+                                    .theme_rounded_md(cx)
                                     .bg(cx.theme().colors().editor_background)
                                     .border_1()
                                     .when(is_indented, |this| {
@@ -3780,7 +3780,7 @@ impl AcpThreadView {
                                     .top_neg_3p5()
                                     .right_3()
                                     .gap_1()
-                                    .rounded_sm()
+                                    .theme_rounded_sm(cx)
                                     .border_1()
                                     .border_color(cx.theme().colors().border)
                                     .bg(cx.theme().colors().editor_background)
@@ -4037,7 +4037,7 @@ impl AcpThreadView {
             .mb_2()
             .mx_5()
             .gap_1()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .border_1()
             .border_color(cx.theme().colors().border)
             .bg(cx.theme().colors().editor_background)
@@ -4931,7 +4931,7 @@ impl AcpThreadView {
             .flex_none()
             .gap_1()
             .justify_between()
-            .rounded_t_md()
+            .theme_rounded_t_md(cx)
             .child(
                 div()
                     .id(("command-target-path", terminal.entity_id()))
@@ -5081,7 +5081,7 @@ impl AcpThreadView {
             .border_1()
             .when(tool_failed || command_failed, |card| card.border_dashed())
             .border_color(border_color)
-            .rounded_md()
+            .theme_rounded_md(cx)
             .overflow_hidden()
             .child(
                 v_flex()
@@ -5099,7 +5099,7 @@ impl AcpThreadView {
                         .when(tool_failed || command_failed, |card| card.border_dashed())
                         .border_color(border_color)
                         .bg(cx.theme().colors().editor_background)
-                        .rounded_b_md()
+                        .theme_rounded_b_md(cx)
                         .text_ui_sm(cx)
                         .h_full()
                         .children(terminal_view.map(|terminal_view| {
@@ -5301,7 +5301,7 @@ impl AcpThreadView {
                                         .pl_0p5()
                                         .gap_1()
                                         .justify_between()
-                                        .rounded_xs()
+                                        .theme_rounded_xs(cx)
                                         .hover(|s| s.bg(cx.theme().colors().element_hover))
                                         .child(input_output_header(input_header.into()))
                                         .child(
@@ -5421,7 +5421,7 @@ impl AcpThreadView {
             .map(|this| {
                 if use_card_layout {
                     this.my_1p5()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .border_1()
                         .when(failed_or_canceled, |this| this.border_dashed())
                         .border_color(self.tool_card_border_color(cx))
@@ -5966,7 +5966,7 @@ impl AcpThreadView {
         v_flex()
             .p_3()
             .gap_1()
-            .rounded_b_md()
+            .theme_rounded_b_md(cx)
             .bg(cx.theme().colors().editor_background)
             .child(bar(0, "w_4_5"))
             .child(bar(1, "w_1_4"))
@@ -6581,7 +6581,7 @@ impl AcpThreadView {
 
         v_flex()
             .w_full()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .border_1()
             .when(has_no_title_or_canceled, |this| this.border_dashed())
             .border_color(self.tool_card_border_color(cx))
@@ -6604,7 +6604,7 @@ impl AcpThreadView {
                             .size_full()
                             .gap_2()
                             .justify_between()
-                            .rounded_sm()
+                            .theme_rounded_sm(cx)
                             .overflow_hidden()
                             .child(
                                 h_flex()

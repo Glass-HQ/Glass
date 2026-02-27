@@ -30,7 +30,7 @@ pub struct ModalContainerProperties {
 }
 
 impl ModalContainerProperties {
-    pub fn new(window: &Window, preferred_char_width: usize) -> Self {
+    pub fn new(window: &Window, cx: &App, preferred_char_width: usize) -> Self {
         let container_padding = 5.0;
 
         // Calculate width based on character width
@@ -44,12 +44,14 @@ impl ModalContainerProperties {
                 f32::from(preferred_char_width as f32 * em_width + px(container_padding * 2.0));
         }
 
+        let modal_border_radius = f32::from(cx.theme().border_radius().extra_large);
+
         Self {
             modal_width,
             editor_height: 300.0,
             footer_height: 24.0,
             container_padding,
-            modal_border_radius: 12.0,
+            modal_border_radius,
         }
     }
 
@@ -214,7 +216,7 @@ impl CommitModal {
         })
         .detach();
 
-        let properties = ModalContainerProperties::new(window, 50);
+        let properties = ModalContainerProperties::new(window, cx, 50);
 
         Self {
             git_panel,

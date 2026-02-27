@@ -787,7 +787,7 @@ impl Render for BreakpointList {
                     .child(
                         h_flex()
                             .p_1()
-                            .rounded_sm()
+                            .theme_rounded_sm(cx)
                             .bg(cx.theme().colors().editor_background)
                             .border_1()
                             .when(
@@ -1358,7 +1358,7 @@ impl BreakpointOptionsStrip {
     ) -> impl Fn(Div) -> Div {
         move |this: Div| {
             // Avoid layout shifts in case there's no colored border
-            let this = this.border_1().rounded_sm();
+            let this = this.border_1().theme_rounded_sm(cx);
             let color = cx.theme().colors();
 
             if self.is_selected && self.strip_mode == Some(kind) {

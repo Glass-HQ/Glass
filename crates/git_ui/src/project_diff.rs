@@ -1729,7 +1729,7 @@ impl RenderOnce for ProjectDiffEmptyState {
                 .bg(cx.theme().colors().text.opacity(0.05))
                 .border_1()
                 .border_color(cx.theme().colors().border)
-                .rounded_sm()
+                .theme_rounded_sm(cx)
                 .gap_8()
                 .px_6()
                 .py_4()

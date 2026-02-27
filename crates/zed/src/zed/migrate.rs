@@ -201,7 +201,7 @@ impl Render for MigrationBanner {
             .bg(cx.theme().status().info_background.opacity(0.6))
             .border_1()
             .border_color(cx.theme().colors().border_variant)
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .child(
                 h_flex()
                     .gap_2()

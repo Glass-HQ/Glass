@@ -256,7 +256,7 @@ impl AgentConfiguration {
                             .py_0p5()
                             .w_full()
                             .justify_between()
-                            .rounded_sm()
+                            .theme_rounded_sm(cx)
                             .hover(|hover| hover.bg(cx.theme().colors().element_hover))
                             .child(
                                 h_flex()
@@ -677,7 +677,7 @@ impl AgentConfiguration {
                                     .border_1()
                                     .border_dashed()
                                     .border_color(cx.theme().colors().border.opacity(0.6))
-                                    .rounded_sm()
+                                    .theme_rounded_sm(cx)
                                     .child(
                                         Label::new("No MCP servers added yet.")
                                             .color(Color::Muted)

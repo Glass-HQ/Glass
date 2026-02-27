@@ -367,7 +367,7 @@ impl AddLlmProviderModal {
         v_flex()
             .p_2()
             .gap_2()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .border_1()
             .border_dashed()
             .border_color(cx.theme().colors().border.opacity(0.6))

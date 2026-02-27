@@ -753,7 +753,7 @@ fn render_diff_hunk_controls(
         .border_x_1()
         .border_b_1()
         .border_color(cx.theme().colors().border)
-        .rounded_b_md()
+        .theme_rounded_b_md(cx)
         .bg(cx.theme().colors().editor_background)
         .gap_1()
         .block_mouse_except_scroll()

@@ -301,7 +301,7 @@ impl AppStoreConnectTab {
                     div()
                         .px_4()
                         .py_2()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .bg(cx.theme().status().error_background)
                         .child(Label::new(error.clone()).color(Color::Error)),
                 )
@@ -366,7 +366,7 @@ impl AppStoreConnectTab {
                     div()
                         .px_4()
                         .py_2()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .bg(cx.theme().status().error_background)
                         .child(Label::new(error.clone()).color(Color::Error)),
                 )
@@ -554,7 +554,7 @@ impl AppStoreConnectTab {
                                 .id(("app-item", ix))
                                 .w_full()
                                 .p_3()
-                                .rounded_md()
+                                .theme_rounded_md(cx)
                                 .border_1()
                                 .border_color(cx.theme().colors().border)
                                 .hover(|this| this.bg(cx.theme().colors().element_hover))
@@ -569,7 +569,7 @@ impl AppStoreConnectTab {
                                             div()
                                                 .w_10()
                                                 .h_10()
-                                                .rounded_lg()
+                                                .theme_rounded_lg(cx)
                                                 .bg(cx.theme().colors().element_background)
                                                 .flex()
                                                 .items_center()
@@ -676,7 +676,7 @@ impl AppStoreConnectTab {
             .when(!self.builds.is_empty(), |this| {
                 this.child(
                     div()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
@@ -744,7 +744,7 @@ impl AppStoreConnectTab {
             .when(!self.beta_groups.is_empty(), |this| {
                 this.child(
                     div()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
@@ -821,7 +821,7 @@ impl AppStoreConnectTab {
             .when(!self.beta_testers.is_empty(), |this| {
                 this.child(
                     div()
-                        .rounded_md()
+                        .theme_rounded_md(cx)
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
@@ -889,7 +889,7 @@ impl AppStoreConnectTab {
         div()
             .px_2()
             .py_px()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .bg(bg_color)
             .child(Label::new(status.to_string()).size(LabelSize::XSmall).color(color))
     }

@@ -116,7 +116,7 @@ impl RenderOnce for UpdateButton {
 
         h_flex()
             .mr_2()
-            .rounded_sm()
+            .theme_rounded_sm(cx)
             .border_1()
             .border_color(border_color)
             .child(

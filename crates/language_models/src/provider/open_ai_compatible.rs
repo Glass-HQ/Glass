@@ -514,7 +514,7 @@ impl Render for ConfigurationView {
                 .mt_1()
                 .p_1()
                 .justify_between()
-                .rounded_md()
+                .theme_rounded_md(cx)
                 .border_1()
                 .border_color(cx.theme().colors().border)
                 .bg(cx.theme().colors().background)

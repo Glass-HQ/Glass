@@ -70,6 +70,36 @@ impl KeyboardHandlerBuilder {
     }
 }
 
+// Popup windows are real native windows, so their key events come through
+// the OS natively and should NOT be suppressed. This handler allows all
+// events through.
+#[derive(Clone)]
+struct PopupKeyboardHandler;
+
+wrap_keyboard_handler! {
+    struct PopupKeyboardHandlerBuilder {
+        handler: PopupKeyboardHandler,
+    }
+
+    impl KeyboardHandler {
+        fn on_pre_key_event(
+            &self,
+            _browser: Option<&mut Browser>,
+            _event: Option<&KeyEvent>,
+            _os_event: *mut u8,
+            _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
+        ) -> ::std::os::raw::c_int {
+            0 // Allow all native key events through.
+        }
+    }
+}
+
+impl PopupKeyboardHandlerBuilder {
+    fn build() -> cef::KeyboardHandler {
+        Self::new(PopupKeyboardHandler)
+    }
+}
+
 // ── Client ───────────────────────────────────────────────────────────
 
 wrap_client! {
@@ -131,6 +161,21 @@ wrap_client! {
 
 impl ClientBuilder {
     pub fn build(render_state: Arc<Mutex<RenderState>>, event_sender: EventSender) -> cef::Client {
+        Self::build_inner(render_state, event_sender, KeyboardHandlerBuilder::build())
+    }
+
+    pub fn build_for_popup(
+        render_state: Arc<Mutex<RenderState>>,
+        event_sender: EventSender,
+    ) -> cef::Client {
+        Self::build_inner(render_state, event_sender, PopupKeyboardHandlerBuilder::build())
+    }
+
+    fn build_inner(
+        render_state: Arc<Mutex<RenderState>>,
+        event_sender: EventSender,
+        keyboard_handler: cef::KeyboardHandler,
+    ) -> cef::Client {
         let render_handler = OsrRenderHandler::new(render_state, event_sender.clone());
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
@@ -145,7 +190,7 @@ impl ClientBuilder {
             LoadHandlerBuilder::build(load_handler),
             DisplayHandlerBuilder::build(display_handler),
             LifeSpanHandlerBuilder::build(life_span_handler),
-            KeyboardHandlerBuilder::build(),
+            keyboard_handler,
             DownloadHandlerBuilder::build(download_handler),
             FindHandlerBuilder::build(find_handler),
             RequestHandlerBuilder::build(request_handler),

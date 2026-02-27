@@ -23,7 +23,7 @@ use std::{
 };
 use sum_tree::{Bias, Cursor, Dimensions, SumTree};
 use text::{ChunkBitmaps, Patch};
-use ui::{ActiveTheme, IntoElement as _, ParentElement as _, Styled as _, div};
+use ui::{ActiveTheme, IntoElement as _, ParentElement as _, Styled as _, StyledExt as _, div};
 
 use super::{Highlights, custom_highlights::CustomHighlightsChunks, fold_map::ChunkRendererId};
 
@@ -351,7 +351,7 @@ impl<'a> Iterator for InlayChunks<'a> {
                                     .child(
                                         div()
                                             .px_1()
-                                            .rounded_sm()
+                                            .theme_rounded_sm(cx)
                                             .bg(colors.surface_background)
                                             .text_color(colors.text_muted)
                                             .text_xs()

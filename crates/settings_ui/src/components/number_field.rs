@@ -497,8 +497,8 @@ impl<T: NumberFieldType> RenderOnce for NumberField<T> {
                         decrement.child(
                             base_button(IconName::Dash)
                                 .id((self.id.clone(), "decrement_button"))
-                                .rounded_tl_sm()
-                                .rounded_bl_sm()
+                                .theme_rounded_tl_sm(cx)
+                                .theme_rounded_bl_sm(cx)
                                 .when_some(self.tab_index, |this, _| this.tab_index(0isize))
                                 .on_click(decrement_handler),
                         )
@@ -708,8 +708,8 @@ impl<T: NumberFieldType> RenderOnce for NumberField<T> {
                         increment.child(
                             base_button(IconName::Plus)
                                 .id((self.id.clone(), "increment_button"))
-                                .rounded_tr_sm()
-                                .rounded_br_sm()
+                                .theme_rounded_tr_sm(cx)
+                                .theme_rounded_br_sm(cx)
                                 .when_some(self.tab_index, |this, _| this.tab_index(0isize))
                                 .on_click(increment_handler),
                         )

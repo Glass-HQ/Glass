@@ -22,7 +22,7 @@ impl RenderOnce for ProfileModalHeader {
             .px(DynamicSpacing::Base12.rems(cx))
             .pt(DynamicSpacing::Base08.rems(cx))
             .pb(DynamicSpacing::Base04.rems(cx))
-            .rounded_t_sm()
+            .theme_rounded_t_sm(cx)
             .gap_1p5();
 
         if let Some(icon) = self.icon {

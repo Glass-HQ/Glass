@@ -54,7 +54,7 @@ impl RenderOnce for ComponentExample {
                     .flex()
                     .items_center()
                     .justify_center()
-                    .rounded_xl()
+                    .rounded(cx.theme().border_radius().extra_large)
                     .border_1()
                     .border_color(cx.theme().colors().border.opacity(0.5))
                     .bg(pattern_slash(

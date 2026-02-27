@@ -5848,7 +5848,7 @@ impl ProjectPanel {
                         .when(index == components_len - 1, |this| this.flex_1().min_w_0())
                         .when(index == 0, |this| this.ml_neg_0p5())
                         .px_0p5()
-                        .rounded_xs()
+                        .theme_rounded_xs(cx)
                         .hover(|style| style.bg(cx.theme().colors().element_active))
                         .when(!is_sticky, |div| {
                             div.when(index != components_len - 1, |div| {
@@ -7019,7 +7019,7 @@ impl Render for DraggedProjectEntryView {
                     .items_center()
                     .py_1()
                     .px_2()
-                    .rounded_lg()
+                    .theme_rounded_lg(cx)
                     .bg(cx.theme().colors().background)
                     .map(|this| {
                         if self.selections.len() > 1 && self.selections.contains(&self.selection) {

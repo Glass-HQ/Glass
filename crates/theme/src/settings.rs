@@ -1,6 +1,6 @@
 use crate::{
-    Appearance, DEFAULT_ICON_THEME_NAME, SyntaxTheme, Theme, status_colors_refinement,
-    syntax_overrides, theme_colors_refinement,
+    Appearance, DEFAULT_ICON_THEME_NAME, SyntaxTheme, Theme, parse_border_radius,
+    status_colors_refinement, syntax_overrides, theme_colors_refinement,
 };
 use collections::HashMap;
 use derive_more::{Deref, DerefMut};
@@ -572,6 +572,44 @@ impl ThemeSettings {
             base_theme.styles.syntax.clone(),
             syntax_overrides(&theme_overrides),
         );
+
+        let radius_override = &theme_overrides.border_radius;
+        if radius_override.extra_small.is_some()
+            || radius_override.small.is_some()
+            || radius_override.medium.is_some()
+            || radius_override.large.is_some()
+            || radius_override.extra_large.is_some()
+        {
+            let current = &base_theme.styles.border_radius;
+            let parsed = parse_border_radius(radius_override);
+            base_theme.styles.border_radius = crate::ThemeBorderRadius {
+                extra_small: if radius_override.extra_small.is_some() {
+                    parsed.extra_small
+                } else {
+                    current.extra_small
+                },
+                small: if radius_override.small.is_some() {
+                    parsed.small
+                } else {
+                    current.small
+                },
+                medium: if radius_override.medium.is_some() {
+                    parsed.medium
+                } else {
+                    current.medium
+                },
+                large: if radius_override.large.is_some() {
+                    parsed.large
+                } else {
+                    current.large
+                },
+                extra_large: if radius_override.extra_large.is_some() {
+                    parsed.extra_large
+                } else {
+                    current.extra_large
+                },
+            };
+        }
     }
 }
 

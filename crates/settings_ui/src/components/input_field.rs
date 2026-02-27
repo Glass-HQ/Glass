@@ -180,7 +180,7 @@ impl RenderOnce for SettingsInputField {
             .px_2()
             .h_8()
             .min_w_64()
-            .rounded_md()
+            .theme_rounded_md(cx)
             .border_1()
             .border_color(theme_colors.border)
             .bg(theme_colors.editor_background)

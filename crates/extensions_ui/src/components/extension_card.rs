@@ -40,7 +40,7 @@ impl RenderOnce for ExtensionCard {
                 .bg(cx.theme().colors().elevated_surface_background.opacity(0.5))
                 .border_1()
                 .border_color(cx.theme().colors().border_variant)
-                .rounded_md()
+                .theme_rounded_md(cx)
                 .children(self.children)
                 .when(self.overridden_by_dev_extension, |card| {
                     card.child(

@@ -479,7 +479,7 @@ pub(crate) fn new_debugger_pane(
                                 div()
                                     .id(format!("debugger_tab_{}", item.item_id().as_u64()))
                                     .p_1()
-                                    .rounded_md()
+                                    .theme_rounded_md(cx)
                                     .cursor_pointer()
                                     .when_some(item.tab_tooltip_text(cx), |this, tooltip| {
                                         this.tooltip(Tooltip::text(tooltip))
