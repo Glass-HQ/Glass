@@ -201,14 +201,9 @@ jobs:
       - name: Build Glass
         run: |
           export ZED_BUNDLE=true
-          # Build zed, cli, and glass_helper together so cargo shares
-          # intermediate artifacts (common deps compiled once, not twice).
-          # remote_server must be separate to prevent feature unification.
-          cargo build --release --features mimalloc \
-            --package zed --package cli \
-            --package browser --bin glass_helper \
-            --target ${{ matrix.target }}
+          cargo build --release --features mimalloc --package zed --package cli --target ${{ matrix.target }}
           cargo build --release --package remote_server --target ${{ matrix.target }}
+          cargo build --release --package browser --bin glass_helper --target ${{ matrix.target }}
 
       - name: Show sccache stats
         if: always()
