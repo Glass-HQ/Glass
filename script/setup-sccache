@@ -65,7 +65,7 @@ configure_sccache() {
 
     echo "Configuring sccache with Cloudflare R2..."
 
-    local bucket="${SCCACHE_BUCKET:-sccache-zed}"
+    local bucket="${SCCACHE_BUCKET:-sccache-glass}"
     local key_prefix="${SCCACHE_KEY_PREFIX:-sccache/}"
     local base_dir="${GITHUB_WORKSPACE:-$(pwd)}"
 

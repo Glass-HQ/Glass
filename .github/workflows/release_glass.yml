@@ -11,6 +11,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: "1"
   CARGO_INCREMENTAL: "0"
+  CXXFLAGS: "-stdlib=libc++"
 
 jobs:
   build-macos:
@@ -47,17 +48,36 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # Cache Rust compilation artifacts — runs on main so caches persist across releases
-      - name: Cache Rust dependencies
-        uses: Swatinem/rust-cache@v2
+      # sccache provides remote compilation caching via Cloudflare R2.
+      # This is the single biggest build speedup: unchanged crates are
+      # fetched from the cache instead of recompiled from scratch.
+      - name: Cache sccache binary
+        id: cache-sccache
+        uses: actions/cache@v4
         with:
-          prefix-key: "v1-rust"
-          shared-key: ${{ matrix.target }}
-          save-if: "true"
-          cache-directories: |
+          path: target/sccache
+          key: sccache-${{ runner.os }}-${{ runner.arch }}-v0.10.0
+
+      - name: Setup sccache
+        run: ./script/setup-sccache
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          SCCACHE_BUCKET: sccache-glass
+
+      # Cache cargo registry (index + crate downloads) — NOT target/ dir,
+      # since sccache handles compilation artifacts via R2.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+          key: cargo-registry-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ matrix.target }}-
 
       # Cache cargo-bundle separately to avoid rebuilding it every time
       - name: Cache cargo-bundle
@@ -181,14 +201,18 @@ jobs:
       - name: Build Glass
         run: |
           export ZED_BUNDLE=true
-          export CXXFLAGS="-stdlib=libc++"
-          cargo build --release --features mimalloc --package zed --package cli --target ${{ matrix.target }}
+          # Build zed, cli, and glass_helper together so cargo shares
+          # intermediate artifacts (common deps compiled once, not twice).
+          # remote_server must be separate to prevent feature unification.
+          cargo build --release --features mimalloc \
+            --package zed --package cli \
+            --package browser --bin glass_helper \
+            --target ${{ matrix.target }}
           cargo build --release --package remote_server --target ${{ matrix.target }}
 
-      - name: Build glass_helper
-        run: |
-          export CXXFLAGS="-stdlib=libc++"
-          cargo build --release --package browser --bin glass_helper --target ${{ matrix.target }}
+      - name: Show sccache stats
+        if: always()
+        run: sccache --show-stats || true
 
       - name: Generate debug symbols (for crash reports)
         run: |
