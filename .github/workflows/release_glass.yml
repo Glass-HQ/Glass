@@ -79,20 +79,26 @@ jobs:
           restore-keys: |
             cargo-registry-${{ matrix.target }}-
 
-      # Cache cargo-bundle separately to avoid rebuilding it every time
-      - name: Cache cargo-bundle
-        id: cache-cargo-bundle
+      # Cache cargo tools (cargo-bundle + cargo-about) to avoid
+      # rebuilding them from source every time (~5 min saved).
+      - name: Cache cargo tools
+        id: cache-cargo-tools
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/bin/cargo-bundle
+            ~/.cargo/bin/cargo-about
             ~/.cargo/.crates.toml
             ~/.cargo/.crates2.json
-          key: cargo-bundle-${{ runner.os }}-${{ runner.arch }}-v2
+          key: cargo-tools-${{ runner.os }}-${{ runner.arch }}-bundle-v2-about-0.8.2
 
       - name: Install cargo-bundle
-        if: steps.cache-cargo-bundle.outputs.cache-hit != 'true'
+        if: steps.cache-cargo-tools.outputs.cache-hit != 'true'
         run: cargo install cargo-bundle --git https://github.com/zed-industries/cargo-bundle.git --branch zed-deploy
+
+      - name: Install cargo-about
+        if: steps.cache-cargo-tools.outputs.cache-hit != 'true'
+        run: cargo install "cargo-about@0.8.2"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -111,7 +117,16 @@ jobs:
       - name: Install cmake
         run: brew install cmake || true
 
+      # Cache generated licenses — only changes when Cargo.lock changes.
+      - name: Cache licenses
+        id: cache-licenses
+        uses: actions/cache@v4
+        with:
+          path: assets/licenses.md
+          key: licenses-${{ hashFiles('Cargo.lock', 'script/licenses/**') }}
+
       - name: Generate licenses
+        if: steps.cache-licenses.outputs.cache-hit != 'true'
         run: script/generate-licenses
 
       # Cache stock CEF 145 headers for building libcef_dll_wrapper
