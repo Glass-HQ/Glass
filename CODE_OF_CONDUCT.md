@@ -1,3 +1,3 @@
 # Code of Conduct
 
-The Code of Conduct for this repository can be found online at [zed.dev/code-of-conduct](https://zed.dev/code-of-conduct).
+Be respectful, constructive, and professional. We do not tolerate harassment or abusive behavior of any kind.
