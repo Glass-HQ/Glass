@@ -1,9 +1,9 @@
 [book]
-authors = ["The Zed Team"]
+authors = ["Glass HQ"]
 language = "en"
 multilingual = false
 src = "src"
-title = "Zed"
+title = "Glass"
 site-url = "/docs/"
 
 [build]
@@ -19,8 +19,8 @@ extra-watch-dirs = ["../crates/docs_preprocessor"]
 command = "cargo run -p docs_preprocessor -- postprocess"
 # Set here instead of above as we only use it replace the `#description#` we set in the template
 # when no front-matter is provided value
-default-description = "Learn how to use and customize Zed, the fast, collaborative code editor. Official docs on features, configuration, AI tools, and workflows."
-default-title = "Zed Code Editor Documentation"
+default-description = "Learn how to use and customize Glass — a browser, code editor, and terminal in one app. Docs on features, configuration, and workflows."
+default-title = "Glass Documentation"
 no-section-label = true
 preferred-dark-theme = "dark"
 additional-css = ["theme/page-toc.css", "theme/plugins.css", "theme/highlight.css"]

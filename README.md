@@ -1,31 +1,35 @@
-# Zed
+# Glass
 
-[![Zed](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/zed-industries/zed/main/assets/badge/v0.json)](https://zed.dev)
-[![CI](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/run_tests.yml)
+Glass is a browser, code editor, and terminal in one app. Instead of switching between separate applications, everything lives in the same environment. Anyone can use the browser — developers also get an editor, terminal, and native platform tooling alongside it.
 
-Welcome to Zed, a high-performance, multiplayer code editor from the creators of [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter).
+> **Glass is a fork of [Zed](https://github.com/zed-industries/zed).** We actively sync with upstream every week. Glass would not be possible without the incredible work the Zed team continues to do.
+
+Glass is in **active development**. The focus right now is macOS, with Windows, Linux, iOS, and Android planned.
 
 ---
 
-### Installation
+### What is Glass?
 
-On macOS, Linux, and Windows you can [download Zed directly](https://zed.dev/download) or install Zed via your local package manager ([macOS](https://zed.dev/docs/installation#macos)/[Linux](https://zed.dev/docs/linux#installing-via-a-package-manager)/[Windows](https://zed.dev/docs/windows#package-managers)).
+- **Browser** — A full browser. Browse, stream, work — you never have to touch the editor if you don't want to.
+- **Code editor** — Inherited from Zed, with significant UI changes and native macOS components.
+- **Terminal** — Built into the same environment.
+- **Native platform tooling** — Build, run, and test iOS and macOS apps without opening Xcode. Manage App Store Connect without opening the web app.
 
-Other platforms are not yet available:
+For developers, everything is connected. Build a web app and test it in the same browser. Build a native app and run it without leaving Glass. Deep integration between these workspaces is the long-term vision.
 
-- Web ([tracking issue](https://github.com/zed-industries/zed/issues/5396))
+### GPUI
 
-### Developing Zed
+Zed's UI framework, [GPUI](https://github.com/zed-industries/zed/tree/main/crates/gpui), lives in the same repository as Zed. We separated it into its own standalone repository at **[Obsydian-HQ/gpui](https://github.com/Obsydian-HQ/gpui)** and extended it with native iOS and macOS components, making it a framework that multiple apps can build on. We are also bringing iOS support to GPUI so that apps built with it can run everywhere.
 
-- [Building Zed for macOS](./docs/src/development/macos.md)
-- [Building Zed for Linux](./docs/src/development/linux.md)
-- [Building Zed for Windows](./docs/src/development/windows.md)
+---
+
+### Building Glass
+
+- [Building for macOS](./docs/src/development/macos.md)
 
 ### Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Zed.
-
-Also... we're hiring! Check out our [jobs](https://zed.dev/jobs) page for open roles.
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Glass.
 
 ### Licensing
 
@@ -37,10 +41,6 @@ We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automati
 - Is the error `failed to satisfy license requirements` for a dependency? If so, first determine what license the project has and whether this system is sufficient to comply with this license's requirements. If you're unsure, ask a lawyer. Once you've verified that this system is acceptable add the license's SPDX identifier to the `accepted` array in `script/licenses/zed-licenses.toml`.
 - Is `cargo-about` unable to find the license for a dependency? If so, add a clarification field at the end of `script/licenses/zed-licenses.toml`, as specified in the [cargo-about book](https://embarkstudios.github.io/cargo-about/cli/generate/config.html#crate-configuration).
 
-## Sponsorship
+### Acknowledgments
 
-Zed is developed by **Zed Industries, Inc.**, a for-profit company.
-
-If you’d like to financially support the project, you can do so via GitHub Sponsors.
-Sponsorships go directly to Zed Industries and are used as general company revenue.
-There are no perks or entitlements associated with sponsorship.
+Glass is built on top of [Zed](https://github.com/zed-industries/zed), created by **Zed Industries, Inc.** — the team behind [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter). Their work on the editor, GPUI, and the broader ecosystem made Glass possible.

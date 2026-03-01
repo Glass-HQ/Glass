@@ -1,8 +1,8 @@
-# Zed Docs
+# Glass Docs
 
-Welcome to Zed's documentation.
+Welcome to Glass's documentation.
 
-This is built on push to `main` and published automatically to [https://zed.dev/docs](https://zed.dev/docs).
+> These docs are inherited from upstream Zed. The documentation infrastructure and content will be updated in the future.
 
 To preview the docs locally you will need to install [mdBook](https://rust-lang.github.io/mdBook/) (`cargo install mdbook@0.4.40`) and then run:
 
