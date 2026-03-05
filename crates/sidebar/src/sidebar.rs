@@ -36,8 +36,8 @@ struct AgentThreadInfo {
 }
 
 const DEFAULT_WIDTH: Pixels = px(320.0);
-const MIN_WIDTH: Pixels = px(200.0);
-const MAX_WIDTH: Pixels = px(800.0);
+const MIN_WIDTH: Pixels = px(160.0);
+const MAX_WIDTH: Pixels = px(480.0);
 const MAX_MATCHES: usize = 100;
 
 #[derive(Clone)]
@@ -985,7 +985,9 @@ impl Render for Sidebar {
             .key_context("WorkspaceSidebar")
             .font(ui_font)
             .h_full()
-            .w(self.width)
+            .w_full()
+            .min_w_0()
+            .overflow_hidden()
             .child(self.picker.clone())
     }
 }
@@ -1197,5 +1199,35 @@ mod tests {
             !has_notifications(&sidebar, cx),
             "notification should be cleared when workspace becomes active"
         );
+    }
+
+    #[gpui::test]
+    async fn test_sidebar_set_width_clamps_to_native_sidebar_limits(cx: &mut TestAppContext) {
+        init_test(cx);
+        let fs = FakeFs::new(cx.executor());
+        cx.update(|cx| <dyn Fs>::set_global(fs.clone(), cx));
+        let project = project::Project::test(fs, [], cx).await;
+
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
+
+        let sidebar = multi_workspace.update_in(cx, |_mw, window, cx| {
+            let mw_handle = cx.entity();
+            cx.new(|cx| Sidebar::new(mw_handle, window, cx))
+        });
+        multi_workspace.update_in(cx, |mw, window, cx| {
+            mw.register_sidebar(sidebar.clone(), window, cx);
+        });
+        cx.run_until_parked();
+
+        sidebar.update_in(cx, |sidebar, _window, cx| {
+            sidebar.set_width(Some(px(100.0)), cx);
+        });
+        assert_eq!(sidebar.read_with(cx, |sidebar, cx| sidebar.width(cx)), MIN_WIDTH);
+
+        sidebar.update_in(cx, |sidebar, _window, cx| {
+            sidebar.set_width(Some(px(900.0)), cx);
+        });
+        assert_eq!(sidebar.read_with(cx, |sidebar, cx| sidebar.width(cx)), MAX_WIDTH);
     }
 }
