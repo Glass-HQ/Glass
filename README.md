@@ -33,6 +33,12 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for ways you can contribute to Glass.
 
 ### Licensing
 
+Glass is licensed under the [GNU General Public License v3.0 or later](./LICENSE-GPL). This is the same license used by [Zed](https://github.com/zed-industries/zed), the project Glass is forked from.
+
+A small number of utility crates are licensed under [Apache License 2.0](./LICENSE-APACHE). See individual crate `Cargo.toml` files for details.
+
+#### Third-party dependency compliance
+
 License information for third party dependencies must be correctly provided for CI to pass.
 
 We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automatically comply with open source licenses. If CI is failing, check the following:
