@@ -586,7 +586,7 @@ impl NativeToolbarController {
                         .tool_tip("Toggle Debug Panel")
                         .icon("ladybug")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(zed_actions::Toggle.boxed_clone(), cx);
+                            window.dispatch_action(zed_actions::debug_panel::ToggleFocus.boxed_clone(), cx);
                         }),
                 ));
             }
