@@ -689,6 +689,9 @@ impl Render for MultiWorkspace {
         let ui_font = theme::setup_ui_font(window, cx);
         let text_color = cx.theme().colors().text;
 
+        let ui_font = theme::setup_ui_font(window, cx);
+        let text_color = cx.theme().colors().text;
+
         let workspace = self.workspace().clone();
         let workspace_key_context = workspace.update(cx, |workspace, cx| workspace.key_context(cx));
         let root = workspace.update(cx, |workspace, cx| workspace.actions(h_flex(), window, cx));
