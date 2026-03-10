@@ -797,6 +797,7 @@ calloop = { git = "https://github.com/zed-industries/calloop" }
 # gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
 # gpui_platform = { path = "../../Obsydian-HQ/gpui/crates/gpui_platform" }
 # gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
+# gpui_web = { path = "../../Obsydian-HQ/gpui/crates/gpui_web" }
 # http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
 # http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
 # media = { path = "../../Obsydian-HQ/gpui/crates/media" }
