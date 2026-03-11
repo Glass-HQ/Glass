@@ -1,7 +1,7 @@
 use crash_handler::{CrashEventResult, CrashHandler};
 use futures::future::BoxFuture;
 use log::info;
-use minidumper::{Client, LoopAction, MinidumpBinary};
+use minidumper::{Client, LoopAction, MinidumpBinary, Server};
 use parking_lot::Mutex;
 use release_channel::{RELEASE_CHANNEL, ReleaseChannel};
 use serde::{Deserialize, Serialize};
@@ -446,7 +446,7 @@ fn spawn_crash_handler_windows(exe: &Path, socket_name: &Path) {
 }
 
 pub fn crash_server(socket: &Path) {
-    let Ok(mut server) = minidumper::Server::with_name(socket) else {
+    let Ok(mut server) = Server::with_name(socket) else {
         log::info!("Couldn't create socket, there may already be a running crash server");
         return;
     };

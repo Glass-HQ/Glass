@@ -258,6 +258,7 @@
       "ctrl-shift-j": "agent::ToggleNavigationMenu",
       "ctrl-alt-i": "agent::ToggleOptionsMenu",
       "ctrl-alt-shift-n": "agent::ToggleNewThreadMenu",
+      "ctrl-alt-shift-t": "agent::ToggleStartThreadInSelector",
       "shift-alt-escape": "agent::ExpandMessageEditor",
       "ctrl->": "agent::AddSelectionToThread",
       "ctrl-shift-e": "project_panel::ToggleFocus",
@@ -958,6 +959,7 @@
       "ctrl-shift-enter": "git::Amend",
       "ctrl-space": "git::StageAll",
       "ctrl-shift-space": "git::UnstageAll",
+      "ctrl-k ctrl-r": "git::RestoreAndNext",
     },
   },
   {

@@ -15,6 +15,8 @@ Glass is in active development. We welcome PRs that are:
 
 If you're looking for concrete ideas, check the [issues](https://github.com/Glass-HQ/Glass/issues) page.
 
+If you're thinking about proposing or building a larger feature, read the [Zed Feature Process](./docs/src/development/feature-process.md) for how we think about feature design — what context to provide, what integration points to consider, and how to put together a strong proposal.
+
 ## Sending changes
 
 The best way to get us to take a look at a proposed change is to send a pull

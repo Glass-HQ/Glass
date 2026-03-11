@@ -1653,7 +1653,9 @@ impl RemoteServerProjects {
 
     fn delete_ssh_server(&mut self, server: SshServerIndex, cx: &mut Context<Self>) {
         self.update_settings_file(cx, move |setting, _| {
-            if let Some(connections) = setting.ssh_connections.as_mut() {
+            if let Some(connections) = setting.ssh_connections.as_mut()
+                && connections.get(server.0).is_some()
+            {
                 connections.remove(server.0);
             }
         });
