@@ -1,8 +1,8 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/acp_thread",
     "crates/acp_tools",
+    "crates/acp_thread",
     "crates/action_log",
     "crates/activity_indicator",
     "crates/agent",
@@ -13,9 +13,9 @@ members = [
     "crates/anthropic",
     "crates/askpass",
     "crates/assets",
+    "crates/assistant_text_thread",
     "crates/assistant_slash_command",
     "crates/assistant_slash_commands",
-    "crates/assistant_text_thread",
     "crates/audio",
     "crates/auto_update",
     "crates/auto_update_helper",
@@ -23,19 +23,14 @@ members = [
     "crates/aws_http_client",
     "crates/bedrock",
     "crates/breadcrumbs",
+    "crates/browser",
     "crates/buffer_diff",
-    "crates/call",
-    "crates/channel",
     "crates/cli",
     "crates/client",
     "crates/clock",
     "crates/cloud_api_client",
     "crates/cloud_api_types",
     "crates/cloud_llm_client",
-    "crates/codestral",
-    "crates/collab",
-    "crates/collab_ui",
-    "crates/collections",
     "crates/command_palette",
     "crates/command_palette_hooks",
     "crates/component",
@@ -57,10 +52,9 @@ members = [
     "crates/diagnostics",
     "crates/docs_preprocessor",
     "crates/edit_prediction",
-    "crates/edit_prediction_cli",
-    "crates/edit_prediction_context",
     "crates/edit_prediction_types",
     "crates/edit_prediction_ui",
+    "crates/edit_prediction_context",
     "crates/editor",
     "crates/encoding_selector",
     "crates/etw_tracing",
@@ -85,24 +79,11 @@ members = [
     "crates/git_ui",
     "crates/go_to_line",
     "crates/google_ai",
-    "crates/gpui",
-    "crates/gpui_linux",
-    "crates/gpui_macos",
-    "crates/gpui_macros",
-    "crates/gpui_platform",
-    "crates/gpui_tokio",
-    "crates/gpui_util",
-    "crates/gpui_web",
-    "crates/gpui_wgpu",
-    "crates/gpui_windows",
     "crates/html_to_markdown",
-    "crates/http_client",
-    "crates/http_client_tls",
     "crates/icons",
     "crates/image_viewer",
     "crates/inspector_ui",
     "crates/install_cli",
-    "crates/journal",
     "crates/json_schema_store",
     "crates/keymap_editor",
     "crates/language",
@@ -118,12 +99,13 @@ members = [
     "crates/lsp",
     "crates/markdown",
     "crates/markdown_preview",
-    "crates/media",
     "crates/menu",
     "crates/migrator",
-    "crates/miniprofiler_ui",
     "crates/mistral",
+    "crates/miniprofiler_ui",
     "crates/multi_buffer",
+    "crates/native_platforms",
+    "crates/native_platforms_ui",
     "crates/nc",
     "crates/net",
     "crates/node_runtime",
@@ -133,22 +115,16 @@ members = [
     "crates/open_ai",
     "crates/open_path_prompt",
     "crates/open_router",
-    "crates/outline",
-    "crates/outline_panel",
     "crates/panel",
     "crates/paths",
     "crates/picker",
-    "crates/platform_title_bar",
     "crates/prettier",
     "crates/project",
     "crates/project_benchmarks",
     "crates/project_panel",
-    "crates/project_symbols",
     "crates/prompt_store",
     "crates/proto",
     "crates/recent_projects",
-    "crates/refineable",
-    "crates/refineable/derive_refineable",
     "crates/release_channel",
     "crates/remote",
     "crates/remote_connection",
@@ -159,10 +135,10 @@ members = [
     "crates/rope",
     "crates/rpc",
     "crates/rules_library",
-    "crates/scheduler",
     "crates/schema_generator",
     "crates/search",
     "crates/session",
+    "crates/sidebar",
     "crates/settings",
     "crates/settings_content",
     "crates/settings_json",
@@ -170,18 +146,15 @@ members = [
     "crates/settings_profile_selector",
     "crates/settings_ui",
     "crates/shell_command_parser",
-    "crates/sidebar",
     "crates/snippet",
     "crates/snippet_provider",
     "crates/snippets_ui",
     "crates/sqlez",
     "crates/sqlez_macros",
-    "crates/story",
-    "crates/storybook",
     "crates/streaming_diff",
-    "crates/sum_tree",
     "crates/supermaven",
     "crates/supermaven_api",
+    "crates/codestral",
     "crates/svg_preview",
     "crates/system_specs",
     "crates/tab_switcher",
@@ -197,28 +170,29 @@ members = [
     "crates/theme_importer",
     "crates/theme_selector",
     "crates/time_format",
+    "crates/toast",
+    "crates/platform_title_bar",
     "crates/title_bar",
     "crates/toolchain_selector",
     "crates/ui",
     "crates/ui_input",
     "crates/ui_macros",
     "crates/ui_prompt",
-    "crates/util",
     "crates/util_macros",
     "crates/vercel",
-    "crates/vim",
-    "crates/vim_mode_setting",
+    "crates/which_key",
     "crates/watch",
     "crates/web_search",
     "crates/web_search_providers",
-    "crates/which_key",
     "crates/workspace",
+    "crates/workspace_modes",
     "crates/worktree",
     "crates/worktree_benchmarks",
     "crates/x_ai",
     "crates/zed",
     "crates/zed_actions",
     "crates/zed_env_vars",
+    "crates/edit_prediction_cli",
     "crates/zeta_prompt",
     "crates/zlog",
     "crates/zlog_settings",
@@ -275,18 +249,15 @@ auto_update_ui = { path = "crates/auto_update_ui" }
 aws_http_client = { path = "crates/aws_http_client" }
 bedrock = { path = "crates/bedrock" }
 breadcrumbs = { path = "crates/breadcrumbs" }
+browser = { path = "crates/browser" }
 buffer_diff = { path = "crates/buffer_diff" }
-call = { path = "crates/call" }
-channel = { path = "crates/channel" }
 cli = { path = "crates/cli" }
 client = { path = "crates/client" }
 clock = { path = "crates/clock" }
 cloud_api_client = { path = "crates/cloud_api_client" }
 cloud_api_types = { path = "crates/cloud_api_types" }
 cloud_llm_client = { path = "crates/cloud_llm_client" }
-collab = { path = "crates/collab" }
-collab_ui = { path = "crates/collab_ui" }
-collections = { path = "crates/collections", version = "0.1.0" }
+collections = { git = "https://github.com/Obsydian-HQ/gpui.git", version = "0.1.0" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
 component = { path = "crates/component" }
@@ -305,7 +276,7 @@ debug_adapter_extension = { path = "crates/debug_adapter_extension" }
 debugger_tools = { path = "crates/debugger_tools" }
 debugger_ui = { path = "crates/debugger_ui" }
 deepseek = { path = "crates/deepseek" }
-derive_refineable = { path = "crates/refineable/derive_refineable" }
+derive_refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 dev_container = { path = "crates/dev_container" }
 diagnostics = { path = "crates/diagnostics" }
 editor = { path = "crates/editor" }
@@ -327,19 +298,14 @@ git_hosting_providers = { path = "crates/git_hosting_providers" }
 git_ui = { path = "crates/git_ui" }
 go_to_line = { path = "crates/go_to_line" }
 google_ai = { path = "crates/google_ai" }
-gpui = { path = "crates/gpui", default-features = false }
-gpui_linux = { path = "crates/gpui_linux", default-features = false }
-gpui_macos = { path = "crates/gpui_macos", default-features = false }
-gpui_macros = { path = "crates/gpui_macros" }
-gpui_platform = { path = "crates/gpui_platform", default-features = false }
-gpui_web = { path = "crates/gpui_web" }
-gpui_wgpu = { path = "crates/gpui_wgpu" }
-gpui_windows = { path = "crates/gpui_windows", default-features = false }
-gpui_tokio = { path = "crates/gpui_tokio" }
-gpui_util = { path = "crates/gpui_util" }
+gpui = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false }
+gpui_macros = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+gpui_platform = { git = "https://github.com/Obsydian-HQ/gpui.git", default-features = false, features = ["font-kit"] }
+gpui_tokio = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+gpui_util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 html_to_markdown = { path = "crates/html_to_markdown" }
-http_client = { path = "crates/http_client" }
-http_client_tls = { path = "crates/http_client_tls" }
+http_client = { git = "https://github.com/Obsydian-HQ/gpui.git" }
+http_client_tls = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 icons = { path = "crates/icons" }
 image_viewer = { path = "crates/image_viewer" }
 edit_prediction_types = { path = "crates/edit_prediction_types" }
@@ -347,7 +313,6 @@ edit_prediction_ui = { path = "crates/edit_prediction_ui" }
 edit_prediction_context = { path = "crates/edit_prediction_context" }
 inspector_ui = { path = "crates/inspector_ui" }
 install_cli = { path = "crates/install_cli" }
-journal = { path = "crates/journal" }
 json_schema_store = { path = "crates/json_schema_store" }
 keymap_editor = { path = "crates/keymap_editor" }
 language = { path = "crates/language" }
@@ -364,13 +329,15 @@ lsp = { path = "crates/lsp" }
 markdown = { path = "crates/markdown" }
 markdown_preview = { path = "crates/markdown_preview" }
 svg_preview = { path = "crates/svg_preview" }
-media = { path = "crates/media" }
+media = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 menu = { path = "crates/menu" }
 mermaid-rs-renderer = { git = "https://github.com/zed-industries/mermaid-rs-renderer", rev = "9d8360d9cea10dc4bc86d7b8012cc6e9656e6cf2", default-features = false }
 migrator = { path = "crates/migrator" }
 mistral = { path = "crates/mistral" }
 multi_buffer = { path = "crates/multi_buffer" }
 miniprofiler_ui = { path = "crates/miniprofiler_ui" }
+native_platforms = { path = "crates/native_platforms" }
+native_platforms_ui = { path = "crates/native_platforms_ui" }
 nc = { path = "crates/nc" }
 net = { path = "crates/net" }
 node_runtime = { path = "crates/node_runtime" }
@@ -380,8 +347,6 @@ onboarding = { path = "crates/onboarding" }
 open_ai = { path = "crates/open_ai" }
 open_path_prompt = { path = "crates/open_path_prompt" }
 open_router = { path = "crates/open_router", features = ["schemars"] }
-outline = { path = "crates/outline" }
-outline_panel = { path = "crates/outline_panel" }
 panel = { path = "crates/panel" }
 paths = { path = "crates/paths" }
 perf = { path = "tooling/perf" }
@@ -390,11 +355,10 @@ prettier = { path = "crates/prettier" }
 settings_profile_selector = { path = "crates/settings_profile_selector" }
 project = { path = "crates/project" }
 project_panel = { path = "crates/project_panel" }
-project_symbols = { path = "crates/project_symbols" }
 prompt_store = { path = "crates/prompt_store" }
 proto = { path = "crates/proto" }
 recent_projects = { path = "crates/recent_projects" }
-refineable = { path = "crates/refineable" }
+refineable = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 release_channel = { path = "crates/release_channel" }
 remote = { path = "crates/remote" }
 remote_connection = { path = "crates/remote_connection" }
@@ -405,7 +369,7 @@ rodio = { git = "https://github.com/RustAudio/rodio", rev = "e50e726ddd0292f6ef9
 rope = { path = "crates/rope" }
 rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
-scheduler = { path = "crates/scheduler" }
+scheduler = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 search = { path = "crates/search" }
 session = { path = "crates/session" }
 sidebar = { path = "crates/sidebar" }
@@ -420,9 +384,8 @@ snippet_provider = { path = "crates/snippet_provider" }
 snippets_ui = { path = "crates/snippets_ui" }
 sqlez = { path = "crates/sqlez" }
 sqlez_macros = { path = "crates/sqlez_macros" }
-story = { path = "crates/story" }
 streaming_diff = { path = "crates/streaming_diff" }
-sum_tree = { path = "crates/sum_tree" }
+sum_tree = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 supermaven = { path = "crates/supermaven" }
 supermaven_api = { path = "crates/supermaven_api" }
 codestral = { path = "crates/codestral" }
@@ -439,6 +402,7 @@ theme = { path = "crates/theme" }
 theme_extension = { path = "crates/theme_extension" }
 theme_selector = { path = "crates/theme_selector" }
 time_format = { path = "crates/time_format" }
+toast = { path = "crates/toast" }
 platform_title_bar = { path = "crates/platform_title_bar" }
 title_bar = { path = "crates/title_bar" }
 toolchain_selector = { path = "crates/toolchain_selector" }
@@ -446,17 +410,16 @@ ui = { path = "crates/ui" }
 ui_input = { path = "crates/ui_input" }
 ui_macros = { path = "crates/ui_macros" }
 ui_prompt = { path = "crates/ui_prompt" }
-util = { path = "crates/util" }
+util = { git = "https://github.com/Obsydian-HQ/gpui.git" }
 util_macros = { path = "crates/util_macros" }
 vercel = { path = "crates/vercel" }
-vim = { path = "crates/vim" }
-vim_mode_setting = { path = "crates/vim_mode_setting" }
 which_key = { path = "crates/which_key" }
 
 watch = { path = "crates/watch" }
 web_search = { path = "crates/web_search" }
 web_search_providers = { path = "crates/web_search_providers" }
 workspace = { path = "crates/workspace" }
+workspace_modes = { path = "crates/workspace_modes" }
 worktree = { path = "crates/worktree" }
 x_ai = { path = "crates/x_ai" }
 zed = { path = "crates/zed" }
@@ -487,7 +450,6 @@ ashpd = { version = "0.13", default-features = false, features = [
     "settings",
     "trash"
 ] }
-async-channel = "2.5.0"
 async-compat = "0.2.1"
 async-compression = { version = "0.4", features = ["gzip", "futures-io"] }
 async-dispatcher = "0.1"
@@ -529,7 +491,8 @@ cocoa-foundation = "=0.2.0"
 convert_case = "0.8.0"
 core-foundation = "=0.10.0"
 core-foundation-sys = "0.8.6"
-core-video = { version = "0.5.2", features = ["metal"] }
+core-video = { version = "0.4.3", features = ["metal"] }
+io-surface = "0.16"
 cpal = "0.17"
 crash-handler = "0.6"
 criterion = { version = "0.5", features = ["html_reports"] }
@@ -548,7 +511,6 @@ exec = "0.3.1"
 fancy-regex = "0.16.0"
 fork = "0.4.0"
 futures = "0.3"
-futures-concurrency = "7.7.1"
 futures-lite = "1.13"
 gh-workflow = { git = "https://github.com/zed-industries/gh-workflow", rev = "c9eac0ed361583e1072860d96776fa52775b82ac" }
 git2 = { version = "0.20.1", default-features = false, features = ["vendored-libgit2"] }
@@ -640,7 +602,6 @@ profiling = "1"
 prost = "0.9"
 prost-build = "0.9"
 prost-types = "0.9"
-pollster = "0.4.0"
 pulldown-cmark = { version = "0.13.0", default-features = false }
 quote = "1.0.9"
 rand = "0.9"
@@ -765,8 +726,6 @@ wasmtime = { version = "33", default-features = false, features = [
 wasmtime-wasi = "33"
 wax = "0.7"
 which = "6.0.0"
-wasm-bindgen = "0.2.113"
-web-time = "1.1.0"
 wgpu = "28.0"
 windows-core = "0.61"
 yawc = "0.2.5"
@@ -778,13 +737,11 @@ zstd = "0.11"
 version = "0.61"
 features = [
     "Foundation_Numerics",
-    "Globalization_DateTimeFormatting",
     "Storage_Search",
     "Storage_Streams",
     "System_Threading",
     "UI_ViewManagement",
     "Wdk_System_SystemServices",
-    "Win32_Foundation",
     "Win32_Globalization",
     "Win32_Graphics_Direct3D",
     "Win32_Graphics_Direct3D11",
@@ -835,6 +792,23 @@ notify-types = { git = "https://github.com/zed-industries/notify.git", rev = "ce
 windows-capture = { git = "https://github.com/zed-industries/windows-capture.git", rev = "f0d6c1b6691db75461b732f6d5ff56eed002eeb9" }
 calloop = { git = "https://github.com/zed-industries/calloop" }
 
+[patch.'https://github.com/Obsydian-HQ/gpui.git']
+collections = { path = "../../Obsydian-HQ/gpui/crates/collections" }
+gpui = { path = "../../Obsydian-HQ/gpui/crates/gpui" }
+gpui_macros = { path = "../../Obsydian-HQ/gpui/crates/gpui_macros" }
+gpui_platform = { path = "../../Obsydian-HQ/gpui/crates/gpui_platform" }
+gpui_tokio = { path = "../../Obsydian-HQ/gpui/crates/gpui_tokio" }
+gpui_web = { path = "../../Obsydian-HQ/gpui/crates/gpui_web" }
+http_client = { path = "../../Obsydian-HQ/gpui/crates/http_client" }
+http_client_tls = { path = "../../Obsydian-HQ/gpui/crates/http_client_tls" }
+media = { path = "../../Obsydian-HQ/gpui/crates/media" }
+sum_tree = { path = "../../Obsydian-HQ/gpui/crates/sum_tree" }
+util = { path = "../../Obsydian-HQ/gpui/crates/util" }
+scheduler = { path = "../../Obsydian-HQ/gpui/crates/scheduler" }
+gpui_util = { path = "../../Obsydian-HQ/gpui/crates/gpui_util" }
+refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable" }
+derive_refineable = { path = "../../Obsydian-HQ/gpui/crates/refineable/derive_refineable" }
+
 [profile.dev]
 split-debuginfo = "unpacked"
 incremental = true
@@ -875,16 +849,13 @@ file_icons = { codegen-units = 1 }
 image_viewer = { codegen-units = 1 }
 edit_prediction_ui = { codegen-units = 1 }
 install_cli = { codegen-units = 1 }
-journal = { codegen-units = 1 }
 json_schema_store = { codegen-units = 1 }
 lmstudio = { codegen-units = 1 }
 menu = { codegen-units = 1 }
 notifications = { codegen-units = 1 }
 ollama = { codegen-units = 1 }
-outline = { codegen-units = 1 }
 paths = { codegen-units = 1 }
 prettier = { codegen-units = 1 }
-project_symbols = { codegen-units = 1 }
 refineable = { codegen-units = 1 }
 release_channel = { codegen-units = 1 }
 reqwest_client = { codegen-units = 1 }
@@ -892,7 +863,6 @@ session = { codegen-units = 1 }
 sidebar = { codegen-units = 1 }
 snippet = { codegen-units = 1 }
 snippets_ui = { codegen-units = 1 }
-story = { codegen-units = 1 }
 supermaven_api = { codegen-units = 1 }
 telemetry_events = { codegen-units = 1 }
 theme_selector = { codegen-units = 1 }

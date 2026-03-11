@@ -1807,7 +1807,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -1904,16 +1904,6 @@ dependencies = [
  "futures-io",
  "futures-lite 2.6.1",
  "piper",
-]
-
-[[package]]
-name = "bmrng"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d54df9073108f1558f90ae6c5bf5ab9c917c4185f5527b280c87a993cbead0ac"
-dependencies = [
- "futures-core",
- "tokio",
 ]
 
 [[package]]
@@ -2467,16 +2457,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cfg-expr"
-version = "0.20.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78cef5b5a1a6827c7322ae2a636368a573006b27cfa76c7ebd53e834daeaab6a"
-dependencies = [
- "smallvec",
- "target-lexicon 0.13.3",
-]
-
-[[package]]
 name = "cfg-if"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2884,7 +2864,6 @@ dependencies = [
 [[package]]
 name = "collections"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "indexmap",
  "rustc-hash 2.1.1",
@@ -4181,7 +4160,6 @@ dependencies = [
 [[package]]
 name = "derive_refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -6311,7 +6289,7 @@ dependencies = [
  "libc",
  "log",
  "rustversion",
- "windows 0.58.0",
+ "windows 0.61.3",
 ]
 
 [[package]]
@@ -6417,19 +6395,6 @@ name = "gimli"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e629b9b98ef3dd8afe6ca2bd0f89306cec16d43d907889945bc5d6687f2f13c7"
-
-[[package]]
-name = "gio-sys"
-version = "0.21.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0071fe88dba8e40086c8ff9bbb62622999f49628344b1d1bf490a48a29d80f22"
-dependencies = [
- "glib-sys",
- "gobject-sys",
- "libc",
- "system-deps 7.0.7",
- "windows-sys 0.61.2",
-]
 
 [[package]]
 name = "git"
@@ -6606,50 +6571,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "glib"
-version = "0.21.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16de123c2e6c90ce3b573b7330de19be649080ec612033d397d72da265f1bd8b"
-dependencies = [
- "bitflags 2.10.0",
- "futures-channel",
- "futures-core",
- "futures-executor",
- "futures-task",
- "futures-util",
- "gio-sys",
- "glib-macros",
- "glib-sys",
- "gobject-sys",
- "libc",
- "memchr",
- "smallvec",
-]
-
-[[package]]
-name = "glib-macros"
-version = "0.21.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf59b675301228a696fe01c3073974643365080a76cc3ed5bc2cbc466ad87f17"
-dependencies = [
- "heck 0.5.0",
- "proc-macro-crate",
- "proc-macro2",
- "quote",
- "syn 2.0.106",
-]
-
-[[package]]
-name = "glib-sys"
-version = "0.21.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d95e1a3a19ae464a7286e14af9a90683c64d70c02532d88d87ce95056af3e6c"
-dependencies = [
- "libc",
- "system-deps 7.0.7",
-]
-
-[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6725,17 +6646,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gobject-sys"
-version = "0.21.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dca35da0d19a18f4575f3cb99fe1c9e029a2941af5662f326f738a21edaf294"
-dependencies = [
- "glib-sys",
- "libc",
- "system-deps 7.0.7",
-]
-
-[[package]]
 name = "goblin"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6771,7 +6681,7 @@ dependencies = [
  "log",
  "presser",
  "thiserror 2.0.17",
- "windows 0.58.0",
+ "windows 0.62.2",
 ]
 
 [[package]]
@@ -6797,7 +6707,6 @@ dependencies = [
 [[package]]
 name = "gpui"
 version = "0.2.2"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "async-channel 2.5.0",
@@ -6877,7 +6786,6 @@ dependencies = [
 [[package]]
 name = "gpui_ios"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "block",
@@ -6906,7 +6814,6 @@ dependencies = [
 [[package]]
 name = "gpui_linux"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -6936,7 +6843,6 @@ dependencies = [
 [[package]]
 name = "gpui_macos"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "async-task",
@@ -6977,7 +6883,6 @@ dependencies = [
 [[package]]
 name = "gpui_macros"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "heck 0.5.0",
  "proc-macro2",
@@ -6988,7 +6893,6 @@ dependencies = [
 [[package]]
 name = "gpui_metal"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "block",
@@ -7013,7 +6917,6 @@ dependencies = [
 [[package]]
 name = "gpui_platform"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "console_error_panic_hook",
  "gpui",
@@ -7027,7 +6930,6 @@ dependencies = [
 [[package]]
 name = "gpui_tokio"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "gpui",
@@ -7038,7 +6940,6 @@ dependencies = [
 [[package]]
 name = "gpui_util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "log",
@@ -7047,7 +6948,6 @@ dependencies = [
 [[package]]
 name = "gpui_web"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "console_error_panic_hook",
@@ -7071,7 +6971,6 @@ dependencies = [
 [[package]]
 name = "gpui_wgpu"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "bytemuck",
@@ -7098,7 +6997,6 @@ dependencies = [
 [[package]]
 name = "gpui_windows"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "collections",
@@ -7496,7 +7394,6 @@ dependencies = [
 [[package]]
 name = "http_client"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "async-compression",
@@ -7521,7 +7418,6 @@ dependencies = [
 [[package]]
 name = "http_client_tls"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "rustls 0.23.33",
  "rustls-platform-verifier",
@@ -7648,7 +7544,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "tokio",
  "tower-service",
  "tracing",
@@ -7666,7 +7562,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.58.0",
+ "windows-core 0.62.2",
 ]
 
 [[package]]
@@ -9346,7 +9242,6 @@ dependencies = [
 [[package]]
 name = "media"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -12119,7 +12014,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81bddcdb20abf9501610992b6759a4c888aef7d1a7247ef75e2404275ac24af1"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -12284,7 +12179,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.1",
  "rustls 0.23.33",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
@@ -12321,7 +12216,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2 0.5.10",
+ "socket2 0.6.1",
  "tracing",
  "windows-sys 0.60.2",
 ]
@@ -12525,7 +12420,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "simd_helpers",
- "system-deps 6.2.2",
+ "system-deps",
  "thiserror 1.0.69",
  "v_frame",
  "wasm-bindgen",
@@ -12761,7 +12656,6 @@ dependencies = [
 [[package]]
 name = "refineable"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "derive_refineable",
 ]
@@ -13028,16 +12922,11 @@ dependencies = [
  "http-body 1.0.1",
  "http-body-util",
  "hyper 1.7.0",
- "hyper-rustls 0.27.7",
  "hyper-util",
  "js-sys",
  "log",
  "percent-encoding",
  "pin-project-lite",
- "quinn",
- "rustls 0.23.33",
- "rustls-native-certs 0.8.2",
- "rustls-pki-types",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -13627,7 +13516,6 @@ dependencies = [
 [[package]]
 name = "scheduler"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "async-task",
  "backtrace",
@@ -14768,7 +14656,6 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 [[package]]
 name = "sum_tree"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "arrayvec",
  "log",
@@ -15227,23 +15114,10 @@ version = "6.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3e535eb8dded36d55ec13eddacd30dec501792ff23a0b1682c38601b8cf2349"
 dependencies = [
- "cfg-expr 0.15.8",
+ "cfg-expr",
  "heck 0.5.0",
  "pkg-config",
  "toml 0.8.23",
- "version-compare",
-]
-
-[[package]]
-name = "system-deps"
-version = "7.0.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "48c8f33736f986f16d69b6cb8b03f55ddcad5c41acc4ccc39dd88e84aa805e7f"
-dependencies = [
- "cfg-expr 0.20.6",
- "heck 0.5.0",
- "pkg-config",
- "toml 0.9.8",
  "version-compare",
 ]
 
@@ -16566,7 +16440,7 @@ dependencies = [
 name = "tungstenite"
 version = "0.27.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8628dcc84e5a09eb3d8423d6cb682965dea9133204e8fb3efee74c2a0c259442"
+checksum = "eadc29d668c91fcc564941132e17b28a7ceb2f3ebf0b9dae3e03fd7a6748eb0d"
 dependencies = [
  "bytes",
  "data-encoding",
@@ -16929,7 +16803,6 @@ checksum = "06abde3611657adf66d383f00b093d7faecc7fa57071cce2578660c9f1010821"
 [[package]]
 name = "util"
 version = "0.1.0"
-source = "git+https://github.com/Obsydian-HQ/gpui.git#7d21666cbddc08888cda832ee854aa5d3420889f"
 dependencies = [
  "anyhow",
  "async-fs",
@@ -20238,13 +20111,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow",
 ]
-
-[[patch.unused]]
-name = "libwebrtc"
-version = "0.3.26"
-source = "git+https://github.com/zed-industries/livekit-rust-sdks?rev=fccf29d1d0d0a139b2e50746b0b9a1bac828fa04#fccf29d1d0d0a139b2e50746b0b9a1bac828fa04"
-
-[[patch.unused]]
-name = "livekit"
-version = "0.7.32"
-source = "git+https://github.com/zed-industries/livekit-rust-sdks?rev=fccf29d1d0d0a139b2e50746b0b9a1bac828fa04#fccf29d1d0d0a139b2e50746b0b9a1bac828fa04"
