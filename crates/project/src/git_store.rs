@@ -4947,8 +4947,7 @@ impl Repository {
                                         .map(|repo_path| repo_path.to_proto())
                                         .collect(),
                                 })
-                                .await
-                                .context("sending stash request")?;
+                                .await?;
                             Ok(())
                         }
                     }
@@ -5157,8 +5156,7 @@ impl Repository {
                             }),
                             askpass_id,
                         })
-                        .await
-                        .context("sending commit request")?;
+                        .await?;
 
                     Ok(())
                 }
@@ -5197,8 +5195,7 @@ impl Repository {
                             askpass_id,
                             remote: fetch_options.to_proto(),
                         })
-                        .await
-                        .context("sending fetch request")?;
+                        .await?;
 
                     Ok(RemoteCommandOutput {
                         stdout: response.stdout,
@@ -5299,8 +5296,7 @@ impl Repository {
                                 }
                                     as i32),
                             })
-                            .await
-                            .context("sending push request")?;
+                            .await?;
 
                         Ok(RemoteCommandOutput {
                             stdout: response.stdout,
@@ -5366,8 +5362,7 @@ impl Repository {
                             branch_name: branch.as_ref().map(|b| b.to_string()),
                             remote_name: remote.to_string(),
                         })
-                        .await
-                        .context("sending pull request")?;
+                        .await?;
 
                     Ok(RemoteCommandOutput {
                         stdout: response.stdout,
