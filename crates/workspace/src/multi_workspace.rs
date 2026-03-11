@@ -14,11 +14,12 @@ use theme::ActiveTheme;
 use ui::prelude::*;
 use util::ResultExt;
 
-const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
+pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
 use crate::{
     CloseIntent, CloseWindow, DockPosition, Event as WorkspaceEvent, Item, ModalView, Panel, Toast,
     UnifiedSidebar, Workspace, WorkspaceId, client_side_decorations, notifications::NotificationId,
+    persistence::model::MultiWorkspaceId,
 };
 
 actions!(
@@ -121,6 +122,7 @@ impl<T: Sidebar> SidebarHandle for Entity<T> {
 pub struct MultiWorkspace {
     window_id: WindowId,
     workspaces: Vec<Entity<Workspace>>,
+    database_id: Option<MultiWorkspaceId>,
     active_workspace_index: usize,
     #[cfg(target_os = "macos")]
     unified_sidebar: Entity<UnifiedSidebar>,
@@ -134,6 +136,10 @@ pub struct MultiWorkspace {
 }
 
 impl EventEmitter<MultiWorkspaceEvent> for MultiWorkspace {}
+
+pub fn multi_workspace_enabled(_cx: &App) -> bool {
+    true
+}
 
 impl MultiWorkspace {
     pub fn new(workspace: Entity<Workspace>, window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -164,6 +170,7 @@ impl MultiWorkspace {
         Self {
             window_id: window.window_handle().window_id(),
             workspaces: vec![workspace],
+            database_id: None,
             active_workspace_index: 0,
             #[cfg(target_os = "macos")]
             unified_sidebar,
@@ -464,7 +471,6 @@ impl MultiWorkspace {
         let window_id = self.window_id;
         let state = crate::persistence::model::MultiWorkspaceState {
             active_workspace_id: self.workspace().read(cx).database_id(),
-            sidebar_open: self.sidebar_open,
         };
         self._serialize_task = Some(cx.background_spawn(async move {
             crate::persistence::write_multi_workspace_state(window_id, state).await;
@@ -583,7 +589,15 @@ impl MultiWorkspace {
         self.workspace().read(cx).items_of_type::<T>(cx)
     }
 
-    pub fn database_id(&self, cx: &App) -> Option<WorkspaceId> {
+    pub fn database_id(&self) -> Option<MultiWorkspaceId> {
+        self.database_id
+    }
+
+    pub fn set_database_id(&mut self, id: Option<MultiWorkspaceId>) {
+        self.database_id = id;
+    }
+
+    pub fn active_workspace_database_id(&self, cx: &App) -> Option<WorkspaceId> {
         self.workspace().read(cx).database_id()
     }
 

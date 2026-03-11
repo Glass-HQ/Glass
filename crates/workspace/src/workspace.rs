@@ -25,8 +25,8 @@ pub use crate::notifications::NotificationFrame;
 pub use dock::{DeployProjectDiagnostics, Panel, ToggleProjectDiagnostics, ToggleProjectSearch};
 pub use multi_workspace::{
     DraggedSidebar, FocusWorkspaceSidebar, MultiWorkspace, MultiWorkspaceEvent,
-    NewWorkspaceInWindow, NextWorkspaceInWindow, PreviousWorkspaceInWindow, Sidebar, SidebarEvent,
-    SidebarHandle, ToggleWorkspaceSidebar,
+    NewWorkspaceInWindow, NextWorkspaceInWindow, PreviousWorkspaceInWindow,
+    SIDEBAR_RESIZE_HANDLE_SIZE, ToggleWorkspaceSidebar, multi_workspace_enabled,
 };
 pub use path_list::{PathList, SerializedPathList};
 pub use title_bar_item::{TitleBarItemView, TitleBarItemViewHandle};
@@ -81,8 +81,8 @@ use persistence::{DB, SerializedWindowBounds, model::SerializedWorkspace};
 pub use persistence::{
     DB as WORKSPACE_DB, WorkspaceDb, delete_unloaded_items,
     model::{
-        DockStructure, ItemId, SerializedMultiWorkspace, SerializedWorkspaceLocation,
-        SessionWorkspace,
+        DockStructure, ItemId, MultiWorkspaceId, SerializedMultiWorkspace,
+        SerializedWorkspaceLocation, SessionWorkspace,
     },
     read_serialized_multi_workspaces,
 };
@@ -7796,7 +7796,11 @@ pub async fn restore_multiworkspace(
     app_state: Arc<AppState>,
     cx: &mut AsyncApp,
 ) -> anyhow::Result<MultiWorkspaceRestoreResult> {
-    let SerializedMultiWorkspace { workspaces, state } = multi_workspace;
+    let SerializedMultiWorkspace {
+        workspaces,
+        state,
+        id: window_id,
+    } = multi_workspace;
     let mut group_iter = workspaces.into_iter();
     let first = group_iter
         .next()
@@ -7860,6 +7864,7 @@ pub async fn restore_multiworkspace(
     if let Some(target_id) = state.active_workspace_id {
         window_handle
             .update(cx, |multi_workspace, window, cx| {
+                multi_workspace.set_database_id(window_id);
                 let target_index = multi_workspace
                     .workspaces()
                     .iter()
@@ -7877,14 +7882,6 @@ pub async fn restore_multiworkspace(
                 if !multi_workspace.workspaces().is_empty() {
                     multi_workspace.activate_index(0, window, cx);
                 }
-            })
-            .ok();
-    }
-
-    if state.sidebar_open {
-        window_handle
-            .update(cx, |multi_workspace, _, cx| {
-                multi_workspace.open_sidebar(cx);
             })
             .ok();
     }
