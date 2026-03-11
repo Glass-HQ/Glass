@@ -1316,9 +1316,7 @@ impl EditPredictionButton {
         let mut items: Vec<NativePopoverContentItem> = Vec::new();
         let mut row_count: usize = 0;
 
-        let provider_name = provider
-            .display_name()
-            .unwrap_or("Edit Predictions");
+        let provider_name = provider.display_name().unwrap_or("Edit Predictions");
 
         items.push(NativePopoverContentItem::heading(provider_name));
         row_count += 1;
@@ -1388,7 +1386,9 @@ impl EditPredictionButton {
 
         // Show predictions toggle
         items.push(NativePopoverContentItem::separator());
-        items.push(NativePopoverContentItem::heading("Show Edit Predictions For"));
+        items.push(NativePopoverContentItem::heading(
+            "Show Edit Predictions For",
+        ));
         row_count += 2;
 
         {
@@ -1396,10 +1396,7 @@ impl EditPredictionButton {
             items.push(
                 NativePopoverToggle::new("All Files", globally_enabled)
                     .on_change(move |_checked, window, cx| {
-                        window.dispatch_action(
-                            workspace::ToggleEditPrediction.boxed_clone(),
-                            cx,
-                        );
+                        window.dispatch_action(workspace::ToggleEditPrediction.boxed_clone(), cx);
                     })
                     .into(),
             );
@@ -1444,11 +1441,7 @@ impl EditPredictionButton {
                     .on_change({
                         let fs = fs.clone();
                         move |_checked, _window, cx| {
-                            toggle_edit_prediction_mode(
-                                fs.clone(),
-                                EditPredictionsMode::Eager,
-                                cx,
-                            );
+                            toggle_edit_prediction_mode(fs.clone(), EditPredictionsMode::Eager, cx);
                         }
                     })
                     .into(),
@@ -1458,11 +1451,7 @@ impl EditPredictionButton {
             items.push(
                 NativePopoverCheckbox::new("Subtle", subtle_mode)
                     .on_change(move |_checked, _window, cx| {
-                        toggle_edit_prediction_mode(
-                            fs.clone(),
-                            EditPredictionsMode::Subtle,
-                            cx,
-                        );
+                        toggle_edit_prediction_mode(fs.clone(), EditPredictionsMode::Subtle, cx);
                     })
                     .into(),
             );

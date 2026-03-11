@@ -10,8 +10,8 @@ use editor::{Editor, EditorSettings, actions::SelectAll, blink_manager::BlinkMan
 use gpui::{
     Action, AnyElement, App, ClipboardEntry, Entity, EventEmitter, ExternalPaths, FocusHandle,
     Focusable, KeyContext, KeyDownEvent, Keystroke, MouseButton, MouseDownEvent, Pixels, Point,
-    Render, ScrollWheelEvent, Styled, Subscription, Task, WeakEntity, actions, anchored,
-    deferred, div,
+    Render, ScrollWheelEvent, Styled, Subscription, Task, WeakEntity, actions, anchored, deferred,
+    div,
 };
 use itertools::Itertools;
 use menu;

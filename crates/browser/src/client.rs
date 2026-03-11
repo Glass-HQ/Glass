@@ -168,7 +168,11 @@ impl ClientBuilder {
         render_state: Arc<Mutex<RenderState>>,
         event_sender: EventSender,
     ) -> cef::Client {
-        Self::build_inner(render_state, event_sender, PopupKeyboardHandlerBuilder::build())
+        Self::build_inner(
+            render_state,
+            event_sender,
+            PopupKeyboardHandlerBuilder::build(),
+        )
     }
 
     fn build_inner(

@@ -7,14 +7,14 @@ use gpui::{
     FocusHandle, Focusable, Global, IntoElement, KeyContext, Render, ScrollHandle, SharedString,
     Subscription, Task, WeakEntity, Window, actions,
 };
-use toast::{StatusToast, ToastIcon};
 use schemars::JsonSchema;
 use serde::Deserialize;
 use settings::{SettingsStore, VsCodeSettingsSource};
 use std::sync::Arc;
+use toast::{StatusToast, ToastIcon};
 use ui::{
-    Divider, KeyBinding, ParentElement as _, StatefulInteractiveElement,
-    WithScrollbar as _, prelude::*, rems_from_px,
+    Divider, KeyBinding, ParentElement as _, StatefulInteractiveElement, WithScrollbar as _,
+    prelude::*, rems_from_px,
 };
 pub use workspace::welcome::ShowWelcome;
 use workspace::welcome::WelcomePage;
@@ -310,12 +310,14 @@ impl Render for Onboarding {
                                             .gap_4()
                                             .child({
                                                 let logo = match cx.theme().appearance {
-                                                    theme::Appearance::Light => "images/glass_logo_light.png",
-                                                    theme::Appearance::Dark => "images/glass_logo_dark.png",
+                                                    theme::Appearance::Light => {
+                                                        "images/glass_logo_light.png"
+                                                    }
+                                                    theme::Appearance::Dark => {
+                                                        "images/glass_logo_dark.png"
+                                                    }
                                                 };
-                                                gpui::img(logo)
-                                                    .w(rems(2.5))
-                                                    .h(rems(2.5))
+                                                gpui::img(logo).w(rems(2.5)).h(rems(2.5))
                                             })
                                             .child(
                                                 v_flex()

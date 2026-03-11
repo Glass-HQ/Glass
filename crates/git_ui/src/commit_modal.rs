@@ -5,9 +5,7 @@ use git::{Amend, Commit, GenerateCommitMessage, Signoff};
 use panel::panel_button;
 use project::DisableAiSettings;
 use settings::Settings;
-use ui::{
-    ContextMenu, KeybindingHint, PopoverMenuHandle, SplitButton, Tooltip, prelude::*,
-};
+use ui::{ContextMenu, KeybindingHint, PopoverMenuHandle, SplitButton, Tooltip, prelude::*};
 
 use editor::{Editor, EditorElement};
 use gpui::*;
@@ -44,7 +42,8 @@ impl ModalContainerProperties {
                 f32::from(preferred_char_width as f32 * em_width + px(container_padding * 2.0));
         }
 
-        let modal_border_radius = f32::from(cx.theme().component_radius().modal.unwrap_or(px(12.0)));
+        let modal_border_radius =
+            f32::from(cx.theme().component_radius().modal.unwrap_or(px(12.0)));
 
         Self {
             modal_width,

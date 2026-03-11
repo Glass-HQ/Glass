@@ -27,7 +27,10 @@ struct ProjectInfo {
 }
 
 pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
-    log::debug!("detect_xcode_project: searching recursively in {:?}", workspace_root);
+    log::debug!(
+        "detect_xcode_project: searching recursively in {:?}",
+        workspace_root
+    );
 
     let mut workspaces: Vec<PathBuf> = Vec::new();
     let mut projects: Vec<PathBuf> = Vec::new();
@@ -59,7 +62,10 @@ pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
 
             if ext_str == "xcworkspace" {
                 // Skip the internal project.xcworkspace inside .xcodeproj directories
-                let name = path.file_stem().map(|s| s.to_string_lossy()).unwrap_or_default();
+                let name = path
+                    .file_stem()
+                    .map(|s| s.to_string_lossy())
+                    .unwrap_or_default();
                 let parent_is_xcodeproj = path
                     .parent()
                     .and_then(|p| p.extension())
@@ -101,7 +107,6 @@ pub fn detect_xcode_project(workspace_root: &Path) -> Option<XcodeProject> {
     None
 }
 
-
 pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
     log::debug!("list_schemes: starting for {:?}", project.path);
 
@@ -123,7 +128,11 @@ pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
                 if let Ok(entries) = std::fs::read_dir(&userdata_dir) {
                     for entry in entries.filter_map(|e| e.ok()) {
                         let path = entry.path();
-                        if path.extension().map(|e| e == "xcuserdatad").unwrap_or(false) {
+                        if path
+                            .extension()
+                            .map(|e| e == "xcuserdatad")
+                            .unwrap_or(false)
+                        {
                             scheme_dirs.push(path.join("xcschemes"));
                         }
                     }
@@ -141,7 +150,11 @@ pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
                 if let Ok(entries) = std::fs::read_dir(&userdata_dir) {
                     for entry in entries.filter_map(|e| e.ok()) {
                         let path = entry.path();
-                        if path.extension().map(|e| e == "xcuserdatad").unwrap_or(false) {
+                        if path
+                            .extension()
+                            .map(|e| e == "xcuserdatad")
+                            .unwrap_or(false)
+                        {
                             scheme_dirs.push(path.join("xcschemes"));
                         }
                     }
@@ -159,10 +172,11 @@ pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
                             if let Some(end) = rest.find('"') {
                                 let relative_path = &rest[..end];
                                 if relative_path.ends_with(".xcodeproj") {
-                                    let proj_path = project.path.parent()
-                                        .map(|p| p.join(relative_path));
+                                    let proj_path =
+                                        project.path.parent().map(|p| p.join(relative_path));
                                     if let Some(proj_path) = proj_path {
-                                        let proj_shared = proj_path.join("xcshareddata").join("xcschemes");
+                                        let proj_shared =
+                                            proj_path.join("xcshareddata").join("xcschemes");
                                         scheme_dirs.push(proj_shared);
                                     }
                                 }
@@ -194,7 +208,10 @@ pub fn list_schemes(project: &XcodeProject) -> Result<Vec<String>> {
     }
 
     schemes.sort();
-    log::debug!("list_schemes: found {} schemes by parsing files", schemes.len());
+    log::debug!(
+        "list_schemes: found {} schemes by parsing files",
+        schemes.len()
+    );
 
     Ok(schemes)
 }

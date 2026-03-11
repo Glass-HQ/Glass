@@ -29,8 +29,8 @@ use self::inlay_hints::BufferInlayHints;
 use crate::{
     CodeAction, Completion, CompletionDisplayOptions, CompletionResponse, CompletionSource,
     CoreCompletion, Hover, InlayHint, InlayId, LocationLink, LspAction, LspPullDiagnostics,
-    ManifestProvidersStore, ProjectItem, ProjectPath, ProjectTransaction,
-    PulledDiagnostics, ResolveState, Symbol,
+    ManifestProvidersStore, ProjectItem, ProjectPath, ProjectTransaction, PulledDiagnostics,
+    ResolveState, Symbol,
     buffer_store::{BufferStore, BufferStoreEvent},
     environment::ProjectEnvironment,
     lsp_command::{self, *},

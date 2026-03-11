@@ -24,11 +24,11 @@ use gpui::{
     actions, anchored, deferred, div,
 };
 use language::{Language, LanguageConfig, ToOffset as _};
-use toast::{StatusToast, ToastIcon};
 use project::{CompletionDisplayOptions, Project};
 use settings::{
     BaseKeymap, KeybindSource, KeymapFile, Settings as _, SettingsAssets, infer_json_indent_size,
 };
+use toast::{StatusToast, ToastIcon};
 use ui::{
     ActiveTheme as _, App, Banner, BorrowAppContext, ContextMenu, IconButtonShape, Indicator,
     Modal, ModalFooter, ModalHeader, ParentElement as _, PopoverMenu, Render, Section,

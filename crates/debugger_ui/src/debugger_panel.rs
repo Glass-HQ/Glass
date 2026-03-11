@@ -553,8 +553,8 @@ impl DebugPanel {
             {
                 use gpui::{NativeMenuItem, show_native_popup_menu};
 
-                use gpui::SharedString;
                 use crate::persistence::DebuggerPaneItem;
+                use gpui::SharedString;
 
                 let mut items = Vec::new();
                 let mut toggle_data: Vec<(DebuggerPaneItem, bool)> = Vec::new();
@@ -569,34 +569,26 @@ impl DebugPanel {
                     toggle_data.push((item_kind, is_visible));
                 }
 
-                show_native_popup_menu(
-                    &items,
-                    position,
-                    window,
-                    cx,
-                    move |index, window, cx| {
-                        if let Some(&(item_kind, is_visible)) = toggle_data.get(index) {
-                            this.update(cx, |this, cx| {
-                                if let Some(running_state) = this
-                                    .active_session
-                                    .as_ref()
-                                    .map(|session| session.read(cx).running_state().clone())
-                                {
-                                    running_state.update(cx, |state, cx| {
-                                        if is_visible {
-                                            state.remove_pane_item(item_kind, window, cx);
-                                        } else {
-                                            state.add_pane_item(
-                                                item_kind, position, window, cx,
-                                            );
-                                        }
-                                    })
-                                }
-                            })
-                            .ok();
-                        }
-                    },
-                );
+                show_native_popup_menu(&items, position, window, cx, move |index, window, cx| {
+                    if let Some(&(item_kind, is_visible)) = toggle_data.get(index) {
+                        this.update(cx, |this, cx| {
+                            if let Some(running_state) = this
+                                .active_session
+                                .as_ref()
+                                .map(|session| session.read(cx).running_state().clone())
+                            {
+                                running_state.update(cx, |state, cx| {
+                                    if is_visible {
+                                        state.remove_pane_item(item_kind, window, cx);
+                                    } else {
+                                        state.add_pane_item(item_kind, position, window, cx);
+                                    }
+                                })
+                            }
+                        })
+                        .ok();
+                    }
+                });
                 cx.notify();
                 return;
             }
@@ -604,52 +596,46 @@ impl DebugPanel {
             #[cfg(not(target_os = "macos"))]
             {
                 use gpui::DismissEvent;
-                let context_menu =
-                    ContextMenu::build(window, cx, |mut menu, _window, _cx| {
-                        for (item_kind, is_visible) in pane_items_status.into_iter() {
-                            menu = menu.toggleable_entry(
-                                item_kind,
-                                is_visible,
-                                IconPosition::End,
-                                None,
-                                {
-                                    let this = this.clone();
-                                    move |window, cx| {
-                                        this.update(cx, |this, cx| {
-                                            if let Some(running_state) = this
-                                                .active_session
-                                                .as_ref()
-                                                .map(|session| {
-                                                    session.read(cx).running_state().clone()
-                                                })
-                                            {
-                                                running_state.update(cx, |state, cx| {
-                                                    if is_visible {
-                                                        state.remove_pane_item(
-                                                            item_kind, window, cx,
-                                                        );
-                                                    } else {
-                                                        state.add_pane_item(
-                                                            item_kind, position, window, cx,
-                                                        );
-                                                    }
-                                                })
-                                            }
-                                        })
-                                        .ok();
-                                    }
-                                },
-                            );
-                        }
-                        menu
-                    });
+                let context_menu = ContextMenu::build(window, cx, |mut menu, _window, _cx| {
+                    for (item_kind, is_visible) in pane_items_status.into_iter() {
+                        menu = menu.toggleable_entry(
+                            item_kind,
+                            is_visible,
+                            IconPosition::End,
+                            None,
+                            {
+                                let this = this.clone();
+                                move |window, cx| {
+                                    this.update(cx, |this, cx| {
+                                        if let Some(running_state) = this
+                                            .active_session
+                                            .as_ref()
+                                            .map(|session| session.read(cx).running_state().clone())
+                                        {
+                                            running_state.update(cx, |state, cx| {
+                                                if is_visible {
+                                                    state.remove_pane_item(item_kind, window, cx);
+                                                } else {
+                                                    state.add_pane_item(
+                                                        item_kind, position, window, cx,
+                                                    );
+                                                }
+                                            })
+                                        }
+                                    })
+                                    .ok();
+                                }
+                            },
+                        );
+                    }
+                    menu
+                });
 
                 window.focus(&context_menu.focus_handle(cx), cx);
-                let subscription =
-                    cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
-                        this.context_menu.take();
-                        cx.notify();
-                    });
+                let subscription = cx.subscribe(&context_menu, |this, _, _: &DismissEvent, cx| {
+                    this.context_menu.take();
+                    cx.notify();
+                });
                 self.context_menu = Some((context_menu, position, subscription));
             }
         }

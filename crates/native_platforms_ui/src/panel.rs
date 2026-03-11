@@ -13,20 +13,14 @@ use native_platforms::{BuildConfiguration, Device, DeviceState};
 use project::Project;
 use serde::{Deserialize, Serialize};
 use ui::prelude::*;
-use workspace::dock::{DockPosition, Panel, PanelEvent};
 use workspace::Workspace;
+use workspace::dock::{DockPosition, Panel, PanelEvent};
 
 const NATIVE_PLATFORMS_PANEL_KEY: &str = "NativePlatformsPanel";
 
 actions!(
     native_platforms_panel,
-    [
-        ToggleFocus,
-        Build,
-        Run,
-        Deploy,
-        RefreshDevices,
-    ]
+    [ToggleFocus, Build, Run, Deploy, RefreshDevices,]
 );
 
 pub fn init(cx: &mut App) {
@@ -90,9 +84,9 @@ impl NativePlatformsPanel {
             _subscriptions: Vec::new(),
         };
 
-        panel._subscriptions.push(
-            cx.subscribe(&project, Self::handle_project_event)
-        );
+        panel
+            ._subscriptions
+            .push(cx.subscribe(&project, Self::handle_project_event));
 
         panel.detect_xcode_project(cx);
         panel.refresh_devices(cx);
@@ -125,7 +119,9 @@ impl NativePlatformsPanel {
                     .read_kvp(NATIVE_PLATFORMS_PANEL_KEY)
                     .ok()
                     .flatten()
-                    .and_then(|value| serde_json::from_str::<SerializedNativePlatformsPanel>(&value).ok())
+                    .and_then(|value| {
+                        serde_json::from_str::<SerializedNativePlatformsPanel>(&value).ok()
+                    })
             })
             .await;
 
@@ -137,7 +133,8 @@ impl NativePlatformsPanel {
                     panel.width = serialized.width.map(px);
                     panel.selected_scheme = serialized.selected_scheme;
                     if let Some(device_id) = serialized.selected_device_id {
-                        panel.selected_device = panel.devices.iter().find(|d| d.id == device_id).cloned();
+                        panel.selected_device =
+                            panel.devices.iter().find(|d| d.id == device_id).cloned();
                     }
                 }
                 panel
@@ -166,7 +163,8 @@ impl NativePlatformsPanel {
                 .background_spawn(async move {
                     for path in worktree_paths {
                         if let Some(detected_project) = xcode::detect_xcode_project(&path) {
-                            let schemes = xcode::list_schemes(&detected_project).unwrap_or_default();
+                            let schemes =
+                                xcode::list_schemes(&detected_project).unwrap_or_default();
                             return Some((detected_project, schemes));
                         }
                     }
@@ -183,7 +181,8 @@ impl NativePlatformsPanel {
                     this.schemes = schemes;
                     cx.notify();
                 }
-            }).ok();
+            })
+            .ok();
         })
         .detach();
     }
@@ -251,15 +250,8 @@ impl NativePlatformsPanel {
         let workspace = self.workspace.clone();
         let panel = cx.entity().downgrade();
 
-        self.controller.start_pipeline(
-            kind,
-            xcode_project,
-            options,
-            workspace,
-            panel,
-            window,
-            cx,
-        );
+        self.controller
+            .start_pipeline(kind, xcode_project, options, workspace, panel, window, cx);
         cx.notify();
     }
 
@@ -373,18 +365,14 @@ impl NativePlatformsPanel {
                     native_dropdown("scheme-selector", &schemes)
                         .w_full()
                         .selected_index(selected_index)
-                        .on_select(cx.listener(
-                            |this, event: &DropdownSelectEvent, _, cx| {
-                                let Some(scheme) =
-                                    this.schemes.get(event.index).cloned()
-                                else {
-                                    return;
-                                };
-                                this.selected_scheme = Some(scheme);
-                                this.serialize(cx);
-                                cx.notify();
-                            },
-                        )),
+                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
+                            let Some(scheme) = this.schemes.get(event.index).cloned() else {
+                                return;
+                            };
+                            this.selected_scheme = Some(scheme);
+                            this.serialize(cx);
+                            cx.notify();
+                        })),
                 )
             })
             .when(!has_schemes, |el| {
@@ -464,18 +452,14 @@ impl NativePlatformsPanel {
                     native_dropdown("device-selector", &device_labels)
                         .w_full()
                         .selected_index(selected_index)
-                        .on_select(cx.listener(
-                            |this, event: &DropdownSelectEvent, _, cx| {
-                                let Some(device) =
-                                    this.devices.get(event.index).cloned()
-                                else {
-                                    return;
-                                };
-                                this.selected_device = Some(device);
-                                this.serialize(cx);
-                                cx.notify();
-                            },
-                        )),
+                        .on_select(cx.listener(|this, event: &DropdownSelectEvent, _, cx| {
+                            let Some(device) = this.devices.get(event.index).cloned() else {
+                                return;
+                            };
+                            this.selected_device = Some(device);
+                            this.serialize(cx);
+                            cx.notify();
+                        })),
                 )
             })
             .when(!has_devices && !loading, |el| {
@@ -535,11 +519,7 @@ impl NativePlatformsPanel {
                                 .flex_1()
                                 .disabled(!can_build)
                                 .on_click(cx.listener(|this, _, window, cx| {
-                                    this.start_pipeline(
-                                        PipelineKind::Build,
-                                        window,
-                                        cx,
-                                    );
+                                    this.start_pipeline(PipelineKind::Build, window, cx);
                                 })),
                         )
                         .child(
@@ -549,11 +529,7 @@ impl NativePlatformsPanel {
                                 .flex_1()
                                 .disabled(!can_build)
                                 .on_click(cx.listener(|this, _, window, cx| {
-                                    this.start_pipeline(
-                                        PipelineKind::Run,
-                                        window,
-                                        cx,
-                                    );
+                                    this.start_pipeline(PipelineKind::Run, window, cx);
                                 })),
                         )
                         .when(has_launched, |el| {
@@ -569,17 +545,13 @@ impl NativePlatformsPanel {
                 )
             })
             .child(
-                div()
-                    .flex()
-                    .justify_center()
-                    .pt(px(2.0))
-                    .child(
-                        native_button("deploy", "Deploy to App Store")
-                            .button_style(NativeButtonStyle::Borderless)
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.deploy(window, cx);
-                            })),
-                    ),
+                div().flex().justify_center().pt(px(2.0)).child(
+                    native_button("deploy", "Deploy to App Store")
+                        .button_style(NativeButtonStyle::Borderless)
+                        .on_click(cx.listener(|this, _, window, cx| {
+                            this.deploy(window, cx);
+                        })),
+                ),
             )
     }
 }
@@ -640,8 +612,7 @@ impl Panel for NativePlatformsPanel {
         matches!(position, DockPosition::Left | DockPosition::Right)
     }
 
-    fn set_position(&mut self, _position: DockPosition, _: &mut Window, _cx: &mut Context<Self>) {
-    }
+    fn set_position(&mut self, _position: DockPosition, _: &mut Window, _cx: &mut Context<Self>) {}
 
     fn size(&self, _: &Window, _cx: &App) -> Pixels {
         self.width.unwrap_or(px(300.0))

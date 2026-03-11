@@ -14,10 +14,10 @@ use gpui::{
     Subscription, Task, TextStyle, UniformList, UniformListScrollHandle, WeakEntity, actions,
     anchored, deferred, uniform_list,
 };
-use toast::{StatusToast, ToastIcon};
 use project::debugger::{MemoryCell, dap_command::DataBreakpointContext, session::Session};
 use settings::Settings;
 use theme::ThemeSettings;
+use toast::{StatusToast, ToastIcon};
 use ui::{
     ContextMenu, Divider, DropdownMenu, FluentBuilder, IntoElement, PopoverMenuHandle, Render,
     ScrollableHandle, StatefulInteractiveElement, Tooltip, WithScrollbar, prelude::*,

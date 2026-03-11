@@ -180,7 +180,9 @@ fn parse_path_with_position(argument_str: &str) -> anyhow::Result<String> {
             }))
         }),
     }
-    .map(|path_with_pos| path_with_pos.to_string(&|path: &PathBuf| path.to_string_lossy().into_owned()))
+    .map(|path_with_pos| {
+        path_with_pos.to_string(&|path: &PathBuf| path.to_string_lossy().into_owned())
+    })
 }
 
 fn expand_directory_diff_pairs(

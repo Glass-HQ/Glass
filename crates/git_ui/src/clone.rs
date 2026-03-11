@@ -1,6 +1,6 @@
 use gpui::{App, Context, WeakEntity, Window};
-use toast::{StatusToast, ToastIcon};
 use std::sync::Arc;
+use toast::{StatusToast, ToastIcon};
 use ui::{Color, IconName, SharedString};
 use util::ResultExt;
 use workspace::{self, Workspace};

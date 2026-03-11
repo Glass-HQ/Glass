@@ -2038,10 +2038,14 @@ impl Render for ProjectSearchBar {
         let input_width = SearchInputWidth::calc_width(container_width);
 
         let input_base_styles = |panel: InputPanel| {
-            input_base_styles(search.border_color_for(panel, cx), |div| match panel {
-                InputPanel::Query | InputPanel::Replacement => div.w(input_width),
-                InputPanel::Include | InputPanel::Exclude => div.flex_grow(),
-            }, cx)
+            input_base_styles(
+                search.border_color_for(panel, cx),
+                |div| match panel {
+                    InputPanel::Query | InputPanel::Replacement => div.w(input_width),
+                    InputPanel::Include | InputPanel::Exclude => div.flex_grow(),
+                },
+                cx,
+            )
         };
         let theme_colors = cx.theme().colors();
         let project_search = search.entity.read(cx);

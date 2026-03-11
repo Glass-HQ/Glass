@@ -17,7 +17,10 @@ use gpui::{
 };
 use language::File as _;
 use persistence::IMAGE_VIEWER;
-use project::{ImageItem, Project, ProjectPath, image_store::{ImageItemEvent, ImageMetadata}};
+use project::{
+    ImageItem, Project, ProjectPath,
+    image_store::{ImageItemEvent, ImageMetadata},
+};
 use settings::Settings;
 use theme::ThemeSettings;
 use ui::{Tooltip, prelude::*};

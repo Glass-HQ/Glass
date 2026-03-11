@@ -82,16 +82,13 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
     // Meta+VK_BACK or Meta+Shift+Arrow either — those also rely on the
     // native text system. We use Selection.modify() via JS injection instead.
     #[cfg(target_os = "macos")]
-    if keystroke.modifiers.platform
-        && !keystroke.modifiers.control
-        && !keystroke.modifiers.alt
-    {
+    if keystroke.modifiers.platform && !keystroke.modifiers.control && !keystroke.modifiers.alt {
         match keystroke.key.as_str() {
             "backspace" => {
                 log::trace!("[browser::input] Cmd+Backspace -> JS select-to-line-start + delete");
                 browser.execute_javascript(
                     "window.getSelection().modify('extend','backward','lineboundary');\
-                     document.execCommand('delete');"
+                     document.execCommand('delete');",
                 );
                 return;
             }
@@ -99,7 +96,7 @@ pub fn handle_key_down_deferred(browser: &BrowserTab, keystroke: &Keystroke, _is
                 log::trace!("[browser::input] Cmd+Delete -> JS select-to-line-end + forwardDelete");
                 browser.execute_javascript(
                     "window.getSelection().modify('extend','forward','lineboundary');\
-                     document.execCommand('forwardDelete');"
+                     document.execCommand('forwardDelete');",
                 );
                 return;
             }
@@ -250,13 +247,12 @@ fn convert_key_event(keystroke: &Keystroke, is_down: bool) -> KeyEvent {
         "escape" => 0x1B,
         "space" => ' ' as u16,
         "delete" => 0x7F,
-        key if key.len() == 1 => {
-            key.chars()
-                .next()
-                .filter(|c| c.is_ascii_graphic())
-                .map(|c| c as u16)
-                .unwrap_or(0)
-        }
+        key if key.len() == 1 => key
+            .chars()
+            .next()
+            .filter(|c| c.is_ascii_graphic())
+            .map(|c| c as u16)
+            .unwrap_or(0),
         _ => 0,
     };
 

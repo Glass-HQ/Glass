@@ -10,8 +10,8 @@ use gpui::{
     NativePanelLevel, NativePanelMaterial, NativePanelStyle, NativePopoverClickableRow,
     NativePopoverContentItem, NativeToolbar, NativeToolbarButton, NativeToolbarDisplayMode,
     NativeToolbarItem, NativeToolbarLabel, NativeToolbarMenuButton, NativeToolbarMenuItem,
-    NativeToolbarSearchEvent, NativeToolbarSearchField, NativeToolbarSizeMode, Render, SharedString, Subscription,
-    WeakEntity, Window, px,
+    NativeToolbarSearchEvent, NativeToolbarSearchField, NativeToolbarSizeMode, Render,
+    SharedString, Subscription, WeakEntity, Window, px,
 };
 use image_viewer::ImageView;
 use language::LineEnding;
@@ -21,8 +21,8 @@ use project::{Project, git_store::GitStoreEvent, trusted_worktrees::TrustedWorkt
 use settings::Settings;
 use std::sync::Arc;
 use workspace::{
-    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorktreeSecurity,
-    Workspace, notifications::NotifyResultExt,
+    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorktreeSecurity, Workspace,
+    notifications::NotifyResultExt,
 };
 use workspace_modes::ModeId;
 use zed_actions::OpenRemote;
@@ -98,22 +98,21 @@ impl NativeToolbarController {
                 }
             },
         ));
-        subscriptions.push(
-            cx.subscribe(&project, |this, _, event: &project::Event, cx| {
-                match event {
-                    project::Event::BufferEdited => {
-                        this.clear_active_worktree_override(cx);
-                        cx.notify();
-                    }
-                    project::Event::DiagnosticsUpdated { .. }
-                    | project::Event::DiskBasedDiagnosticsFinished { .. }
-                    | project::Event::LanguageServerRemoved(_) => {
-                        cx.notify();
-                    }
-                    _ => {}
+        subscriptions.push(cx.subscribe(
+            &project,
+            |this, _, event: &project::Event, cx| match event {
+                project::Event::BufferEdited => {
+                    this.clear_active_worktree_override(cx);
+                    cx.notify();
                 }
-            }),
-        );
+                project::Event::DiagnosticsUpdated { .. }
+                | project::Event::DiskBasedDiagnosticsFinished { .. }
+                | project::Event::LanguageServerRemoved(_) => {
+                    cx.notify();
+                }
+                _ => {}
+            },
+        ));
         subscriptions.push(cx.observe_window_activation(window, Self::window_activation_changed));
         subscriptions.push(
             cx.subscribe(&git_store, move |this, _, event, cx| match event {
@@ -173,9 +172,12 @@ impl NativeToolbarController {
                         // even if nothing in its project changed. Clear the cached
                         // key so the next render forces a rebuild.
                         if let Some(toolbar) = toolbar_weak.upgrade() {
-                            let is_active = toolbar.read(cx).workspace.upgrade().map(|ws| {
-                                mw.read(cx).workspace().entity_id() == ws.entity_id()
-                            }).unwrap_or(false);
+                            let is_active = toolbar
+                                .read(cx)
+                                .workspace
+                                .upgrade()
+                                .map(|ws| mw.read(cx).workspace().entity_id() == ws.entity_id())
+                                .unwrap_or(false);
                             if is_active {
                                 toolbar.update(cx, |toolbar, cx| {
                                     toolbar.invalidate_toolbar(cx);
@@ -543,10 +545,8 @@ impl NativeToolbarController {
                         .tool_tip("Toggle Agent Panel")
                         .icon("sparkles")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                zed_actions::assistant::Toggle.boxed_clone(),
-                                cx,
-                            );
+                            window
+                                .dispatch_action(zed_actions::assistant::Toggle.boxed_clone(), cx);
                         }),
                 ));
 
@@ -555,10 +555,8 @@ impl NativeToolbarController {
                         .tool_tip("Project Search")
                         .icon("magnifyingglass")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(
-                                workspace::ToggleProjectSearch.boxed_clone(),
-                                cx,
-                            );
+                            window
+                                .dispatch_action(workspace::ToggleProjectSearch.boxed_clone(), cx);
                         }),
                 ));
 
@@ -586,7 +584,10 @@ impl NativeToolbarController {
                         .tool_tip("Toggle Debug Panel")
                         .icon("ladybug")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(zed_actions::debug_panel::ToggleFocus.boxed_clone(), cx);
+                            window.dispatch_action(
+                                zed_actions::debug_panel::ToggleFocus.boxed_clone(),
+                                cx,
+                            );
                         }),
                 ));
             }
@@ -629,8 +630,9 @@ impl NativeToolbarController {
                             language_tools::lsp_button::ToggleMenu.boxed_clone(),
                             cx,
                         ),
-                        2 => window
-                            .dispatch_action(edit_prediction_ui::ToggleMenu.boxed_clone(), cx),
+                        2 => {
+                            window.dispatch_action(edit_prediction_ui::ToggleMenu.boxed_clone(), cx)
+                        }
                         _ => {}
                     }),
             ));
@@ -806,10 +808,11 @@ impl NativeToolbarController {
                                 if total == 0 {
                                     return;
                                 }
-                                controller.omnibox_selected_index = Some(match controller.omnibox_selected_index {
-                                    Some(i) => (i + 1) % total,
-                                    None => 0,
-                                });
+                                controller.omnibox_selected_index =
+                                    Some(match controller.omnibox_selected_index {
+                                        Some(i) => (i + 1) % total,
+                                        None => 0,
+                                    });
                                 controller.show_suggestion_panel(window);
                                 cx.notify();
                             });
@@ -828,10 +831,11 @@ impl NativeToolbarController {
                                 if total == 0 {
                                     return;
                                 }
-                                controller.omnibox_selected_index = Some(match controller.omnibox_selected_index {
-                                    Some(0) | None => total.saturating_sub(1),
-                                    Some(i) => i - 1,
-                                });
+                                controller.omnibox_selected_index =
+                                    Some(match controller.omnibox_selected_index {
+                                        Some(0) | None => total.saturating_sub(1),
+                                        Some(i) => i - 1,
+                                    });
                                 controller.show_suggestion_panel(window);
                                 cx.notify();
                             });

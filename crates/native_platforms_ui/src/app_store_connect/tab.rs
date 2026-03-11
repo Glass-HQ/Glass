@@ -127,10 +127,7 @@ impl AppStoreConnectTab {
         }
 
         if !std::path::Path::new(&private_key_path).exists() {
-            self.error_message = Some(format!(
-                "Private key file not found: {}",
-                private_key_path
-            ));
+            self.error_message = Some(format!("Private key file not found: {}", private_key_path));
             cx.notify();
             return;
         }
@@ -393,66 +390,66 @@ impl AppStoreConnectTab {
                                     .color(Color::Accent),
                             ),
                     )
-                    .child(self.render_text_field(
-                        "Key ID",
-                        native_text_field("app-store-connect-key-id")
-                            .w_full()
-                            .value(self.key_id.clone())
-                            .placeholder("Your API Key ID")
-                            .disabled(self.is_loading)
-                            .on_change(cx.listener(
-                                |this, event: &TextChangeEvent, _, cx| {
+                    .child(
+                        self.render_text_field(
+                            "Key ID",
+                            native_text_field("app-store-connect-key-id")
+                                .w_full()
+                                .value(self.key_id.clone())
+                                .placeholder("Your API Key ID")
+                                .disabled(self.is_loading)
+                                .on_change(cx.listener(|this, event: &TextChangeEvent, _, cx| {
                                     this.key_id = event.text.clone();
                                     this.error_message = None;
                                     cx.notify();
-                                },
-                            )),
-                    ))
-                    .child(self.render_text_field(
-                        "Issuer ID",
-                        native_text_field("app-store-connect-issuer-id")
-                            .w_full()
-                            .value(self.issuer_id.clone())
-                            .placeholder("Your Issuer ID")
-                            .disabled(self.is_loading)
-                            .on_change(cx.listener(
-                                |this, event: &TextChangeEvent, _, cx| {
+                                })),
+                        ),
+                    )
+                    .child(
+                        self.render_text_field(
+                            "Issuer ID",
+                            native_text_field("app-store-connect-issuer-id")
+                                .w_full()
+                                .value(self.issuer_id.clone())
+                                .placeholder("Your Issuer ID")
+                                .disabled(self.is_loading)
+                                .on_change(cx.listener(|this, event: &TextChangeEvent, _, cx| {
                                     this.issuer_id = event.text.clone();
                                     this.error_message = None;
                                     cx.notify();
-                                },
-                            )),
-                    ))
-                    .child(self.render_text_field(
-                        "Private Key Path (.p8)",
-                        native_text_field("app-store-connect-private-key-path")
-                            .w_full()
-                            .value(self.private_key_path.clone())
-                            .placeholder("/path/to/AuthKey_XXX.p8")
-                            .disabled(self.is_loading)
-                            .on_change(cx.listener(
-                                |this, event: &TextChangeEvent, _, cx| {
+                                })),
+                        ),
+                    )
+                    .child(
+                        self.render_text_field(
+                            "Private Key Path (.p8)",
+                            native_text_field("app-store-connect-private-key-path")
+                                .w_full()
+                                .value(self.private_key_path.clone())
+                                .placeholder("/path/to/AuthKey_XXX.p8")
+                                .disabled(self.is_loading)
+                                .on_change(cx.listener(|this, event: &TextChangeEvent, _, cx| {
                                     this.private_key_path = event.text.clone();
                                     this.error_message = None;
                                     cx.notify();
-                                },
-                            )),
-                    ))
-                    .child(self.render_text_field(
-                        "Profile Name (optional)",
-                        native_text_field("app-store-connect-profile-name")
-                            .w_full()
-                            .value(self.profile_name.clone())
-                            .placeholder("default")
-                            .disabled(self.is_loading)
-                            .on_change(cx.listener(
-                                |this, event: &TextChangeEvent, _, cx| {
+                                })),
+                        ),
+                    )
+                    .child(
+                        self.render_text_field(
+                            "Profile Name (optional)",
+                            native_text_field("app-store-connect-profile-name")
+                                .w_full()
+                                .value(self.profile_name.clone())
+                                .placeholder("default")
+                                .disabled(self.is_loading)
+                                .on_change(cx.listener(|this, event: &TextChangeEvent, _, cx| {
                                     this.profile_name = event.text.clone();
                                     this.error_message = None;
                                     cx.notify();
-                                },
-                            )),
-                    )),
+                                })),
+                        ),
+                    ),
             )
             .child(
                 native_button("login", "Connect")
@@ -540,60 +537,55 @@ impl AppStoreConnectTab {
                 .child(Label::new("No apps found").color(Color::Muted))
         } else {
             let apps = self.apps.clone();
-            div()
-                .id("apps-list")
-                .flex_1()
-                .overflow_y_scroll()
-                .child(
-                    v_flex()
-                        .p_4()
-                        .gap_2()
-                        .children(apps.into_iter().enumerate().map(|(ix, app)| {
-                            let app_clone = app.clone();
-                            div()
-                                .id(("app-item", ix))
-                                .w_full()
-                                .p_3()
-                                .rounded_md()
-                                .border_1()
-                                .border_color(cx.theme().colors().border)
-                                .hover(|this| this.bg(cx.theme().colors().element_hover))
-                                .cursor_pointer()
-                                .on_click(cx.listener(move |this, _, _, cx| {
-                                    this.load_app_details(&app_clone, cx);
-                                }))
-                                .child(
-                                    h_flex()
-                                        .gap_3()
-                                        .child(
-                                            div()
-                                                .w_10()
-                                                .h_10()
-                                                .rounded_lg()
-                                                .bg(cx.theme().colors().element_background)
-                                                .flex()
-                                                .items_center()
-                                                .justify_center()
-                                                .child(
-                                                    Icon::new(IconName::Globe)
-                                                        .size(IconSize::Medium),
-                                                ),
-                                        )
-                                        .child(
-                                            v_flex()
-                                                .child(
-                                                    Label::new(app.name.clone())
-                                                        .size(LabelSize::Default),
-                                                )
-                                                .child(
-                                                    Label::new(app.bundle_id)
-                                                        .size(LabelSize::Small)
-                                                        .color(Color::Muted),
-                                                ),
-                                        ),
-                                )
-                        })),
-                )
+            div().id("apps-list").flex_1().overflow_y_scroll().child(
+                v_flex()
+                    .p_4()
+                    .gap_2()
+                    .children(apps.into_iter().enumerate().map(|(ix, app)| {
+                        let app_clone = app.clone();
+                        div()
+                            .id(("app-item", ix))
+                            .w_full()
+                            .p_3()
+                            .rounded_md()
+                            .border_1()
+                            .border_color(cx.theme().colors().border)
+                            .hover(|this| this.bg(cx.theme().colors().element_hover))
+                            .cursor_pointer()
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.load_app_details(&app_clone, cx);
+                            }))
+                            .child(
+                                h_flex()
+                                    .gap_3()
+                                    .child(
+                                        div()
+                                            .w_10()
+                                            .h_10()
+                                            .rounded_lg()
+                                            .bg(cx.theme().colors().element_background)
+                                            .flex()
+                                            .items_center()
+                                            .justify_center()
+                                            .child(
+                                                Icon::new(IconName::Globe).size(IconSize::Medium),
+                                            ),
+                                    )
+                                    .child(
+                                        v_flex()
+                                            .child(
+                                                Label::new(app.name.clone())
+                                                    .size(LabelSize::Default),
+                                            )
+                                            .child(
+                                                Label::new(app.bundle_id)
+                                                    .size(LabelSize::Small)
+                                                    .color(Color::Muted),
+                                            ),
+                                    ),
+                            )
+                    })),
+            )
         }
     }
 
@@ -663,7 +655,11 @@ impl AppStoreConnectTab {
                 h_flex()
                     .gap_2()
                     .items_center()
-                    .child(Icon::new(IconName::Box).size(IconSize::Small).color(Color::Muted))
+                    .child(
+                        Icon::new(IconName::Box)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
                     .child(Label::new("Builds").size(LabelSize::Default)),
             )
             .when(self.builds.is_empty(), |this| {
@@ -680,8 +676,8 @@ impl AppStoreConnectTab {
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
-                        .child(
-                            v_flex().children(self.builds.iter().enumerate().map(|(ix, build)| {
+                        .child(v_flex().children(self.builds.iter().enumerate().map(
+                            |(ix, build)| {
                                 let is_last = ix == self.builds.len() - 1;
                                 h_flex()
                                     .w_full()
@@ -689,8 +685,7 @@ impl AppStoreConnectTab {
                                     .py_2()
                                     .justify_between()
                                     .when(!is_last, |this| {
-                                        this.border_b_1()
-                                            .border_color(cx.theme().colors().border)
+                                        this.border_b_1().border_color(cx.theme().colors().border)
                                     })
                                     .child(
                                         h_flex()
@@ -700,22 +695,22 @@ impl AppStoreConnectTab {
                                                 Label::new(format!("Build {}", build.version))
                                                     .size(LabelSize::Small),
                                             )
-                                            .child(self.render_status_badge(
-                                                &build.processing_state,
-                                                cx,
-                                            )),
+                                            .child(
+                                                self.render_status_badge(
+                                                    &build.processing_state,
+                                                    cx,
+                                                ),
+                                            ),
                                     )
-                                    .child(
-                                        h_flex().gap_2().when(build.expired, |this| {
-                                            this.child(
-                                                Label::new("Expired")
-                                                    .size(LabelSize::XSmall)
-                                                    .color(Color::Muted),
-                                            )
-                                        }),
-                                    )
-                            })),
-                        ),
+                                    .child(h_flex().gap_2().when(build.expired, |this| {
+                                        this.child(
+                                            Label::new("Expired")
+                                                .size(LabelSize::XSmall)
+                                                .color(Color::Muted),
+                                        )
+                                    }))
+                            },
+                        ))),
                 )
             })
     }
@@ -748,51 +743,48 @@ impl AppStoreConnectTab {
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
-                        .child(
-                            v_flex().children(self.beta_groups.iter().enumerate().map(
-                                |(ix, group)| {
-                                    let is_last = ix == self.beta_groups.len() - 1;
-                                    h_flex()
-                                        .w_full()
-                                        .px_3()
-                                        .py_2()
-                                        .justify_between()
-                                        .when(!is_last, |this| {
-                                            this.border_b_1()
-                                                .border_color(cx.theme().colors().border)
-                                        })
-                                        .child(
-                                            h_flex()
-                                                .gap_3()
-                                                .items_center()
-                                                .child(
-                                                    Label::new(group.name.clone())
-                                                        .size(LabelSize::Small),
-                                                )
-                                                .child(
-                                                    Label::new(if group.is_internal {
-                                                        "Internal"
-                                                    } else {
-                                                        "External"
-                                                    })
-                                                    .size(LabelSize::XSmall)
-                                                    .color(if group.is_internal {
-                                                        Color::Accent
-                                                    } else {
-                                                        Color::Muted
-                                                    }),
-                                                ),
-                                        )
-                                        .when(group.public_link_enabled, |this| {
-                                            this.child(
-                                                Label::new("Public Link")
-                                                    .size(LabelSize::XSmall)
-                                                    .color(Color::Success),
+                        .child(v_flex().children(self.beta_groups.iter().enumerate().map(
+                            |(ix, group)| {
+                                let is_last = ix == self.beta_groups.len() - 1;
+                                h_flex()
+                                    .w_full()
+                                    .px_3()
+                                    .py_2()
+                                    .justify_between()
+                                    .when(!is_last, |this| {
+                                        this.border_b_1().border_color(cx.theme().colors().border)
+                                    })
+                                    .child(
+                                        h_flex()
+                                            .gap_3()
+                                            .items_center()
+                                            .child(
+                                                Label::new(group.name.clone())
+                                                    .size(LabelSize::Small),
                                             )
-                                        })
-                                },
-                            )),
-                        ),
+                                            .child(
+                                                Label::new(if group.is_internal {
+                                                    "Internal"
+                                                } else {
+                                                    "External"
+                                                })
+                                                .size(LabelSize::XSmall)
+                                                .color(if group.is_internal {
+                                                    Color::Accent
+                                                } else {
+                                                    Color::Muted
+                                                }),
+                                            ),
+                                    )
+                                    .when(group.public_link_enabled, |this| {
+                                        this.child(
+                                            Label::new("Public Link")
+                                                .size(LabelSize::XSmall)
+                                                .color(Color::Success),
+                                        )
+                                    })
+                            },
+                        ))),
                 )
             })
     }
@@ -809,7 +801,10 @@ impl AppStoreConnectTab {
                             .size(IconSize::Small)
                             .color(Color::Muted),
                     )
-                    .child(Label::new(format!("Beta Testers ({})", self.beta_testers.len())).size(LabelSize::Default)),
+                    .child(
+                        Label::new(format!("Beta Testers ({})", self.beta_testers.len()))
+                            .size(LabelSize::Default),
+                    ),
             )
             .when(self.beta_testers.is_empty(), |this| {
                 this.child(
@@ -825,45 +820,42 @@ impl AppStoreConnectTab {
                         .border_1()
                         .border_color(cx.theme().colors().border)
                         .overflow_hidden()
-                        .child(
-                            v_flex().children(
-                                self.beta_testers.iter().enumerate().map(|(ix, tester)| {
-                                    let is_last = ix == self.beta_testers.len() - 1;
-                                    let name = self.format_tester_name(tester);
+                        .child(v_flex().children(self.beta_testers.iter().enumerate().map(
+                            |(ix, tester)| {
+                                let is_last = ix == self.beta_testers.len() - 1;
+                                let name = self.format_tester_name(tester);
 
-                                    h_flex()
-                                        .w_full()
-                                        .px_3()
-                                        .py_2()
-                                        .justify_between()
-                                        .when(!is_last, |this| {
-                                            this.border_b_1()
-                                                .border_color(cx.theme().colors().border)
-                                        })
-                                        .child(
-                                            v_flex()
-                                                .child(Label::new(name).size(LabelSize::Small))
-                                                .when_some(tester.email.as_ref(), |this, email| {
-                                                    this.child(
-                                                        Label::new(email.clone())
-                                                            .size(LabelSize::XSmall)
-                                                            .color(Color::Muted),
-                                                    )
-                                                }),
-                                        )
-                                        .child(
-                                            h_flex()
-                                                .gap_2()
-                                                .child(self.render_status_badge(&tester.state, cx))
-                                                .child(
-                                                    Label::new(tester.invite_type.clone())
+                                h_flex()
+                                    .w_full()
+                                    .px_3()
+                                    .py_2()
+                                    .justify_between()
+                                    .when(!is_last, |this| {
+                                        this.border_b_1().border_color(cx.theme().colors().border)
+                                    })
+                                    .child(
+                                        v_flex()
+                                            .child(Label::new(name).size(LabelSize::Small))
+                                            .when_some(tester.email.as_ref(), |this, email| {
+                                                this.child(
+                                                    Label::new(email.clone())
                                                         .size(LabelSize::XSmall)
                                                         .color(Color::Muted),
-                                                ),
-                                        )
-                                }),
-                            ),
-                        ),
+                                                )
+                                            }),
+                                    )
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .child(self.render_status_badge(&tester.state, cx))
+                                            .child(
+                                                Label::new(tester.invite_type.clone())
+                                                    .size(LabelSize::XSmall)
+                                                    .color(Color::Muted),
+                                            ),
+                                    )
+                            },
+                        ))),
                 )
             })
     }
@@ -886,12 +878,11 @@ impl AppStoreConnectTab {
             _ => (Color::Muted, cx.theme().colors().element_background),
         };
 
-        div()
-            .px_2()
-            .py_px()
-            .rounded_sm()
-            .bg(bg_color)
-            .child(Label::new(status.to_string()).size(LabelSize::XSmall).color(color))
+        div().px_2().py_px().rounded_sm().bg(bg_color).child(
+            Label::new(status.to_string())
+                .size(LabelSize::XSmall)
+                .color(color),
+        )
     }
 }
 

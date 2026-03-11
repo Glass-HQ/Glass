@@ -5,8 +5,8 @@ use crate::{
 use editor::{BlameRenderer, Editor, hover_markdown_style};
 use git::{blame::BlameEntry, commit::ParsedCommitMessage, repository::CommitSummary};
 use gpui::{
-    ClipboardItem, Entity, Hsla, MouseButton, ScrollHandle, TextStyle,
-    TextStyleRefinement, UnderlineStyle, WeakEntity, prelude::*,
+    ClipboardItem, Entity, Hsla, MouseButton, ScrollHandle, TextStyle, TextStyleRefinement,
+    UnderlineStyle, WeakEntity, prelude::*,
 };
 use markdown::{Markdown, MarkdownElement};
 use project::{git_store::Repository, project_settings::ProjectSettings};

@@ -1193,10 +1193,7 @@ impl LspButton {
                     .map(|(server_id, status)| {
                         (
                             server_id,
-                            (
-                                status.server_version.clone(),
-                                status.process_id,
-                            ),
+                            (status.server_version.clone(), status.process_id),
                         )
                     })
                     .collect::<HashMap<_, _>>()
@@ -1212,7 +1209,6 @@ impl LspButton {
 
         let server_count = server_infos.len();
         for server_info in &server_infos {
-
             let (native_color, status_label) = server_info
                 .binary_status
                 .as_ref()
@@ -1250,21 +1246,21 @@ impl LspButton {
             });
 
             let detail = match (&server_version, &memory_label) {
-                (Some(version), Some(memory)) => {
-                    Some(SharedString::from(format!("v{} \u{2022} {}", version.as_ref(), memory)))
-                }
-                (Some(version), None) => {
-                    Some(SharedString::from(format!("v{}", version.as_ref())))
-                }
+                (Some(version), Some(memory)) => Some(SharedString::from(format!(
+                    "v{} \u{2022} {}",
+                    version.as_ref(),
+                    memory
+                ))),
+                (Some(version), None) => Some(SharedString::from(format!("v{}", version.as_ref()))),
                 (None, Some(memory)) => Some(SharedString::from(memory.clone())),
                 (None, None) => Some(SharedString::from(status_label)),
             };
 
             let server_name = server_info.name.0.clone();
             let server_selector = server_info.server_selector();
-            let has_logs = lsp_logs.as_ref().is_some_and(|logs| {
-                is_remote || logs.read(cx).has_server_logs(&server_selector)
-            });
+            let has_logs = lsp_logs
+                .as_ref()
+                .is_some_and(|logs| is_remote || logs.read(cx).has_server_logs(&server_selector));
 
             let mut dot = NativePopoverColorDot::new(server_name, native_color);
             if let Some(detail) = detail {

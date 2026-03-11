@@ -16,9 +16,8 @@ use fuzzy::{StringMatchCandidate, match_strings};
 use gpui::{
     Action, AnyElement, App, ClipboardItem, Context, Entity, EventEmitter, Focusable,
     InteractiveElement, KeyContext, NativeButtonStyle, NativeButtonTint, NativeSegmentedShape,
-    ParentElement, Render, SegmentSelectEvent, Styled, Task, TextStyle,
-    UniformListScrollHandle, WeakEntity, Window, actions, native_button, native_toggle_group,
-    point, uniform_list,
+    ParentElement, Render, SegmentSelectEvent, Styled, Task, TextStyle, UniformListScrollHandle,
+    WeakEntity, Window, actions, native_button, native_toggle_group, point, uniform_list,
 };
 use num_format::{Locale, ToFormattedString};
 use project::DirectoryLister;
@@ -26,9 +25,7 @@ use release_channel::ReleaseChannel;
 use settings::Settings;
 use strum::IntoEnumIterator as _;
 use theme::ThemeSettings;
-use ui::{
-    Banner, Chip, ScrollableHandle, Tooltip, WithScrollbar, prelude::*,
-};
+use ui::{Banner, Chip, ScrollableHandle, Tooltip, WithScrollbar, prelude::*};
 use workspace::{
     Workspace,
     item::{Item, ItemEvent},
@@ -919,7 +916,7 @@ impl ExtensionsPage {
                                 #[cfg(target_os = "macos")]
                                 {
                                     use gpui::{
-                                        div, InteractiveElement, NativeMenuItem, ParentElement,
+                                        InteractiveElement, NativeMenuItem, ParentElement, div,
                                         show_native_popup_menu,
                                     };
 
@@ -955,7 +952,11 @@ impl ExtensionsPage {
                                                     move |index, window, cx| match index {
                                                         0 => {
                                                             let _ = this.update(cx, |this, cx| {
-                                                                this.show_extension_version_list(ext_id.clone(), window, cx);
+                                                                this.show_extension_version_list(
+                                                                    ext_id.clone(),
+                                                                    window,
+                                                                    cx,
+                                                                );
                                                             });
                                                         }
                                                         1 => {
@@ -989,10 +990,7 @@ impl ExtensionsPage {
                                     )))
                                     .trigger(
                                         IconButton::new(
-                                            SharedString::from(format!(
-                                                "more-{}",
-                                                extension.id
-                                            )),
+                                            SharedString::from(format!("more-{}", extension.id)),
                                             IconName::Ellipsis,
                                         )
                                         .icon_size(IconSize::Small),

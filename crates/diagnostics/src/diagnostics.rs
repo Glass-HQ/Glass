@@ -18,8 +18,8 @@ use editor::{
 };
 use gpui::{
     AnyElement, App, AsyncApp, Context, Entity, EventEmitter, FocusHandle, FocusOutEvent,
-    Focusable, Global, InteractiveElement, IntoElement, ParentElement, Render, SharedString, Styled,
-    Subscription, Task, WeakEntity, Window, actions, div, native_button,
+    Focusable, Global, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
+    Styled, Subscription, Task, WeakEntity, Window, actions, div, native_button,
 };
 use itertools::Itertools as _;
 use language::{

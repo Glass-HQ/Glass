@@ -52,14 +52,17 @@ pub(crate) fn close_all_browsers() -> usize {
                 let ready_to_close = host.is_ready_to_be_closed();
                 log::trace!(
                     "[browser::tab] close_all_browsers: id={} is_valid={} ready_to_close={}, requesting close",
-                    id, is_valid, ready_to_close,
+                    id,
+                    is_valid,
+                    ready_to_close,
                 );
                 host.close_browser(1);
             }
             None => {
                 log::trace!(
                     "[browser::tab] close_all_browsers: id={} is_valid={} no host",
-                    id, is_valid,
+                    id,
+                    is_valid,
                 );
             }
         }
@@ -276,18 +279,23 @@ impl BrowserTab {
                 let has_cookie_manager = context.cookie_manager(None).is_some();
                 log::trace!(
                     "[browser::tab] Created browser id={} url={} | context: is_global={}, has_cookie_manager={}",
-                    browser_id, initial_url, is_global, has_cookie_manager,
+                    browser_id,
+                    initial_url,
+                    is_global,
+                    has_cookie_manager,
                 );
             } else {
                 log::warn!(
                     "[browser::tab] Created browser id={} url={} | WARNING: no request context!",
-                    browser_id, initial_url,
+                    browser_id,
+                    initial_url,
                 );
             }
         } else {
             log::warn!(
                 "[browser::tab] Created browser id={} url={} | WARNING: no host!",
-                browser_id, initial_url,
+                browser_id,
+                initial_url,
             );
         }
 
@@ -345,12 +353,7 @@ impl BrowserTab {
 
         let browser_id = self.browser_id;
         let handle_exists = browser_id
-            .and_then(|id| {
-                BROWSER_HANDLES
-                    .lock()
-                    .as_ref()
-                    .map(|m| m.contains_key(&id))
-            })
+            .and_then(|id| BROWSER_HANDLES.lock().as_ref().map(|m| m.contains_key(&id)))
             .unwrap_or(false);
 
         log::trace!(
@@ -375,12 +378,7 @@ impl BrowserTab {
 
         let browser_id = self.browser_id;
         let handle_exists = browser_id
-            .and_then(|id| {
-                BROWSER_HANDLES
-                    .lock()
-                    .as_ref()
-                    .map(|m| m.contains_key(&id))
-            })
+            .and_then(|id| BROWSER_HANDLES.lock().as_ref().map(|m| m.contains_key(&id)))
             .unwrap_or(false);
 
         // Verify the browser's request context is still valid
@@ -669,14 +667,20 @@ impl BrowserTab {
 
     pub fn close_browser(&mut self) {
         if let Some(browser_id) = self.browser_id.take() {
-            let browser = BROWSER_HANDLES.lock().as_mut().and_then(|m| m.remove(&browser_id));
+            let browser = BROWSER_HANDLES
+                .lock()
+                .as_mut()
+                .and_then(|m| m.remove(&browser_id));
             if let Some(browser) = browser {
                 let is_valid = browser.is_valid();
                 if let Some(host) = browser.host() {
                     let ready_to_close = host.is_ready_to_be_closed();
                     log::trace!(
                         "[browser::tab] close_browser: id={} url={} is_valid={} ready_to_close={}",
-                        browser_id, self.url, is_valid, ready_to_close,
+                        browser_id,
+                        self.url,
+                        is_valid,
+                        ready_to_close,
                     );
                     host.close_browser(1);
                 }
@@ -718,16 +722,22 @@ impl Drop for BrowserTab {
             // (not during CEF shutdown). Take it out and close it.
             // If shutdown already took it via close_all_browsers(), the
             // remove returns None and we skip all CEF API calls.
-            let browser = BROWSER_HANDLES.lock().as_mut().and_then(|m| m.remove(&browser_id));
+            let browser = BROWSER_HANDLES
+                .lock()
+                .as_mut()
+                .and_then(|m| m.remove(&browser_id));
             if let Some(browser) = browser {
                 log::trace!(
                     "[browser::tab] Drop: id={} url={} is_valid={}",
-                    browser_id, self.url, browser.is_valid(),
+                    browser_id,
+                    self.url,
+                    browser.is_valid(),
                 );
                 if let Some(host) = browser.host() {
                     log::trace!(
                         "[browser::tab] Drop: id={} ready_to_close={}, calling close_browser(1)",
-                        browser_id, host.is_ready_to_be_closed(),
+                        browser_id,
+                        host.is_ready_to_be_closed(),
                     );
                     host.close_browser(1);
                 }

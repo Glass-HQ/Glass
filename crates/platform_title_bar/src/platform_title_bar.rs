@@ -92,7 +92,6 @@ impl PlatformTitleBar {
         self.sidebar_has_notifications = has_notifications;
         cx.notify();
     }
-
 }
 
 impl Render for PlatformTitleBar {

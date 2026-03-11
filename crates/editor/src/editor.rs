@@ -207,9 +207,8 @@ use theme::{
     ThemeSettings, observe_buffer_font_size_adjustment,
 };
 use ui::{
-    Avatar, ButtonStyle, ContextMenu, Disclosure, IconButton, IconButtonShape, IconName,
-    IconSize, Indicator, Key, Tooltip, h_flex, prelude::*, scrollbars::ScrollbarAutoHide,
-    utils::WithRemSize,
+    Avatar, ButtonStyle, ContextMenu, Disclosure, IconButton, IconButtonShape, IconName, IconSize,
+    Indicator, Key, Tooltip, h_flex, prelude::*, scrollbars::ScrollbarAutoHide, utils::WithRemSize,
 };
 use ui_input::ErasedEditor;
 use util::{RangeExt, ResultExt, TryFutureExt, maybe, post_inc};

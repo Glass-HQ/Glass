@@ -346,11 +346,15 @@ fn classify_error(stderr: &str) -> InstallErrorKind {
         InstallErrorKind::UsbConnectionFailed
     } else if lower.contains("not found") || lower.contains("no such file") {
         InstallErrorKind::AppNotFound
-    } else if lower.contains("code sign") || lower.contains("signature") || lower.contains("codesign") {
+    } else if lower.contains("code sign")
+        || lower.contains("signature")
+        || lower.contains("codesign")
+    {
         InstallErrorKind::CodeSigningFailed
     } else if lower.contains("provisioning") || lower.contains("provision") {
         InstallErrorKind::ProvisioningFailed
-    } else if lower.contains("no space") || lower.contains("disk full") || lower.contains("storage") {
+    } else if lower.contains("no space") || lower.contains("disk full") || lower.contains("storage")
+    {
         InstallErrorKind::DiskFull
     } else {
         InstallErrorKind::Unknown(stderr.to_string())

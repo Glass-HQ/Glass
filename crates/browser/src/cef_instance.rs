@@ -190,8 +190,8 @@ fn resolve_cef_dir_from_env() -> Option<PathBuf> {
 /// which only supports bundle-relative paths).
 #[cfg(target_os = "macos")]
 fn load_cef_framework_from_dir(cef_dir: &std::path::Path) -> bool {
-    let framework_path = cef_dir
-        .join("Chromium Embedded Framework.framework/Chromium Embedded Framework");
+    let framework_path =
+        cef_dir.join("Chromium Embedded Framework.framework/Chromium Embedded Framework");
     use std::os::unix::ffi::OsStrExt;
     let Ok(path_cstr) = std::ffi::CString::new(framework_path.as_os_str().as_bytes()) else {
         return false;
@@ -344,8 +344,8 @@ impl CefInstance {
             if let Ok(exe_path) = std::env::current_exe() {
                 if let Some(exe_dir) = exe_path.parent() {
                     // Try bundle path first: .app/Contents/Frameworks/Glass Helper.app/...
-                    let bundle_helper = exe_dir
-                        .join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
+                    let bundle_helper =
+                        exe_dir.join("../Frameworks/Glass Helper.app/Contents/MacOS/Glass Helper");
                     // Fall back to glass_helper next to the executable (cargo run)
                     let dev_helper = exe_dir.join("glass_helper");
 

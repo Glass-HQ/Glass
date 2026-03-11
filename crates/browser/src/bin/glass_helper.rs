@@ -12,11 +12,9 @@ fn main() {
 
         // Try bundle-relative path first (helper is at
         // Glass Helper.app/Contents/MacOS/Glass Helper, framework is 3 levels up)
-        let bundle_framework = exe_path
-            .parent()
-            .map(|p| {
-                p.join("../../../Chromium Embedded Framework.framework/Chromium Embedded Framework")
-            });
+        let bundle_framework = exe_path.parent().map(|p| {
+            p.join("../../../Chromium Embedded Framework.framework/Chromium Embedded Framework")
+        });
 
         let loaded = match bundle_framework {
             Some(ref path) if path.exists() => {
@@ -41,8 +39,8 @@ fn main() {
                 }
             };
 
-            let framework_path = cef_dir
-                .join("Chromium Embedded Framework.framework/Chromium Embedded Framework");
+            let framework_path =
+                cef_dir.join("Chromium Embedded Framework.framework/Chromium Embedded Framework");
 
             if !framework_path.exists() {
                 eprintln!(
@@ -55,10 +53,12 @@ fn main() {
             use std::os::unix::ffi::OsStrExt;
             let path_cstr = std::ffi::CString::new(framework_path.as_os_str().as_bytes())
                 .expect("invalid CEF path");
-            let result =
-                unsafe { cef::load_library(Some(&*path_cstr.as_ptr().cast())) };
+            let result = unsafe { cef::load_library(Some(&*path_cstr.as_ptr().cast())) };
             if result != 1 {
-                eprintln!("Failed to load CEF library from {}", framework_path.display());
+                eprintln!(
+                    "Failed to load CEF library from {}",
+                    framework_path.display()
+                );
                 std::process::exit(1);
             }
         }

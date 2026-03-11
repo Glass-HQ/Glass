@@ -2727,8 +2727,7 @@ impl ThreadView {
                     },
                 )
                 .when(
-                    theme::active_component_radius(cx.theme().component_radius().input)
-                        .is_none(),
+                    theme::active_component_radius(cx.theme().component_radius().input).is_none(),
                     |this| this.border_t_1().border_color(cx.theme().colors().border),
                 )
             })
