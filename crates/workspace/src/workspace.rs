@@ -2232,10 +2232,6 @@ impl Workspace {
         }
     }
 
-    pub fn set_workspace_sidebar_open(&self, _open: bool, _cx: &mut App) {
-        // No-op: StatusBar was removed from Glass fork
-    }
-
     pub fn app_state(&self) -> &Arc<AppState> {
         &self.app_state
     }
@@ -3873,43 +3869,6 @@ impl Workspace {
         self.dismiss_zoomed_items_to_reveal(Some(dock_position), window, cx);
         cx.notify();
         self.serialize_workspace(window, cx);
-    }
-
-    pub(crate) fn activate_panel_for_id(
-        &mut self,
-        panel_id: EntityId,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        let mut found = None;
-        for dock in self.all_docks() {
-            if let Some(panel_index) = dock.read(cx).panel_index_for_id(panel_id) {
-                found = Some((dock.clone(), panel_index));
-                break;
-            }
-        }
-
-        let Some((dock, panel_index)) = found else {
-            return false;
-        };
-
-        let mut dock_position = None;
-        dock.update(cx, |dock, cx| {
-            dock_position = Some(dock.position());
-            dock.activate_panel(panel_index, window, cx);
-            dock.set_open(true, window, cx);
-            if let Some(panel) = dock.active_panel() {
-                let focus_handle = panel.panel_focus_handle(cx);
-                window.focus(&focus_handle, cx);
-            }
-        });
-
-        if let Some(dock_position) = dock_position {
-            self.dismiss_zoomed_items_to_reveal(Some(dock_position), window, cx);
-        }
-        cx.notify();
-        self.serialize_workspace(window, cx);
-        true
     }
 
     pub fn activate_panel_for_proto_id(
@@ -6906,10 +6865,6 @@ impl Workspace {
         });
 
         self.left_dock.update(cx, |left_dock, cx| {
-            if left_dock.resize_workspace_sidebar_if_open(size, window, cx) {
-                return;
-            }
-
             if WorkspaceSettings::get_global(cx)
                 .resize_all_panels_in_dock
                 .contains(&DockPosition::Left)

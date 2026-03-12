@@ -1,8 +1,6 @@
-use crate::ToggleWorkspaceSidebar;
-use crate::Workspace;
-use crate::multi_workspace::MultiWorkspace;
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
+use crate::Workspace;
 use anyhow::Context as _;
 use client::proto;
 
@@ -20,24 +18,6 @@ use std::{
 };
 use theme::{ActiveTheme, active_component_radius};
 use ui::{Tab, prelude::*};
-
-fn multi_workspace_for_workspace(
-    window: &Window,
-    workspace: &Entity<Workspace>,
-    cx: &App,
-) -> Option<Entity<MultiWorkspace>> {
-    let multi_workspace = window.root::<MultiWorkspace>().flatten()?;
-    let contains = multi_workspace
-        .read(cx)
-        .workspaces()
-        .iter()
-        .any(|w| w.entity_id() == workspace.entity_id());
-    if contains {
-        Some(multi_workspace)
-    } else {
-        None
-    }
-}
 
 actions!(
     workspace,
@@ -86,13 +66,10 @@ impl Render for DockButtonBar {
             (&workspace_read.bottom_dock, DockPosition::Bottom),
             (&workspace_read.right_dock, DockPosition::Right),
         ];
-        let workspace_sidebar_open = multi_workspace_for_workspace(window, &workspace, cx)
-            .is_some_and(|multi_workspace| multi_workspace.read(cx).sidebar_open());
 
         // Collect all panels from all docks for the segmented control.
-        // Index 0 is reserved for the "Workspaces" segment.
-        let mut panel_labels: Vec<SharedString> = vec!["Workspaces".into()];
-        let mut panel_symbols: Vec<SharedString> = vec!["square.on.square".into()];
+        let mut panel_labels: Vec<SharedString> = Vec::new();
+        let mut panel_symbols: Vec<SharedString> = Vec::new();
         let mut panel_ids: Vec<EntityId> = Vec::new();
         let mut selected_segment: Option<usize> = None;
 
@@ -119,7 +96,6 @@ impl Render for DockButtonBar {
                 let name = panel
                     .icon_tooltip(window, cx)
                     .unwrap_or(panel.persistent_name());
-                // +1 offset because index 0 is the Workspaces segment
                 let segment_idx = panel_labels.len();
 
                 // Track the first active+visible panel as the selected segment
@@ -133,8 +109,10 @@ impl Render for DockButtonBar {
             }
         }
 
-        // Build the segmented control: [Workspaces] [panels...]
-        let workspace_segment_index: usize = 0;
+        if panel_labels.is_empty() {
+            return div().into_any_element();
+        }
+
         let callback_panel_ids = panel_ids.clone();
         let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
         let symbol_strs: Vec<&str> = panel_symbols.iter().map(|s| s.as_ref()).collect();
@@ -149,41 +127,18 @@ impl Render for DockButtonBar {
             .w_full()
             .on_select(
                 cx.listener(move |this, event: &SegmentSelectEvent, window, cx| {
-                    let mut workspace_sidebar_was_open = false;
-                    if event.index != workspace_segment_index
-                        && let Some(workspace) = this.workspace.upgrade()
-                        && let Some(multi_workspace) =
-                            multi_workspace_for_workspace(window, &workspace, cx)
-                    {
-                        workspace_sidebar_was_open = multi_workspace.read(cx).sidebar_open();
-                        multi_workspace.update(cx, |multi_workspace, cx| {
-                            if workspace_sidebar_was_open {
-                                multi_workspace.toggle_sidebar(window, cx);
-                            }
-                        });
-                    }
-
-                    if event.index == workspace_segment_index {
-                        window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
-                    } else if let Some(panel_id) = callback_panel_ids.get(event.index - 1).copied()
-                    {
+                    if let Some(panel_id) = callback_panel_ids.get(event.index).copied() {
                         if let Some(workspace) = this.workspace.upgrade() {
                             workspace.update(cx, |workspace, cx| {
-                                if workspace_sidebar_was_open {
-                                    workspace.activate_panel_for_id(panel_id, window, cx);
-                                } else {
-                                    workspace.toggle_panel_for_id(panel_id, window, cx);
-                                }
+                                workspace.toggle_panel_for_id(panel_id, window, cx);
                             });
                         }
                     }
                 }),
             );
 
-        let last_segment_index = label_strs.len().saturating_sub(1);
-        if workspace_sidebar_open {
-            group = group.selected_index(workspace_segment_index.min(last_segment_index));
-        } else if let Some(index) = selected_segment {
+        if let Some(index) = selected_segment {
+            let last_segment_index = label_strs.len().saturating_sub(1);
             group = group.selected_index(index.min(last_segment_index));
         }
 
@@ -938,99 +893,11 @@ impl Dock {
         }
     }
 
-    fn workspace_sidebar_info(&self, window: &Window, cx: &App) -> Option<(AnyView, Pixels)> {
-        if self.position != DockPosition::Left {
-            return None;
-        }
-
-        let workspace = self.workspace.upgrade()?;
-        let multi_ws = multi_workspace_for_workspace(window, &workspace, cx)?;
-        let multi_workspace = multi_ws.read(cx);
-
-        // Only the active workspace's dock should claim the shared Sidebar entity.
-        // If an inactive dock also renders it as a child, GPUI reparents the entity
-        // to the inactive (invisible) tree, making it vanish from the visible surface.
-        let is_active = multi_workspace.workspace().entity_id() == workspace.entity_id();
-        if !is_active {
-            return None;
-        }
-
-        if !multi_workspace.sidebar_open() {
-            return None;
-        }
-
-        let sidebar = multi_workspace.sidebar()?;
-        Some((sidebar.to_any(), sidebar.width(cx)))
-    }
-
-    fn reset_workspace_sidebar_width_if_open(
-        &mut self,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        if self.position != DockPosition::Left {
-            return false;
-        }
-
-        let Some(workspace) = self.workspace.upgrade() else {
-            return false;
-        };
-        let Some(multi_workspace) = multi_workspace_for_workspace(window, &workspace, cx) else {
-            return false;
-        };
-
-        multi_workspace.update(cx, |multi_workspace, cx| {
-            if !multi_workspace.sidebar_open() {
-                return false;
-            }
-            let Some(sidebar) = multi_workspace.sidebar() else {
-                return false;
-            };
-            sidebar.set_width(None, cx);
-            true
-        })
-    }
-
-    pub fn resize_workspace_sidebar_if_open(
-        &mut self,
-        size: Pixels,
-        window: &Window,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        if self.position != DockPosition::Left {
-            return false;
-        }
-
-        let Some(workspace) = self.workspace.upgrade() else {
-            return false;
-        };
-        let Some(multi_workspace) = multi_workspace_for_workspace(window, &workspace, cx) else {
-            return false;
-        };
-
-        multi_workspace.update(cx, |multi_workspace, cx| {
-            if !multi_workspace.sidebar_open() {
-                return false;
-            }
-            let Some(sidebar) = multi_workspace.sidebar() else {
-                return false;
-            };
-            sidebar.set_width(Some(size), cx);
-            true
-        })
-    }
-
-    pub fn has_visible_content(&self, window: &Window, cx: &App) -> bool {
-        if self.workspace_sidebar_info(window, cx).is_some() {
-            return true;
-        }
+    pub fn has_visible_content(&self, _window: &Window, _cx: &App) -> bool {
         self.visible_panel().is_some()
     }
 
     pub fn visible_content_size(&self, window: &Window, cx: &App) -> Option<Pixels> {
-        if let Some((_, size)) = self.workspace_sidebar_info(window, cx) {
-            return Some(size);
-        }
         self.active_panel_size(window, cx)
     }
 
@@ -1112,15 +979,12 @@ impl Dock {
 
     fn render_native_sidebar_content(
         &mut self,
-        window: &mut Window,
+        _window: &mut Window,
         cx: &mut Context<Self>,
         dispatch_context: KeyContext,
     ) -> Div {
-        let sidebar_content = self
-            .workspace_sidebar_info(window, cx)
-            .map(|(view, _)| view);
         let active_panel = self.active_panel_entry().map(|entry| entry.panel.to_any());
-        let content = sidebar_content.or(active_panel);
+        let content = active_panel;
 
         div()
             .key_context(dispatch_context)
@@ -1154,18 +1018,10 @@ impl Render for Dock {
             return self.render_native_sidebar_content(window, cx, dispatch_context);
         }
 
-        let sidebar_content = self.workspace_sidebar_info(window, cx);
-        let visible_panel = self.visible_entry().map(|entry| entry.panel.to_any());
-        let content = sidebar_content
-            .as_ref()
-            .map(|(view, _)| view.clone())
-            .or(visible_panel);
+        let content = self.visible_entry().map(|entry| entry.panel.to_any());
 
         if let Some(content) = content {
-            let size = sidebar_content
-                .map(|(_, size)| size)
-                .or_else(|| self.active_panel_size(window, cx))
-                .unwrap_or(px(300.));
+            let size = self.active_panel_size(window, cx).unwrap_or(px(300.));
 
             let position = self.position;
             let create_resize_handle = || {
@@ -1185,9 +1041,7 @@ impl Render for Dock {
                         MouseButton::Left,
                         cx.listener(|dock, e: &MouseUpEvent, window, cx| {
                             if e.click_count == 2 {
-                                if !dock.reset_workspace_sidebar_width_if_open(window, cx) {
-                                    dock.resize_active_panel(None, window, cx);
-                                }
+                                dock.resize_active_panel(None, window, cx);
                                 dock.workspace
                                     .update(cx, |workspace, cx| {
                                         workspace.serialize_workspace(window, cx);

@@ -296,7 +296,7 @@ impl Sidebar {
             .map(read_sidebar_open_state)
             .unwrap_or(false);
 
-        Self {
+        let this = Self {
             multi_workspace: multi_workspace.downgrade(),
             persistence_key,
             is_open,
@@ -310,7 +310,9 @@ impl Sidebar {
             active_entry_index: None,
             collapsed_groups: HashSet::new(),
             expanded_groups: HashMap::new(),
-        }
+        };
+        this.sync_multi_workspace_sidebar_state(cx);
+        this
     }
 
     fn subscribe_to_workspace(
@@ -671,14 +673,12 @@ impl Sidebar {
     }
 
     fn update_entries(&mut self, cx: &mut Context<Self>) {
-        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+        let Some(_) = self.multi_workspace.upgrade() else {
             return;
         };
         if !multi_workspace_enabled(cx) {
             return;
         }
-
-        let had_notifications = self.has_notifications(cx);
 
         let scroll_position = self.list_state.logical_scroll_top();
 
@@ -686,14 +686,22 @@ impl Sidebar {
 
         self.list_state.reset(self.contents.entries.len());
         self.list_state.scroll_to(scroll_position);
-
-        if had_notifications != self.has_notifications(cx) {
-            multi_workspace.update(cx, |_, cx| {
-                cx.notify();
-            });
-        }
+        self.sync_multi_workspace_sidebar_state(cx);
 
         cx.notify();
+    }
+
+    fn sync_multi_workspace_sidebar_state(&self, cx: &mut Context<Self>) {
+        let Some(multi_workspace) = self.multi_workspace.upgrade() else {
+            return;
+        };
+
+        let is_open = self.is_open;
+        let has_notifications = self.has_notifications(cx);
+        multi_workspace.update(cx, |multi_workspace, cx| {
+            multi_workspace.set_sidebar_open(is_open, cx);
+            multi_workspace.set_sidebar_has_notifications(has_notifications, cx);
+        });
     }
 
     fn render_list_entry(
@@ -790,9 +798,8 @@ impl Sidebar {
         };
         let workspace_for_new_thread = workspace.clone();
         let workspace_for_remove = workspace.clone();
-        // let workspace_for_activate = workspace.clone();
+        let workspace_for_activate = workspace.clone();
 
-        let path_list_for_toggle = path_list.clone();
         let path_list_for_collapse = path_list.clone();
         let view_more_expanded = self.expanded_groups.contains_key(path_list);
 
@@ -830,9 +837,25 @@ impl Sidebar {
                     .py_1()
                     .gap_1p5()
                     .child(
-                        Icon::new(disclosure_icon)
-                            .size(IconSize::Small)
-                            .color(Color::Custom(cx.theme().colors().icon_muted.opacity(0.6))),
+                        IconButton::new(
+                            SharedString::from(format!("project-header-toggle-{}", ix)),
+                            disclosure_icon,
+                        )
+                        .shape(IconButtonShape::Square)
+                        .icon_size(IconSize::Small)
+                        .icon_color(Color::Custom(cx.theme().colors().icon_muted.opacity(0.6)))
+                        .tooltip(Tooltip::text(if is_collapsed {
+                            "Expand Project"
+                        } else {
+                            "Collapse Project"
+                        }))
+                        .on_click(cx.listener({
+                            let path_list = path_list.clone();
+                            move |this, _, window, cx| {
+                                this.selection = None;
+                                this.toggle_collapse(&path_list, window, cx);
+                            }
+                        })),
                     )
                     .child(label),
             )
@@ -889,13 +912,8 @@ impl Sidebar {
             )
             .on_click(cx.listener(move |this, _, window, cx| {
                 this.selection = None;
-                this.toggle_collapse(&path_list_for_toggle, window, cx);
+                this.activate_workspace(&workspace_for_activate, window, cx);
             }))
-            // TODO: Decide if we really want the header to be activating different workspaces
-            // .on_click(cx.listener(move |this, _, window, cx| {
-            //     this.selection = None;
-            //     this.activate_workspace(&workspace_for_activate, window, cx);
-            // }))
             .into_any_element()
     }
 
@@ -1332,6 +1350,22 @@ impl Sidebar {
             .into_any_element()
     }
 
+    fn render_add_project_menu(&self) -> impl IntoElement {
+        IconButton::new("workspace-sidebar-add-project-trigger", IconName::Plus)
+            .shape(IconButtonShape::Square)
+            .icon_size(IconSize::Small)
+            .tooltip(Tooltip::text("Open Local Project"))
+            .on_click(|_, window, cx| {
+                window.dispatch_action(
+                    workspace::Open {
+                        create_new_window: false,
+                    }
+                    .boxed_clone(),
+                    cx,
+                );
+            })
+    }
+
     fn render_sidebar_toggle_button(
         &self,
         docked_right: bool,
@@ -1377,6 +1411,7 @@ impl Sidebar {
             return;
         }
         self.is_open = open;
+        self.sync_multi_workspace_sidebar_state(cx);
         cx.notify();
         if let Some(key) = self.persistence_key {
             let is_open = self.is_open;
@@ -1472,6 +1507,7 @@ impl Render for Sidebar {
                         this.child(self.render_sidebar_toggle_button(false, cx))
                     })
                     .child(self.render_filter_input(cx))
+                    .child(self.render_add_project_menu())
                     .when(has_query, |this| {
                         this.when(!docked_right, |this| this.pr_1p5()).child(
                             IconButton::new("clear_filter", IconName::Close)
@@ -1644,9 +1680,39 @@ mod tests {
         cx.run_until_parked();
         sidebar.update_in(cx, |sidebar, window, cx| {
             sidebar.set_open(true, cx);
-            cx.focus_self(window);
+            window.focus(&sidebar.focus_handle, cx);
         });
         cx.run_until_parked();
+    }
+
+    #[gpui::test]
+    async fn test_sidebar_open_state_syncs_to_multi_workspace(cx: &mut TestAppContext) {
+        let project = init_test_project("/my-project", cx).await;
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
+        let sidebar = setup_sidebar(&multi_workspace, cx);
+
+        multi_workspace.read_with(cx, |multi_workspace, _cx| {
+            assert!(!multi_workspace.is_sidebar_open());
+        });
+
+        sidebar.update_in(cx, |sidebar, _window, cx| {
+            sidebar.set_open(true, cx);
+        });
+        cx.run_until_parked();
+
+        multi_workspace.read_with(cx, |multi_workspace, _cx| {
+            assert!(multi_workspace.is_sidebar_open());
+        });
+
+        sidebar.update_in(cx, |sidebar, _window, cx| {
+            sidebar.set_open(false, cx);
+        });
+        cx.run_until_parked();
+
+        multi_workspace.read_with(cx, |multi_workspace, _cx| {
+            assert!(!multi_workspace.is_sidebar_open());
+        });
     }
 
     fn visible_entries_as_strings(
@@ -2323,8 +2389,10 @@ mod tests {
             sidebar.selection = Some(0);
         });
 
-        // Press confirm on project header (workspace 0) to activate it.
-        cx.dispatch_action(Confirm);
+        // Confirm on project header (workspace 0) to activate it.
+        sidebar.update_in(cx, |sidebar, window, cx| {
+            sidebar.confirm(&Confirm, window, cx);
+        });
         cx.run_until_parked();
 
         assert_eq!(
