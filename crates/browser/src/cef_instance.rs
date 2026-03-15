@@ -113,6 +113,10 @@ wrap_app! {
             command_line.append_switch(Some(&"no-startup-window".into()));
             command_line.append_switch(Some(&"noerrdialogs".into()));
             command_line.append_switch(Some(&"hide-crash-restore-bubble".into()));
+            // Dev bundles are ad-hoc signed and don't carry Chromium's
+            // WebAuthn keychain entitlements, so use the mock keychain path
+            // that originally made browser auth flows work in development.
+            command_line.append_switch(Some(&"use-mock-keychain".into()));
             command_line.append_switch(Some(&"disable-gpu-sandbox".into()));
             command_line.append_switch_with_value(
                 Some(&"autoplay-policy".into()),

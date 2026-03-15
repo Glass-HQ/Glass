@@ -71,11 +71,16 @@ cp "$BINARY_PATH" "$APP_PATH/Contents/MacOS/$APP_NAME"
 echo "Copying CEF framework..."
 cp -R "$CEF_PATH/Chromium Embedded Framework.framework" "$APP_PATH/Contents/Frameworks/"
 
-# Copy component dylibs (CEF 146+ component builds produce separate dylibs)
-DYLIB_COUNT=$(ls "$CEF_PATH"/*.dylib 2>/dev/null | wc -l | tr -d ' ')
+# Copy component dylibs when present. Stock minimal CEF exports don't ship
+# separate top-level dylibs, while some custom builds do.
+CEF_COMPONENT_DYLIBS=()
+while IFS= read -r dylib; do
+    CEF_COMPONENT_DYLIBS+=("$dylib")
+done < <(find "$CEF_PATH" -maxdepth 1 -type f -name "*.dylib" | sort)
+DYLIB_COUNT="${#CEF_COMPONENT_DYLIBS[@]}"
 if [[ "$DYLIB_COUNT" -gt 0 ]]; then
     echo "Copying $DYLIB_COUNT CEF component dylibs..."
-    cp "$CEF_PATH"/*.dylib "$APP_PATH/Contents/Frameworks/"
+    cp "${CEF_COMPONENT_DYLIBS[@]}" "$APP_PATH/Contents/Frameworks/"
 fi
 
 # Helper types required by CEF
