@@ -11,10 +11,11 @@ use anyhow::Result;
 use client::Client;
 use gpui::{
     Action, AnyElement, AnyEntity, AnyView, App, AppContext, Context, Entity, EntityId,
-    EventEmitter, FocusHandle, Focusable, Font, HighlightStyle, Pixels, Point, Render,
-    SharedString, Task, WeakEntity, Window,
+    EventEmitter, FocusHandle, Focusable, Font, Pixels, Point, Render, SharedString, Task,
+    WeakEntity, Window,
 };
 use language::Capability;
+pub use language::HighlightedText;
 use project::{Project, ProjectEntryId, ProjectPath};
 pub use settings::{
     ActivateOnClose, ClosePosition, RegisterSetting, Settings, SettingsLocation, ShowCloseButton,
@@ -23,7 +24,6 @@ pub use settings::{
 use smallvec::SmallVec;
 use std::{
     any::{Any, TypeId},
-    ops::Range,
     path::Path,
     sync::Arc,
     time::Duration,
@@ -117,14 +117,6 @@ pub enum ItemEvent {
     UpdateTab,
     UpdateBreadcrumbs,
     Edit,
-}
-
-// TODO: Combine this with existing HighlightedText struct?
-#[derive(Debug)]
-pub struct BreadcrumbText {
-    pub text: String,
-    pub highlights: Option<Vec<(Range<usize>, HighlightStyle)>>,
-    pub font: Option<Font>,
 }
 
 #[derive(Clone, Copy, Default, Debug)]
@@ -324,7 +316,7 @@ pub trait Item: Focusable + EventEmitter<Self::Event> + Render + Sized {
         ToolbarItemLocation::Hidden
     }
 
-    fn breadcrumbs(&self, _cx: &App) -> Option<Vec<BreadcrumbText>> {
+    fn breadcrumbs(&self, _cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
         None
     }
 
@@ -543,7 +535,7 @@ pub trait ItemHandle: 'static + Send {
     ) -> gpui::Subscription;
     fn to_searchable_item_handle(&self, cx: &App) -> Option<Box<dyn SearchableItemHandle>>;
     fn breadcrumb_location(&self, cx: &App) -> ToolbarItemLocation;
-    fn breadcrumbs(&self, cx: &App) -> Option<Vec<BreadcrumbText>>;
+    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)>;
     fn breadcrumb_prefix(&self, window: &mut Window, cx: &mut App) -> Option<gpui::AnyElement>;
     fn show_toolbar(&self, cx: &App) -> bool;
     fn pixel_position_of_cursor(&self, cx: &App) -> Option<Point<Pixels>>;
@@ -1016,7 +1008,7 @@ impl<T: Item> ItemHandle for Entity<T> {
         self.read(cx).breadcrumb_location(cx)
     }
 
-    fn breadcrumbs(&self, cx: &App) -> Option<Vec<BreadcrumbText>> {
+    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
         self.read(cx).breadcrumbs(cx)
     }
 

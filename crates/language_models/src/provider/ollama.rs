@@ -860,9 +860,7 @@ impl ConfigurationView {
                 .child(
                     Button::new("reset-context-window", "Reset")
                         .label_size(LabelSize::Small)
-                        .icon(IconName::Undo)
-                        .icon_size(IconSize::Small)
-                        .icon_position(IconPosition::Start)
+                        .start_icon(Icon::new(IconName::Undo).size(IconSize::Small))
                         .layer(ElevationIndex::ModalSurface)
                         .on_click(
                             cx.listener(|this, _, window, cx| {

@@ -310,8 +310,12 @@ impl PickerDelegate for IconThemeSelectorDelegate {
                 .border_t_1()
                 .border_color(cx.theme().colors().border_variant)
                 .child(
-                    native_button("docs", "View Icon Theme Docs")
-                        .button_style(NativeButtonStyle::Inline)
+                    Button::new("docs", "View Icon Theme Docs")
+                        .end_icon(
+                            Icon::new(IconName::ArrowUpRight)
+                                .size(IconSize::Small)
+                                .color(Color::Muted),
+                        )
                         .on_click(|_event, _window, cx| {
                             cx.open_url("https://zed.dev/docs/icon-themes");
                         }),

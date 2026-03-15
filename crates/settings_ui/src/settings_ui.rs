@@ -518,7 +518,7 @@ fn init_renderers(cx: &mut App) {
         .add_basic_renderer::<settings::MinimapThumbBorder>(render_dropdown)
         .add_basic_renderer::<settings::SteppingGranularity>(render_dropdown)
         .add_basic_renderer::<settings::NotifyWhenAgentWaiting>(render_dropdown)
-        .add_basic_renderer::<settings::NotifyWhenAgentWaiting>(render_dropdown)
+        .add_basic_renderer::<settings::NewThreadLocation>(render_dropdown)
         .add_basic_renderer::<settings::ImageFileSizeUnit>(render_dropdown)
         .add_basic_renderer::<settings::StatusStyle>(render_dropdown)
         .add_basic_renderer::<settings::EncodingDisplayOptions>(render_dropdown)
@@ -908,17 +908,13 @@ impl SettingsPageItem {
                         settings_window,
                         setting_item,
                         file.clone(),
-                        native_button(
-                            "error-warning",
-                            SharedString::from(format!(
-                                "{warning}: {}",
-                                setting_item.field.type_name()
-                            )),
-                        )
-                        .button_style(NativeButtonStyle::Inline)
-                        .tint(NativeButtonTint::Warning)
-                        .disabled(true)
-                        .into_any_element(),
+                        Button::new("error-warning", warning)
+                            .style(ButtonStyle::Outlined)
+                            .size(ButtonSize::Medium)
+                            .start_icon(Icon::new(IconName::Debug).color(Color::Error))
+                            .tab_index(0_isize)
+                            .tooltip(Tooltip::text(setting_item.field.type_name()))
+                            .into_any_element(),
                         sub_field,
                         cx,
                     ),
@@ -976,11 +972,18 @@ impl SettingsPageItem {
                                 ),
                         )
                         .child(
-                            native_button(
+                            Button::new(
                                 SharedString::from(format!("sub-page-{}", sub_page_link.title)),
                                 "Configure",
                             )
-                            .button_style(NativeButtonStyle::Inline)
+                            .tab_index(0_isize)
+                            .end_icon(
+                                Icon::new(IconName::ChevronRight)
+                                    .size(IconSize::Small)
+                                    .color(Color::Muted),
+                            )
+                            .style(ButtonStyle::OutlinedGhost)
+                            .size(ButtonSize::Medium)
                             .on_click({
                                 let sub_page_link = sub_page_link.clone();
                                 cx.listener(move |this, _, window, cx| {
@@ -1103,11 +1106,18 @@ impl SettingsPageItem {
                                 ),
                         )
                         .child(
-                            native_button(
+                            Button::new(
                                 SharedString::from(format!("action-link-{}", action_link.title)),
                                 action_link.button_text.clone(),
                             )
-                            .button_style(NativeButtonStyle::Inline)
+                            .tab_index(0_isize)
+                            .end_icon(
+                                Icon::new(IconName::ArrowUpRight)
+                                    .size(IconSize::Small)
+                                    .color(Color::Muted),
+                            )
+                            .style(ButtonStyle::OutlinedGhost)
+                            .size(ButtonSize::Medium)
                             .on_click({
                                 let on_click = action_link.on_click.clone();
                                 cx.listener(move |this, _, window, cx| {
@@ -4133,8 +4143,16 @@ where
     .into_any_element()
 }
 
-fn render_picker_trigger_button(id: SharedString, label: SharedString) -> gpui::NativeButton {
-    native_button(id, label).button_style(NativeButtonStyle::Rounded)
+fn render_picker_trigger_button(id: SharedString, label: SharedString) -> Button {
+    Button::new(id, label)
+        .tab_index(0_isize)
+        .style(ButtonStyle::Outlined)
+        .size(ButtonSize::Medium)
+        .end_icon(
+            Icon::new(IconName::ChevronUpDown)
+                .size(IconSize::Small)
+                .color(Color::Muted),
+        )
 }
 
 fn render_font_picker(

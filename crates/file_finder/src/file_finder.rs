@@ -321,7 +321,7 @@ impl FileFinder {
             if let Some(workspace) = delegate.workspace.upgrade()
                 && let Some(m) = delegate.matches.get(delegate.selected_index())
             {
-                let path = match &m {
+                let path = match m {
                     Match::History { path, .. } => {
                         let worktree_id = path.project.worktree_id;
                         ProjectPath {
@@ -450,7 +450,7 @@ struct Matches {
     matches: Vec<Match>,
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, Clone)]
 enum Match {
     History {
         path: FoundPath,
@@ -628,7 +628,6 @@ impl Matches {
             (_, Match::CreateNew(_)) => return cmp::Ordering::Greater,
             _ => {}
         }
-        debug_assert!(a.panel_match().is_some() && b.panel_match().is_some());
 
         match (&a, &b) {
             // bubble currently opened files to the top
@@ -673,7 +672,7 @@ impl Matches {
         match (a_in_filename, b_in_filename) {
             (true, false) => return cmp::Ordering::Greater,
             (false, true) => return cmp::Ordering::Less,
-            _ => {} // Both are filename matches or both are path matches
+            _ => {}
         }
 
         a_panel_match.cmp(b_panel_match)
@@ -1627,7 +1626,7 @@ impl PickerDelegate for FileFinderDelegate {
 
         let path_match = self.matches.get(ix)?;
 
-        let history_icon = match &path_match {
+        let history_icon = match path_match {
             Match::History { .. } => Icon::new(IconName::HistoryRerun)
                 .color(Color::Muted)
                 .size(IconSize::Small)

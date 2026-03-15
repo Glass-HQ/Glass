@@ -380,10 +380,15 @@ impl CopilotCodeVerification {
             .child(Headline::new("An Error Happened").size(HeadlineSize::Large))
             .child(Label::new(ERROR_LABEL).color(Color::Muted))
             .child(
-                native_button("copilot-subscribe-button", "Reinstall Copilot and Sign In")
-                    .w_full()
-                    .button_style(NativeButtonStyle::Filled)
-                    .tint(NativeButtonTint::Accent)
+                Button::new("copilot-subscribe-button", "Reinstall Copilot and Sign In")
+                    .full_width()
+                    .style(ButtonStyle::Outlined)
+                    .size(ButtonSize::Medium)
+                    .start_icon(
+                        Icon::new(IconName::Download)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
                     .on_click(move |_, window, cx| {
                         reinstall_and_sign_in(copilot.clone(), window, cx)
                     }),
@@ -554,10 +559,21 @@ impl ConfigurationView {
             "Sign in to use GitHub Copilot"
         };
 
-        native_button("sign_in", label)
-            .when(!edit_prediction, |this| this.w_full())
-            .button_style(NativeButtonStyle::Filled)
-            .tint(NativeButtonTint::Accent)
+        Button::new("sign_in", label)
+            .map(|this| {
+                if edit_prediction {
+                    this.size(ButtonSize::Medium)
+                } else {
+                    this.full_width()
+                }
+            })
+            .style(ButtonStyle::Outlined)
+            .start_icon(
+                Icon::new(IconName::Github)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
+            .when(edit_prediction, |this| this.tab_index(0isize))
             .on_click(|_, window, cx| {
                 if let Some(app_state) = AppState::global(cx).upgrade()
                     && let Some(copilot) = GlobalCopilotAuth::try_get_or_init(app_state, cx)
@@ -574,10 +590,20 @@ impl ConfigurationView {
             "Reinstall Copilot and Sign in"
         };
 
-        native_button("reinstall_and_sign_in", label)
-            .when(!edit_prediction, |this| this.w_full())
-            .button_style(NativeButtonStyle::Filled)
-            .tint(NativeButtonTint::Accent)
+        Button::new("reinstall_and_sign_in", label)
+            .map(|this| {
+                if edit_prediction {
+                    this.size(ButtonSize::Medium)
+                } else {
+                    this.full_width()
+                }
+            })
+            .style(ButtonStyle::Outlined)
+            .start_icon(
+                Icon::new(IconName::Download)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
             .on_click(|_, window, cx| {
                 if let Some(app_state) = AppState::global(cx).upgrade()
                     && let Some(copilot) = GlobalCopilotAuth::try_get_or_init(app_state, cx)

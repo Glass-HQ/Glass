@@ -761,6 +761,9 @@
       // 5. Never show the scrollbar:
       //    "never"
       "show": null,
+      // Whether to allow horizontal scrolling in the project panel.
+      // When false, the view is locked to the leftmost position and long file names are clipped.
+      "horizontal_scroll": true,
     },
     // Which files containing diagnostic errors/warnings to mark in the project panel.
     // This setting can take the following three values:
@@ -1019,6 +1022,10 @@
         "tools": {},
       },
     },
+    // Whether to start a new thread in the current local project or in a new Git worktree.
+    //
+    // Default: local_project
+    "new_thread_location": "local_project",
     // Where to show notifications when the agent has either completed
     // its response, or else needs confirmation before it can run a
     // tool action.

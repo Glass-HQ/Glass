@@ -13,11 +13,12 @@ use file_icons::FileIcons;
 use fs::MTime;
 use git::status::GitSummary;
 use gpui::{
-    AnyElement, App, Context, Entity, EntityId, EventEmitter, IntoElement, ParentElement, Pixels,
-    SharedString, Styled, Task, WeakEntity, Window,
+    AnyElement, App, Context, Entity, EntityId, EventEmitter, Font, IntoElement, ParentElement,
+    Pixels, SharedString, Styled, Task, WeakEntity, Window,
 };
 use language::{
-    Bias, Buffer, BufferRow, CharKind, CharScopeContext, LocalFile, Point, SelectionGoal,
+    Bias, Buffer, BufferRow, CharKind, CharScopeContext, HighlightedText, LocalFile, Point,
+    SelectionGoal,
 };
 use lsp::DiagnosticSeverity;
 use multi_buffer::MultiBufferOffset;
@@ -52,7 +53,7 @@ use workspace::{
 };
 use workspace::{
     OpenVisible, Pane, WorkspaceSettings,
-    item::{BreadcrumbText, FollowEvent, ProjectItemKind},
+    item::{FollowEvent, ProjectItemKind},
     searchable::SearchOptions,
 };
 use zed_actions::preview::{
@@ -543,9 +544,10 @@ impl Item for Editor {
     }
 
     // In a non-singleton case, the breadcrumbs are actually shown on sticky file headers of the multibuffer.
-    fn breadcrumbs(&self, cx: &App) -> Option<Vec<BreadcrumbText>> {
+    fn breadcrumbs(&self, cx: &App) -> Option<(Vec<HighlightedText>, Option<Font>)> {
         if self.buffer.read(cx).is_singleton() {
-            self.breadcrumbs_inner(cx)
+            let font = theme::ThemeSettings::get_global(cx).buffer_font.clone();
+            Some((self.breadcrumbs_inner(cx)?, Some(font)))
         } else {
             None
         }

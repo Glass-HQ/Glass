@@ -1531,10 +1531,11 @@ impl ExtensionsPage {
                 }
             });
         let open_registry_button = Button::new("open_registry", "Learn More")
-            .icon(IconName::ArrowUpRight)
-            .icon_size(IconSize::Small)
-            .icon_position(IconPosition::End)
-            .icon_color(Color::Muted)
+            .end_icon(
+                Icon::new(IconName::ArrowUpRight)
+                    .size(IconSize::Small)
+                    .color(Color::Muted),
+            )
             .on_click({
                 move |_event, _window, cx| {
                     telemetry::event!(

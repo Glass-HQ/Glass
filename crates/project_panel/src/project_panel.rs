@@ -59,8 +59,8 @@ use theme::ThemeSettings;
 use toast::{StatusToast, ToastIcon};
 use ui::{
     Color, ContextMenu, DecoratedIcon, Divider, Icon, IconDecoration, IconDecorationKind,
-    IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize, ScrollableHandle,
-    Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*, v_flex,
+    IndentGuideColors, IndentGuideLayout, KeyBinding, Label, LabelSize, ScrollAxes,
+    ScrollableHandle, Scrollbars, StickyCandidate, Tooltip, WithScrollbar, prelude::*, v_flex,
 };
 use util::{
     ResultExt, TakeUntilExt, TryFutureExt, maybe,
@@ -6529,6 +6529,7 @@ impl Render for ProjectPanel {
             )
         };
         let show_indent_guides = panel_settings.indent_guides.show == ShowIndentGuides::Always;
+        let horizontal_scroll = panel_settings.scrollbar.horizontal_scroll;
         let show_sticky_entries = {
             if panel_settings.sticky_scroll {
                 let is_scrollable = self.scroll_handle.is_scrollable();
@@ -6894,7 +6895,14 @@ impl Render for ProjectPanel {
                                 })
                             })
                             .with_sizing_behavior(ListSizingBehavior::Infer)
-                            .with_horizontal_sizing_behavior(ListHorizontalSizingBehavior::FitList)
+                            .with_horizontal_sizing_behavior(if horizontal_scroll {
+                                ListHorizontalSizingBehavior::Unconstrained
+                            } else {
+                                ListHorizontalSizingBehavior::FitList
+                            })
+                            .when(horizontal_scroll, |list| {
+                                list.with_width_from_item(self.state.max_width_item_index)
+                            })
                             .track_scroll(&self.scroll_handle),
                         )
                         .child(
@@ -7053,9 +7061,17 @@ impl Render for ProjectPanel {
                         .size_full(),
                 )
                 .custom_scrollbars(
-                    Scrollbars::for_settings::<ProjectPanelSettings>()
-                        .tracked_scroll_handle(&self.scroll_handle)
-                        .notify_content(),
+                    {
+                        let mut scrollbars = Scrollbars::for_settings::<ProjectPanelSettings>()
+                            .tracked_scroll_handle(&self.scroll_handle);
+                        if horizontal_scroll {
+                            scrollbars = scrollbars.with_track_along(
+                                ScrollAxes::Horizontal,
+                                cx.theme().colors().panel_background,
+                            );
+                        }
+                        scrollbars.notify_content()
+                    },
                     window,
                     cx,
                 )

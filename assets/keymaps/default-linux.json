@@ -226,8 +226,8 @@
     "context": "ContextEditor > Editor",
     "bindings": {
       "ctrl-enter": "assistant::Assist",
-      "ctrl-s": "workspace::Save",
       "save": "workspace::Save",
+      "ctrl-s": "workspace::Save",
       "ctrl-<": "assistant::InsertIntoEditor",
       "shift-enter": "assistant::Split",
       "ctrl-r": "assistant::CycleMessageRole",
@@ -672,13 +672,14 @@
     },
   },
   {
-    "context": "WorkspaceSidebar",
+    "context": "ThreadsSidebar",
     "use_key_equivalents": true,
     "bindings": {
       "ctrl-n": "multi_workspace::NewWorkspaceInWindow",
       "left": "agents_sidebar::CollapseSelectedEntry",
       "right": "agents_sidebar::ExpandSelectedEntry",
       "enter": "menu::Confirm",
+      "shift-backspace": "agent::RemoveSelectedThread",
     },
   },
   {
