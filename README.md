@@ -50,3 +50,4 @@ We use [`cargo-about`](https://github.com/EmbarkStudios/cargo-about) to automati
 ### Acknowledgments
 
 Glass is built on top of [Zed](https://github.com/zed-industries/zed), created by **Zed Industries, Inc.** — the team behind [Atom](https://github.com/atom/atom) and [Tree-sitter](https://github.com/tree-sitter/tree-sitter). Their work on the editor, GPUI, and the broader ecosystem made Glass possible.
+
