@@ -1,14 +1,14 @@
-# Assign Reviewers — Smart team assignment based on diff weight
+# Assign Reviewers — Glass reviewer routing
 #
-# Triggers on PR open and ready_for_review events. Checks out the coordinator
-# repo (zed-industries/codeowner-coordinator) to access the assignment script and rules,
-# then assigns the 1-2 most relevant teams as reviewers.
+# Triggers on PR open and ready_for_review events. Checks out the private
+# coordinator repo to access the assignment script and rules, then assigns the
+# configured reviewers and assignees for the target repository.
 #
-# NOTE: This file is stored in the codeowner-coordinator repo but must be deployed to
-# the zed repo at .github/workflows/assign-reviewers.yml. See INSTALL.md.
+# NOTE: This workflow is intentionally repo-local so each Glass repository can
+# opt into the coordinator without a separate deployment step.
 #
 # AUTH NOTE: Uses a GitHub App (COORDINATOR_APP_ID + COORDINATOR_APP_PRIVATE_KEY)
-# for all API operations: cloning the private coordinator repo, requesting team
+# for all API operations: cloning the private coordinator repo, requesting
 # reviewers, and setting PR assignees. GITHUB_TOKEN is not used.
 #
 # SECURITY INVARIANTS (pull_request_target):
@@ -51,32 +51,32 @@ jobs:
     steps:
       - name: Generate app token
         id: app-token
-        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf  # v2.2.1
+        uses: actions/create-github-app-token@29824e69f54612133e76f7eaac726eef6c875baf # v2.2.1
         with:
           app-id: ${{ vars.COORDINATOR_APP_ID }}
           private-key: ${{ secrets.COORDINATOR_APP_PRIVATE_KEY }}
-          repositories: codeowner-coordinator,zed
+          owner: Glass-HQ
+          repositories: codeowner-coordinator,Glass
 
       # SECURITY: checks out the coordinator repo at ref: main, NOT the PR branch.
       # persist-credentials: false prevents the token from leaking into .git/config.
       - name: Checkout coordinator repo
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
-          repository: zed-industries/codeowner-coordinator
+          repository: Glass-HQ/codeowner-coordinator
           ref: main
           path: codeowner-coordinator
           token: ${{ steps.app-token.outputs.token }}
           persist-credentials: false
 
       - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install --no-deps -q --only-binary ':all:' \
-            -r /dev/stdin <<< "pyyaml==6.0.3 --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d"
+          pip install --no-deps -q -r codeowner-coordinator/requirements.txt
 
       - name: Assign reviewers
         env:
@@ -90,12 +90,11 @@ jobs:
             --apply \
             --rules-file team-membership-rules.yml \
             --repo "$TARGET_REPO" \
-            --org zed-industries \
             2>&1 | tee /tmp/assign-reviewers-output.txt
 
       - name: Upload output
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: assign-reviewers-output
           path: /tmp/assign-reviewers-output.txt
