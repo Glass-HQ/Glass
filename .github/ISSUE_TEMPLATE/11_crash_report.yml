@@ -1,25 +1,40 @@
 name: Report a crash
-description: Zed is crashing or freezing or hanging.
-type: Crash
-labels: "state:needs triage"
+description: Glass is crashing, freezing, or hanging.
+type: Bug
+labels: "bug"
 body:
+  - type: markdown
+    attributes:
+      value: |
+        If you can reproduce this reliably, include the shortest sequence that triggers it. Crashes that only happen with one site, repository, or action flow are still useful if that context is included.
   - type: textarea
     attributes:
       label: Reproduction steps
-      description: A step-by-step description of how to reproduce the crash from a **clean Zed install**. The more context you provide, the easier it is to find and fix the problem fast.
+      description: A step-by-step description of how to reproduce the crash from a clean Glass install or minimal project. The more context you provide, the easier it is to isolate the fault.
       placeholder: |
-        1. Start Zed
+        1. Start Glass
         2. Perform an action
-        3. Zed crashes
+        3. Glass crashes
     validations:
       required: true
   - type: textarea
     attributes:
-      label: Zed version and system specs
-      description: |
-        Open the command palette in Zed, then type “zed: copy system specs into clipboard”.
+      label: What happened right before the crash?
+      description: Include the active tab type, site or repo involved, background tasks, and whether the app recovered or had to be force-quit.
       placeholder: |
-        Zed: v0.215.0 (Zed Nightly bfe141ea79aa4984028934067ba75c48d99136ae)
+        - I was in:
+        - I clicked / ran:
+        - The window froze / quit / stopped repainting:
+        - I had to force quit: yes/no
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: Glass version and system specs
+      description: |
+        Open the command palette in Glass, then run `zed: copy system specs into clipboard`.
+      placeholder: |
+        Glass: dev build / release build / commit if known
         OS: macOS 15.1
         Memory: 36 GiB
         Architecture: aarch64
@@ -27,13 +42,13 @@ body:
       required: true
   - type: textarea
     attributes:
-      label: Attach Zed log file
+      label: Attach Glass log file
       description: |
-        Open the command palette in Zed, then type `zed: open log` to see the last 1000 lines. Or type `zed: reveal log in file manager` in the command palette to reveal the log file itself.
+        Open the command palette in Glass, then run `zed: open log` to inspect the recent log output. You can also run `zed: reveal log in file manager` to locate the file itself.
 
         ⚠️ **Please review your log file for secrets (API keys, tokens, etc.) and partially or fully redact them before posting.**
       value: |
-        <details><summary>Zed.log</summary>
+        <details><summary>Glass.log</summary>
 
         <!-- Paste your log inside the code block. -->
         ```log

@@ -4,11 +4,9 @@ body:
       value: |
         # Feature Request
 
-        Welcome! 👋
+        Use this template to propose a new feature, workflow improvement, or product change for Glass.
 
-        If you are interested in proposing a new feature, improvement, or change to Zed, you are in the right place.
-
-        Use this template to suggest a new feature, improvement, or change.
+        Start here before opening a feature PR so we can align on scope, product fit, and whether the idea belongs in Glass, upstream Zed, or both.
 
   - type: textarea
     id: main
@@ -19,19 +17,23 @@ body:
 
         Describe the feature, improvement, or change at a high level.
 
-        # Why does this matter?
+        # Why does this matter for Glass?
 
-        What problem does this solve?
+        What problem does this solve in the browser, editor, terminal, or native tooling workflow?
 
         What becomes easier or possible?
 
-        # Are there any examples or context?
+        # Is this Glass-specific, upstream-friendly, or both?
+
+        If this intentionally changes behavior inherited from Zed, explain why.
+
+        # Examples or context
 
         Screenshots, mockups, workflows, or examples from other tools.
 
-        # Possible approach
+        # Possible approach or constraints
 
-        If you have ideas about how this could work, share them here.
+        If you have ideas about implementation, tradeoffs, or scope boundaries, include them here.
 
     validations:
       required: true
@@ -39,5 +41,4 @@ body:
   - type: markdown
     attributes:
       value: |
-        Learn more about how feature requests work in our
-        [Feature Request Guidelines](https://github.com/zed-industries/zed/discussions/51422).
+        Keep requests concrete. The best discussions explain the user problem, the intended workflow, and whether the request is specific to Glass as a fork.
