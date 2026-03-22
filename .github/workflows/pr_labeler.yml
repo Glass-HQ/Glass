@@ -56,6 +56,25 @@ jobs:
             }
 
             const association = pr.author_association;
+            let isTrustedCollaborator = false;
+            try {
+              const permission = await github.rest.repos.getCollaboratorPermissionLevel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                username: author,
+              });
+              isTrustedCollaborator = ['admin', 'maintain', 'write', 'triage'].includes(permission.data.permission);
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            if (isTrustedCollaborator) {
+              console.log(`PR #${pr.number} by ${author}: not a first-time contributor (trusted collaborator permission)`);
+              return;
+            }
+
             if (KNOWN_ASSOCIATIONS.includes(association)) {
               console.log(`PR #${pr.number} by ${author}: not a first-time contributor (association: '${association}')`);
               return;
