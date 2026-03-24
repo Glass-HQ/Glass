@@ -2269,6 +2269,29 @@ impl DisplaySnapshot {
             .unwrap_or(false)
     }
 
+    /// Returns the indent length of `row` if it starts with a closing bracket.
+    fn closing_bracket_indent_len(&self, row: u32) -> Option<u32> {
+        let snapshot = self.buffer_snapshot();
+        let indent_len = self
+            .line_indent_for_buffer_row(MultiBufferRow(row))
+            .raw_len();
+        let content_start = Point::new(row, indent_len);
+        let line_text: String = snapshot
+            .chars_at(content_start)
+            .take_while(|ch| *ch != '\n')
+            .collect();
+
+        let scope = snapshot.language_scope_at(Point::new(row, 0))?;
+        if scope
+            .brackets()
+            .any(|(pair, _)| line_text.starts_with(&pair.end))
+        {
+            return Some(indent_len);
+        }
+
+        None
+    }
+
     #[instrument(skip_all)]
     pub fn crease_for_buffer_row(&self, buffer_row: MultiBufferRow) -> Option<Crease<Point>> {
         let start =
@@ -2313,7 +2336,7 @@ impl DisplaySnapshot {
         {
             let start_line_indent = self.line_indent_for_buffer_row(buffer_row);
             let max_point = self.buffer_snapshot().max_point();
-            let mut end = None;
+            let mut closing_row = None;
 
             for row in (buffer_row.0 + 1)..=max_point.row {
                 let line_indent = self.line_indent_for_buffer_row(MultiBufferRow(row));
@@ -2333,32 +2356,33 @@ impl DisplaySnapshot {
                         continue;
                     }
 
-                    let prev_row = row - 1;
-                    end = Some(Point::new(
-                        prev_row,
-                        self.buffer_snapshot().line_len(MultiBufferRow(prev_row)),
-                    ));
+                    closing_row = Some(row);
                     break;
                 }
             }
 
-            let mut row_before_line_breaks = end.unwrap_or(max_point);
-            while row_before_line_breaks.row > start.row
-                && self
-                    .buffer_snapshot()
-                    .is_line_blank(MultiBufferRow(row_before_line_breaks.row))
-            {
-                row_before_line_breaks.row -= 1;
-            }
+            let last_non_blank_row = |from_row: u32| -> Point {
+                let mut row = from_row;
+                while row > start.row && self.buffer_snapshot().is_line_blank(MultiBufferRow(row)) {
+                    row -= 1;
+                }
+                Point::new(row, self.buffer_snapshot().line_len(MultiBufferRow(row)))
+            };
 
-            row_before_line_breaks = Point::new(
-                row_before_line_breaks.row,
-                self.buffer_snapshot()
-                    .line_len(MultiBufferRow(row_before_line_breaks.row)),
-            );
+            let end = if let Some(row) = closing_row {
+                if let Some(indent_len) = self.closing_bracket_indent_len(row) {
+                    // Include newline and whitespace before closing delimiter,
+                    // so it appears on the same display line as the fold placeholder
+                    Point::new(row, indent_len)
+                } else {
+                    last_non_blank_row(row - 1)
+                }
+            } else {
+                last_non_blank_row(max_point.row)
+            };
 
             Some(Crease::Inline {
-                range: start..row_before_line_breaks,
+                range: start..end,
                 placeholder: self.fold_placeholder.clone(),
                 render_toggle: None,
                 render_trailer: None,

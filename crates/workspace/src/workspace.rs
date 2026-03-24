@@ -8516,6 +8516,9 @@ pub fn create_and_open_local_file(
                         .read_with(cx, |project, cx| project.try_windows_path_to_wsl(path, cx));
                     cx.spawn_in(window, async move |workspace, cx| {
                         let path = path.await?;
+
+                        let path = fs.canonicalize(&path).await.unwrap_or(path);
+
                         let mut items = workspace
                             .update_in(cx, |workspace, window, cx| {
                                 workspace.open_paths(
