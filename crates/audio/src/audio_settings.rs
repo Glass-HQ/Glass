@@ -1,16 +1,14 @@
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    str::FromStr,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
+use cpal::DeviceId;
 use gpui::App;
 use settings::{RegisterSetting, Settings, SettingsStore};
 
 #[derive(Clone, Debug, RegisterSetting)]
 pub struct AudioSettings {
-    /// Opt into the new audio system.
-    ///
-    /// You need to rejoin a call for this setting to apply
-    pub rodio_audio: bool, // default is false
-    /// Requires 'rodio_audio: true'
-    ///
     /// Automatically increase or decrease you microphone's volume. This affects how
     /// loud you sound to others.
     ///
@@ -19,25 +17,10 @@ pub struct AudioSettings {
     /// audio and has auto speaker volume on this will make you very loud
     /// compared to other speakers.
     pub auto_microphone_volume: bool,
-    /// Requires 'rodio_audio: true'
-    ///
-    /// Automatically increate or decrease the volume of other call members.
-    /// This only affects how things sound for you.
-    pub auto_speaker_volume: bool,
-    /// Requires 'rodio_audio: true'
-    ///
-    /// Remove background noises. Works great for typing, cars, dogs, AC. Does
-    /// not work well on music.
-    pub denoise: bool,
-    /// Requires 'rodio_audio: true'
-    ///
-    /// Use audio parameters compatible with the previous versions of
-    /// experimental audio and non-experimental audio. When this is false you
-    /// will sound strange to anyone not on the latest experimental audio. In
-    /// the future we will migrate by setting this to false
-    ///
-    /// You need to rejoin a call for this setting to apply
-    pub legacy_audio_compatible: bool,
+    /// Select specific output audio device.
+    pub output_audio_device: Option<DeviceId>,
+    /// Select specific input audio device.
+    pub input_audio_device: Option<DeviceId>,
 }
 
 /// Configuration of audio in Zed
@@ -45,11 +28,15 @@ impl Settings for AudioSettings {
     fn from_settings(content: &settings::SettingsContent) -> Self {
         let audio = &content.audio.as_ref().unwrap();
         AudioSettings {
-            rodio_audio: audio.rodio_audio.unwrap(),
             auto_microphone_volume: audio.auto_microphone_volume.unwrap(),
-            auto_speaker_volume: audio.auto_speaker_volume.unwrap(),
-            denoise: audio.denoise.unwrap(),
-            legacy_audio_compatible: audio.legacy_audio_compatible.unwrap(),
+            output_audio_device: audio
+                .output_audio_device
+                .as_ref()
+                .and_then(|x| x.0.as_ref().and_then(|id| DeviceId::from_str(&id).ok())),
+            input_audio_device: audio
+                .input_audio_device
+                .as_ref()
+                .and_then(|x| x.0.as_ref().and_then(|id| DeviceId::from_str(&id).ok())),
         }
     }
 }
@@ -57,7 +44,6 @@ impl Settings for AudioSettings {
 /// See docs on [LIVE_SETTINGS]
 pub struct LiveSettings {
     pub auto_microphone_volume: AtomicBool,
-    pub(crate) auto_speaker_volume: AtomicBool,
 }
 
 impl LiveSettings {
@@ -67,10 +53,6 @@ impl LiveSettings {
                 AudioSettings::get_global(cx).auto_microphone_volume,
                 Ordering::Relaxed,
             );
-            LIVE_SETTINGS.auto_speaker_volume.store(
-                AudioSettings::get_global(cx).auto_speaker_volume,
-                Ordering::Relaxed,
-            );
         })
         .detach();
 
@@ -78,9 +60,6 @@ impl LiveSettings {
         LIVE_SETTINGS
             .auto_microphone_volume
             .store(init_settings.auto_microphone_volume, Ordering::Relaxed);
-        LIVE_SETTINGS
-            .auto_speaker_volume
-            .store(init_settings.auto_speaker_volume, Ordering::Relaxed);
     }
 }
 
@@ -90,5 +69,4 @@ impl LiveSettings {
 /// use the background executor.
 pub static LIVE_SETTINGS: LiveSettings = LiveSettings {
     auto_microphone_volume: AtomicBool::new(true),
-    auto_speaker_volume: AtomicBool::new(true),
 };

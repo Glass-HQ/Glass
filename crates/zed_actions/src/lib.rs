@@ -759,6 +759,8 @@ pub mod agents_sidebar {
         [
             /// Moves focus to the sidebar's search/filter editor.
             FocusSidebarFilter,
+            /// Moves the active workspace to a new window.
+            MoveWorkspaceToNewWindow,
         ]
     );
 }

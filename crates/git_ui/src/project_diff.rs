@@ -17,8 +17,7 @@ use editor::{
 use git::repository::DiffType;
 
 use git::{
-    Commit, StageAndNext, ToggleStaged, UnstageAndNext, repository::RepoPath,
-    status::FileStatus,
+    Commit, StageAndNext, ToggleStaged, UnstageAndNext, repository::RepoPath, status::FileStatus,
 };
 use gpui::{
     Action, AnyElement, App, AppContext as _, AsyncWindowContext, Entity, EventEmitter,

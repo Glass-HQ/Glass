@@ -208,6 +208,7 @@ impl TitleBar {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let title_bar_settings = *TitleBarSettings::get_global(cx);
+        let button_layout = title_bar_settings.button_layout;
 
         let show_menus = show_menus(cx);
 
@@ -338,6 +339,7 @@ impl TitleBar {
 
         if show_menus {
             self.platform_titlebar.update(cx, |this, _| {
+                this.set_button_layout(button_layout);
                 this.set_children(
                     self.application_menu
                         .clone()
@@ -365,6 +367,7 @@ impl TitleBar {
                 .into_any_element()
         } else {
             self.platform_titlebar.update(cx, |this, _| {
+                this.set_button_layout(button_layout);
                 this.set_children(children);
             });
             self.platform_titlebar.clone().into_any_element()
@@ -437,6 +440,7 @@ impl TitleBar {
             }),
         );
         subscriptions.push(cx.observe(&user_store, |_a, _, cx| cx.notify()));
+        subscriptions.push(cx.observe_button_layout_changed(window, |_, _, cx| cx.notify()));
         if let Some(trusted_worktrees) = TrustedWorktrees::try_get_global(cx) {
             subscriptions.push(cx.subscribe(&trusted_worktrees, |_, _, _, cx| {
                 cx.notify();

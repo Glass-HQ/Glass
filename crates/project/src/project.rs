@@ -116,6 +116,7 @@ use std::{
     borrow::Cow,
     collections::BTreeMap,
     ffi::OsString,
+    future::Future,
     ops::{Not as _, Range},
     path::{Path, PathBuf},
     pin::pin,
@@ -1727,6 +1728,12 @@ impl Project {
     #[inline]
     pub fn worktree_store(&self) -> Entity<WorktreeStore> {
         self.worktree_store.clone()
+    }
+
+    /// Returns a future that resolves when all visible worktrees have completed
+    /// their initial scan.
+    pub fn wait_for_initial_scan(&self, cx: &App) -> impl Future<Output = ()> + use<> {
+        self.worktree_store.read(cx).wait_for_initial_scan()
     }
 
     #[inline]

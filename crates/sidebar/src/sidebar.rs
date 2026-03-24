@@ -5,7 +5,9 @@ use agent_ui::thread_metadata_store::{SidebarThreadMetadataStore, ThreadMetadata
 use agent_ui::threads_archive_view::{
     ThreadsArchiveView, ThreadsArchiveViewEvent, format_history_entry_timestamp,
 };
-use agent_ui::{Agent, AgentPanel, AgentPanelEvent, NewThread, RemoveSelectedThread};
+use agent_ui::{
+    Agent, AgentPanel, AgentPanelEvent, DEFAULT_THREAD_TITLE, NewThread, RemoveSelectedThread,
+};
 use chrono::Utc;
 use editor::Editor;
 use gpui::{
@@ -51,7 +53,7 @@ gpui::actions!(
     ]
 );
 
-const DEFAULT_WIDTH: Pixels = px(320.0);
+const DEFAULT_WIDTH: Pixels = px(300.0);
 const MIN_WIDTH: Pixels = px(200.0);
 const MAX_WIDTH: Pixels = px(800.0);
 const DEFAULT_THREADS_SHOWN: usize = 5;
@@ -121,6 +123,7 @@ enum ListEntry {
         highlight_positions: Vec<usize>,
         has_running_threads: bool,
         waiting_thread_count: usize,
+        is_active: bool,
     },
     Thread(ThreadEntry),
     ViewMore {
@@ -130,6 +133,7 @@ enum ListEntry {
     NewThread {
         path_list: PathList,
         workspace: Entity<Workspace>,
+        is_active_draft: bool,
     },
 }
 
@@ -419,8 +423,15 @@ impl Sidebar {
         cx.subscribe_in(
             agent_panel,
             window,
-            |this, _agent_panel, event: &AgentPanelEvent, _window, cx| match event {
+            |this, agent_panel, event: &AgentPanelEvent, _window, cx| match event {
                 AgentPanelEvent::ActiveViewChanged => {
+                    let is_new_draft = agent_panel
+                        .read(cx)
+                        .active_conversation_view()
+                        .is_some_and(|cv| cv.read(cx).parent_id(cx).is_none());
+                    if is_new_draft {
+                        this.focused_thread = None;
+                    }
                     this.observe_draft_editor(cx);
                     this.update_entries(cx);
                 }
@@ -433,16 +444,19 @@ impl Sidebar {
     }
 
     fn observe_docks(&mut self, workspace: &Entity<Workspace>, cx: &mut Context<Self>) {
-        let workspace = workspace.clone();
         let docks: Vec<_> = workspace
             .read(cx)
             .all_docks()
             .into_iter()
             .cloned()
             .collect();
+        let workspace = workspace.downgrade();
         for dock in docks {
             let workspace = workspace.clone();
             cx.observe(&dock, move |this, _dock, cx| {
+                let Some(workspace) = workspace.upgrade() else {
+                    return;
+                };
                 if !this.is_active_workspace(&workspace, cx) {
                     return;
                 }
@@ -467,7 +481,7 @@ impl Sidebar {
                 ws.read(cx).panel::<AgentPanel>(cx)
             })
             .and_then(|panel| {
-                let cv = panel.read(cx).active_conversation()?;
+                let cv = panel.read(cx).active_conversation_view()?;
                 let tv = cv.read(cx).active_thread()?;
                 Some(tv.read(cx).message_editor.clone())
             })
@@ -482,7 +496,7 @@ impl Sidebar {
         let mw = self.multi_workspace.upgrade()?;
         let workspace = mw.read(cx).workspace();
         let panel = workspace.read(cx).panel::<AgentPanel>(cx)?;
-        let conversation_view = panel.read(cx).active_conversation()?;
+        let conversation_view = panel.read(cx).active_conversation_view()?;
         let thread_view = conversation_view.read(cx).active_thread()?;
         let raw = thread_view.read(cx).message_editor.read(cx).text(cx);
         let cleaned = Self::clean_mention_links(&raw);
@@ -540,7 +554,9 @@ impl Sidebar {
 
                 let icon = thread_view_ref.agent_icon;
                 let icon_from_external_svg = thread_view_ref.agent_icon_from_external_svg.clone();
-                let title = thread.title();
+                let title = thread
+                    .title()
+                    .unwrap_or_else(|| DEFAULT_THREAD_TITLE.into());
                 let is_native = thread_view_ref.as_native_thread(cx).is_some();
                 let is_title_generating = is_native && thread.has_provisional_title();
                 let session_id = thread.session_id().clone();
@@ -613,7 +629,7 @@ impl Sidebar {
             .and_then(|panel| {
                 panel
                     .read(cx)
-                    .active_conversation()
+                    .active_conversation_view()
                     .and_then(|cv| cv.read(cx).parent_id(cx))
             });
         if panel_focused.is_some() && !self.active_thread_is_draft {
@@ -687,6 +703,10 @@ impl Sidebar {
             .iter()
             .any(|ws| !workspace_path_list(ws, cx).paths().is_empty());
 
+        let active_ws_index = active_workspace
+            .as_ref()
+            .and_then(|active| workspaces.iter().position(|ws| ws == active));
+
         for (ws_index, workspace) in workspaces.iter().enumerate() {
             if absorbed.contains_key(&ws_index) {
                 continue;
@@ -701,6 +721,13 @@ impl Sidebar {
 
             let is_collapsed = self.collapsed_groups.contains(&path_list);
             let should_load_threads = !is_collapsed || !query.is_empty();
+
+            let is_active = active_ws_index.is_some_and(|active_idx| {
+                active_idx == ws_index
+                    || absorbed
+                        .get(&active_idx)
+                        .is_some_and(|(main_idx, _)| *main_idx == ws_index)
+            });
 
             let mut live_infos = Self::all_thread_infos_for_workspace(workspace, cx);
 
@@ -953,6 +980,7 @@ impl Sidebar {
                     highlight_positions: workspace_highlight_positions,
                     has_running_threads,
                     waiting_thread_count,
+                    is_active,
                 });
 
                 for thread in matched_threads {
@@ -964,9 +992,7 @@ impl Sidebar {
                 let is_draft_for_workspace = self.agent_panel_visible
                     && self.active_thread_is_draft
                     && self.focused_thread.is_none()
-                    && active_workspace
-                        .as_ref()
-                        .is_some_and(|active| active == workspace);
+                    && is_active;
 
                 let show_new_thread_entry = thread_count == 0 || is_draft_for_workspace;
 
@@ -978,6 +1004,7 @@ impl Sidebar {
                     highlight_positions: Vec::new(),
                     has_running_threads,
                     waiting_thread_count,
+                    is_active,
                 });
 
                 if is_collapsed {
@@ -988,6 +1015,7 @@ impl Sidebar {
                     entries.push(ListEntry::NewThread {
                         path_list: path_list.clone(),
                         workspace: workspace.clone(),
+                        is_active_draft: is_draft_for_workspace,
                     });
                 }
 
@@ -1117,6 +1145,7 @@ impl Sidebar {
                 highlight_positions,
                 has_running_threads,
                 waiting_thread_count,
+                is_active,
             } => self.render_project_header(
                 ix,
                 false,
@@ -1126,6 +1155,7 @@ impl Sidebar {
                 highlight_positions,
                 *has_running_threads,
                 *waiting_thread_count,
+                *is_active,
                 is_selected,
                 cx,
             ),
@@ -1137,7 +1167,10 @@ impl Sidebar {
             ListEntry::NewThread {
                 path_list,
                 workspace,
-            } => self.render_new_thread(ix, path_list, workspace, is_selected, cx),
+                is_active_draft,
+            } => {
+                self.render_new_thread(ix, path_list, workspace, *is_active_draft, is_selected, cx)
+            }
         };
 
         if is_group_header_after_first {
@@ -1162,6 +1195,7 @@ impl Sidebar {
         highlight_positions: &[usize],
         has_running_threads: bool,
         waiting_thread_count: usize,
+        is_active: bool,
         is_selected: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
@@ -1185,15 +1219,11 @@ impl Sidebar {
 
         let workspace_for_remove = workspace.clone();
         let workspace_for_menu = workspace.clone();
+        let workspace_for_open = workspace.clone();
 
         let path_list_for_toggle = path_list.clone();
         let path_list_for_collapse = path_list.clone();
         let view_more_expanded = self.expanded_groups.contains_key(path_list);
-
-        let multi_workspace = self.multi_workspace.upgrade();
-        let workspace_count = multi_workspace
-            .as_ref()
-            .map_or(0, |mw| mw.read(cx).workspaces().len());
 
         let label = if highlight_positions.is_empty() {
             Label::new(label.clone())
@@ -1215,7 +1245,8 @@ impl Sidebar {
             .group(&group_name)
             .h(Tab::content_height(cx))
             .w_full()
-            .px_1p5()
+            .pl_1p5()
+            .pr_1()
             .border_1()
             .map(|this| {
                 if is_selected {
@@ -1240,30 +1271,34 @@ impl Sidebar {
                         ),
                     )
                     .child(label)
-                    .when(is_collapsed && has_running_threads, |this| {
-                        this.child(
-                            Icon::new(IconName::LoadCircle)
-                                .size(IconSize::XSmall)
-                                .color(Color::Muted)
-                                .with_rotate_animation(2),
-                        )
-                    })
-                    .when(is_collapsed && waiting_thread_count > 0, |this| {
-                        let tooltip_text = if waiting_thread_count == 1 {
-                            "1 thread is waiting for confirmation".to_string()
-                        } else {
-                            format!("{waiting_thread_count} threads are waiting for confirmation",)
-                        };
-                        this.child(
-                            div()
-                                .id(format!("{id_prefix}waiting-indicator-{ix}"))
-                                .child(
-                                    Icon::new(IconName::Warning)
-                                        .size(IconSize::XSmall)
-                                        .color(Color::Warning),
+                    .when(is_collapsed, |this| {
+                        this.when(has_running_threads, |this| {
+                            this.child(
+                                Icon::new(IconName::LoadCircle)
+                                    .size(IconSize::XSmall)
+                                    .color(Color::Muted)
+                                    .with_rotate_animation(2),
+                            )
+                        })
+                        .when(waiting_thread_count > 0, |this| {
+                            let tooltip_text = if waiting_thread_count == 1 {
+                                "1 thread is waiting for confirmation".to_string()
+                            } else {
+                                format!(
+                                    "{waiting_thread_count} threads are waiting for confirmation",
                                 )
-                                .tooltip(Tooltip::text(tooltip_text)),
-                        )
+                            };
+                            this.child(
+                                div()
+                                    .id(format!("{id_prefix}waiting-indicator-{ix}"))
+                                    .child(
+                                        Icon::new(IconName::Warning)
+                                            .size(IconSize::XSmall)
+                                            .color(Color::Warning),
+                                    )
+                                    .tooltip(Tooltip::text(tooltip_text)),
+                            )
+                        })
                     }),
             )
             .child({
@@ -1305,23 +1340,33 @@ impl Sidebar {
                             })),
                         )
                     })
-                    .when(workspace_count > 1, |this| {
-                        let workspace_for_remove_btn = workspace_for_remove.clone();
+                    .when(!is_active, |this| {
                         this.child(
                             IconButton::new(
                                 SharedString::from(format!(
-                                    "{id_prefix}project-header-remove-{ix}",
+                                    "{id_prefix}project-header-open-workspace-{ix}",
                                 )),
-                                IconName::Close,
+                                IconName::Focus,
                             )
                             .icon_size(IconSize::Small)
                             .icon_color(Color::Muted)
-                            .tooltip(Tooltip::text("Remove Project"))
-                            .on_click(cx.listener(
+                            .tooltip(Tooltip::text("Activate Workspace"))
+                            .on_click(cx.listener({
                                 move |this, _, window, cx| {
-                                    this.remove_workspace(&workspace_for_remove_btn, window, cx);
-                                },
-                            )),
+                                    this.focused_thread = None;
+                                    if let Some(multi_workspace) = this.multi_workspace.upgrade() {
+                                        multi_workspace.update(cx, |multi_workspace, cx| {
+                                            multi_workspace
+                                                .activate(workspace_for_open.clone(), cx);
+                                        });
+                                    }
+                                    if AgentPanel::is_visible(&workspace_for_open, cx) {
+                                        workspace_for_open.update(cx, |workspace, cx| {
+                                            workspace.focus_panel::<AgentPanel>(window, cx);
+                                        });
+                                    }
+                                }
+                            })),
                         )
                     })
                     .when(show_new_thread_button, |this| {
@@ -1353,11 +1398,6 @@ impl Sidebar {
                 this.selection = None;
                 this.toggle_collapse(&path_list_for_toggle, window, cx);
             }))
-            // TODO: Decide if we really want the header to be activating different workspaces
-            // .on_click(cx.listener(move |this, _, window, cx| {
-            //     this.selection = None;
-            //     this.activate_workspace(&workspace_for_activate, window, cx);
-            // }))
             .into_any_element()
     }
 
@@ -1450,7 +1490,7 @@ impl Sidebar {
 
                     let workspace_for_add = workspace.clone();
                     let multi_workspace_for_add = multi_workspace.clone();
-                    menu.separator().entry(
+                    let menu = menu.separator().entry(
                         "Add Folder to Project",
                         Some(Box::new(AddFolderToProject)),
                         move |window, cx| {
@@ -1463,7 +1503,53 @@ impl Sidebar {
                                 workspace.add_folder_to_project(&AddFolderToProject, window, cx);
                             });
                         },
-                    )
+                    );
+
+                    let workspace_count = multi_workspace
+                        .upgrade()
+                        .map_or(0, |mw| mw.read(cx).workspaces().len());
+                    let menu = if workspace_count > 1 {
+                        let workspace_for_move = workspace.clone();
+                        let multi_workspace_for_move = multi_workspace.clone();
+                        menu.entry(
+                            "Move to New Window",
+                            Some(Box::new(
+                                zed_actions::agents_sidebar::MoveWorkspaceToNewWindow,
+                            )),
+                            move |window, cx| {
+                                if let Some(mw) = multi_workspace_for_move.upgrade() {
+                                    mw.update(cx, |multi_workspace, cx| {
+                                        if let Some(index) = multi_workspace
+                                            .workspaces()
+                                            .iter()
+                                            .position(|w| *w == workspace_for_move)
+                                        {
+                                            multi_workspace
+                                                .move_workspace_to_new_window(index, window, cx);
+                                        }
+                                    });
+                                }
+                            },
+                        )
+                    } else {
+                        menu
+                    };
+
+                    let workspace_for_remove = workspace_for_remove.clone();
+                    let multi_workspace_for_remove = multi_workspace.clone();
+                    menu.separator()
+                        .entry("Remove Project", None, move |window, cx| {
+                            if let Some(mw) = multi_workspace_for_remove.upgrade() {
+                                let ws = workspace_for_remove.clone();
+                                mw.update(cx, |multi_workspace, cx| {
+                                    if let Some(index) =
+                                        multi_workspace.workspaces().iter().position(|w| *w == ws)
+                                    {
+                                        multi_workspace.remove_workspace(index, window, cx);
+                                    }
+                                });
+                            }
+                        })
                 });
 
                 let this = this.clone();
@@ -1523,6 +1609,7 @@ impl Sidebar {
             highlight_positions,
             has_running_threads,
             waiting_thread_count,
+            is_active,
         } = self.contents.entries.get(header_idx)?
         else {
             return None;
@@ -1540,6 +1627,7 @@ impl Sidebar {
             &highlight_positions,
             *has_running_threads,
             *waiting_thread_count,
+            *is_active,
             is_selected,
             cx,
         );
@@ -2296,7 +2384,17 @@ impl Sidebar {
             if let Some(next) = next_thread {
                 self.focused_thread = Some(next.session_info.session_id.clone());
 
-                if let Some(workspace) = &group_workspace {
+                // Use the thread's own workspace when it has one open (e.g. an absorbed
+                // linked worktree thread that appears under the main workspace's header
+                // but belongs to its own workspace). Loading into the wrong panel binds
+                // the thread to the wrong project, which corrupts its stored folder_paths
+                // when metadata is saved via ThreadMetadata::from_thread.
+                let target_workspace = match &next.workspace {
+                    ThreadEntryWorkspace::Open(ws) => Some(ws.clone()),
+                    ThreadEntryWorkspace::Closed(_) => group_workspace,
+                };
+
+                if let Some(workspace) = target_workspace {
                     if let Some(agent_panel) = workspace.read(cx).panel::<AgentPanel>(cx) {
                         agent_panel.update(cx, |panel, cx| {
                             panel.load_agent_thread(
@@ -2662,21 +2760,17 @@ impl Sidebar {
         ix: usize,
         _path_list: &PathList,
         workspace: &Entity<Workspace>,
+        is_active_draft: bool,
         is_selected: bool,
         cx: &mut Context<Self>,
     ) -> AnyElement {
-        let is_active = self.agent_panel_visible
-            && self.active_thread_is_draft
-            && self
-                .multi_workspace
-                .upgrade()
-                .map_or(false, |mw| mw.read(cx).workspace() == workspace);
+        let is_active = is_active_draft && self.agent_panel_visible && self.active_thread_is_draft;
 
         let label: SharedString = if is_active {
             self.active_draft_text(cx)
-                .unwrap_or_else(|| "New Thread".into())
+                .unwrap_or_else(|| DEFAULT_THREAD_TITLE.into())
         } else {
-            "New Thread".into()
+            DEFAULT_THREAD_TITLE.into()
         };
 
         let workspace = workspace.clone();
@@ -2847,7 +2941,11 @@ impl Sidebar {
                     .into_any_element()
             }))
             .on_click(|_, window, cx| {
-                window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
+                if let Some(multi_workspace) = window.root::<MultiWorkspace>().flatten() {
+                    multi_workspace.update(cx, |multi_workspace, cx| {
+                        multi_workspace.close_sidebar(window, cx);
+                    });
+                }
             })
     }
 }
@@ -3041,7 +3139,6 @@ impl Render for Sidebar {
                     .child(
                         h_flex()
                             .gap_1()
-                            .child(self.render_recent_projects_button(cx))
                             .child(
                                 IconButton::new("archive", IconName::Archive)
                                     .icon_size(IconSize::Small)
@@ -3056,7 +3153,8 @@ impl Render for Sidebar {
                                     .on_click(cx.listener(|this, _, window, cx| {
                                         this.toggle_archive(&ToggleArchive, window, cx);
                                     })),
-                            ),
+                            )
+                            .child(self.render_recent_projects_button(cx)),
                     ),
             )
     }
@@ -3325,6 +3423,27 @@ mod tests {
 
         // Empty input
         assert_eq!(Sidebar::clean_mention_links(""), "");
+    }
+
+    #[gpui::test]
+    async fn test_entities_released_on_window_close(cx: &mut TestAppContext) {
+        let project = init_test_project("/my-project", cx).await;
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project, window, cx));
+        let sidebar = setup_sidebar(&multi_workspace, cx);
+
+        let weak_workspace = multi_workspace.read_with(cx, |mw, _| mw.workspace().downgrade());
+        let weak_sidebar = sidebar.downgrade();
+        let weak_multi_workspace = multi_workspace.downgrade();
+
+        drop(sidebar);
+        drop(multi_workspace);
+        cx.update(|window, _cx| window.remove_window());
+        cx.run_until_parked();
+
+        weak_multi_workspace.assert_released();
+        weak_sidebar.assert_released();
+        weak_workspace.assert_released();
     }
 
     #[gpui::test]
@@ -3597,6 +3716,7 @@ mod tests {
                     highlight_positions: Vec::new(),
                     has_running_threads: false,
                     waiting_thread_count: 0,
+                    is_active: true,
                 },
                 ListEntry::Thread(ThreadEntry {
                     agent: Agent::NativeAgent,
@@ -3730,6 +3850,7 @@ mod tests {
                     highlight_positions: Vec::new(),
                     has_running_threads: false,
                     waiting_thread_count: 0,
+                    is_active: false,
                 },
             ];
 
@@ -5063,7 +5184,7 @@ mod tests {
 
         let connection_b2 = StubAgentConnection::new();
         connection_b2.set_next_prompt_updates(vec![acp::SessionUpdate::AgentMessageChunk(
-            acp::ContentChunk::new("New thread".into()),
+            acp::ContentChunk::new(DEFAULT_THREAD_TITLE.into()),
         )]);
         open_thread_with_connection(&panel_b, connection_b2, cx);
         send_message(&panel_b, cx);
@@ -5224,6 +5345,196 @@ mod tests {
             assert!(
                 sidebar.active_thread_is_draft,
                 "After creating a new thread the panel should be in draft state"
+            );
+        });
+    }
+
+    #[gpui::test]
+    async fn test_cmd_n_shows_new_thread_entry(cx: &mut TestAppContext) {
+        // When the user presses Cmd-N (NewThread action) while viewing a
+        // non-empty thread, the sidebar should show the "New Thread" entry.
+        // This exercises the same code path as the workspace action handler
+        // (which bypasses the sidebar's create_new_thread method).
+        let project = init_test_project_with_agent_panel("/my-project", cx).await;
+        let (multi_workspace, cx) =
+            cx.add_window_view(|window, cx| MultiWorkspace::test_new(project.clone(), window, cx));
+        let (sidebar, panel) = setup_sidebar_with_agent_panel(&multi_workspace, &project, cx);
+
+        let path_list = PathList::new(&[std::path::PathBuf::from("/my-project")]);
+
+        // Create a non-empty thread (has messages).
+        let connection = StubAgentConnection::new();
+        connection.set_next_prompt_updates(vec![acp::SessionUpdate::AgentMessageChunk(
+            acp::ContentChunk::new("Done".into()),
+        )]);
+        open_thread_with_connection(&panel, connection, cx);
+        send_message(&panel, cx);
+
+        let session_id = active_session_id(&panel, cx);
+        save_test_thread_metadata(&session_id, path_list.clone(), cx).await;
+        cx.run_until_parked();
+
+        assert_eq!(
+            visible_entries_as_strings(&sidebar, cx),
+            vec!["v [my-project]", "  Hello *"]
+        );
+
+        // Simulate cmd-n
+        let workspace = multi_workspace.read_with(cx, |mw, _cx| mw.workspace().clone());
+        panel.update_in(cx, |panel, window, cx| {
+            panel.new_thread(&NewThread, window, cx);
+        });
+        workspace.update_in(cx, |workspace, window, cx| {
+            workspace.focus_panel::<AgentPanel>(window, cx);
+        });
+        cx.run_until_parked();
+
+        assert_eq!(
+            visible_entries_as_strings(&sidebar, cx),
+            vec!["v [my-project]", "  [+ New Thread]", "  Hello *"],
+            "After Cmd-N the sidebar should show a highlighted New Thread entry"
+        );
+
+        sidebar.read_with(cx, |sidebar, _cx| {
+            assert!(
+                sidebar.focused_thread.is_none(),
+                "focused_thread should be cleared after Cmd-N"
+            );
+            assert!(
+                sidebar.active_thread_is_draft,
+                "the new blank thread should be a draft"
+            );
+        });
+    }
+
+    #[gpui::test]
+    async fn test_cmd_n_shows_new_thread_entry_in_absorbed_worktree(cx: &mut TestAppContext) {
+        // When the active workspace is an absorbed git worktree, cmd-n
+        // should still show the "New Thread" entry under the main repo's
+        // header and highlight it as active.
+        agent_ui::test_support::init_test(cx);
+        cx.update(|cx| {
+            cx.update_flags(false, vec!["agent-v2".into()]);
+            ThreadStore::init_global(cx);
+            SidebarThreadMetadataStore::init_global(cx);
+            language_model::LanguageModelRegistry::test(cx);
+            prompt_store::init(cx);
+        });
+
+        let fs = FakeFs::new(cx.executor());
+
+        // Main repo with a linked worktree.
+        fs.insert_tree(
+            "/project",
+            serde_json::json!({
+                ".git": {
+                    "worktrees": {
+                        "feature-a": {
+                            "commondir": "../../",
+                            "HEAD": "ref: refs/heads/feature-a",
+                        },
+                    },
+                },
+                "src": {},
+            }),
+        )
+        .await;
+
+        // Worktree checkout pointing back to the main repo.
+        fs.insert_tree(
+            "/wt-feature-a",
+            serde_json::json!({
+                ".git": "gitdir: /project/.git/worktrees/feature-a",
+                "src": {},
+            }),
+        )
+        .await;
+
+        fs.with_git_state(std::path::Path::new("/project/.git"), false, |state| {
+            state.worktrees.push(git::repository::Worktree {
+                path: std::path::PathBuf::from("/wt-feature-a"),
+                ref_name: Some("refs/heads/feature-a".into()),
+                sha: "aaa".into(),
+            });
+        })
+        .unwrap();
+
+        cx.update(|cx| <dyn fs::Fs>::set_global(fs.clone(), cx));
+
+        let main_project = project::Project::test(fs.clone(), ["/project".as_ref()], cx).await;
+        let worktree_project =
+            project::Project::test(fs.clone(), ["/wt-feature-a".as_ref()], cx).await;
+
+        main_project
+            .update(cx, |p, cx| p.git_scans_complete(cx))
+            .await;
+        worktree_project
+            .update(cx, |p, cx| p.git_scans_complete(cx))
+            .await;
+
+        let (multi_workspace, cx) = cx.add_window_view(|window, cx| {
+            MultiWorkspace::test_new(main_project.clone(), window, cx)
+        });
+
+        let worktree_workspace = multi_workspace.update_in(cx, |mw, window, cx| {
+            mw.test_add_workspace(worktree_project.clone(), window, cx)
+        });
+
+        let worktree_panel = add_agent_panel(&worktree_workspace, &worktree_project, cx);
+
+        // Switch to the worktree workspace.
+        multi_workspace.update_in(cx, |mw, window, cx| {
+            mw.activate_index(1, window, cx);
+        });
+
+        let sidebar = setup_sidebar(&multi_workspace, cx);
+
+        // Create a non-empty thread in the worktree workspace.
+        let connection = StubAgentConnection::new();
+        connection.set_next_prompt_updates(vec![acp::SessionUpdate::AgentMessageChunk(
+            acp::ContentChunk::new("Done".into()),
+        )]);
+        open_thread_with_connection(&worktree_panel, connection, cx);
+        send_message(&worktree_panel, cx);
+
+        let session_id = active_session_id(&worktree_panel, cx);
+        let wt_path_list = PathList::new(&[std::path::PathBuf::from("/wt-feature-a")]);
+        save_test_thread_metadata(&session_id, wt_path_list, cx).await;
+        cx.run_until_parked();
+
+        assert_eq!(
+            visible_entries_as_strings(&sidebar, cx),
+            vec!["v [project]", "  Hello {wt-feature-a} *"]
+        );
+
+        // Simulate Cmd-N in the worktree workspace.
+        worktree_panel.update_in(cx, |panel, window, cx| {
+            panel.new_thread(&NewThread, window, cx);
+        });
+        worktree_workspace.update_in(cx, |workspace, window, cx| {
+            workspace.focus_panel::<AgentPanel>(window, cx);
+        });
+        cx.run_until_parked();
+
+        assert_eq!(
+            visible_entries_as_strings(&sidebar, cx),
+            vec![
+                "v [project]",
+                "  [+ New Thread]",
+                "  Hello {wt-feature-a} *"
+            ],
+            "After Cmd-N in an absorbed worktree, the sidebar should show \
+             a highlighted New Thread entry under the main repo header"
+        );
+
+        sidebar.read_with(cx, |sidebar, _cx| {
+            assert!(
+                sidebar.focused_thread.is_none(),
+                "focused_thread should be cleared after Cmd-N"
+            );
+            assert!(
+                sidebar.active_thread_is_draft,
+                "the new blank thread should be a draft"
             );
         });
     }
@@ -6370,6 +6681,181 @@ mod tests {
                 .unwrap(),
             1,
             "other windows should not be activated just because they also match the saved paths"
+        );
+    }
+
+    #[gpui::test]
+    async fn test_archive_thread_uses_next_threads_own_workspace(cx: &mut TestAppContext) {
+        // Regression test: archive_thread previously always loaded the next thread
+        // through group_workspace (the main workspace's ProjectHeader), even when
+        // the next thread belonged to an absorbed linked-worktree workspace. That
+        // caused the worktree thread to be loaded in the main panel, which bound it
+        // to the main project and corrupted its stored folder_paths.
+        //
+        // The fix: use next.workspace (ThreadEntryWorkspace::Open) when available,
+        // falling back to group_workspace only for Closed workspaces.
+        agent_ui::test_support::init_test(cx);
+        cx.update(|cx| {
+            cx.update_flags(false, vec!["agent-v2".into()]);
+            ThreadStore::init_global(cx);
+            SidebarThreadMetadataStore::init_global(cx);
+            language_model::LanguageModelRegistry::test(cx);
+            prompt_store::init(cx);
+        });
+
+        let fs = FakeFs::new(cx.executor());
+
+        fs.insert_tree(
+            "/project",
+            serde_json::json!({
+                ".git": {
+                    "worktrees": {
+                        "feature-a": {
+                            "commondir": "../../",
+                            "HEAD": "ref: refs/heads/feature-a",
+                        },
+                    },
+                },
+                "src": {},
+            }),
+        )
+        .await;
+
+        fs.insert_tree(
+            "/wt-feature-a",
+            serde_json::json!({
+                ".git": "gitdir: /project/.git/worktrees/feature-a",
+                "src": {},
+            }),
+        )
+        .await;
+
+        fs.with_git_state(std::path::Path::new("/project/.git"), false, |state| {
+            state.worktrees.push(git::repository::Worktree {
+                path: std::path::PathBuf::from("/wt-feature-a"),
+                ref_name: Some("refs/heads/feature-a".into()),
+                sha: "aaa".into(),
+            });
+        })
+        .unwrap();
+
+        cx.update(|cx| <dyn fs::Fs>::set_global(fs.clone(), cx));
+
+        let main_project = project::Project::test(fs.clone(), ["/project".as_ref()], cx).await;
+        let worktree_project =
+            project::Project::test(fs.clone(), ["/wt-feature-a".as_ref()], cx).await;
+
+        main_project
+            .update(cx, |p, cx| p.git_scans_complete(cx))
+            .await;
+        worktree_project
+            .update(cx, |p, cx| p.git_scans_complete(cx))
+            .await;
+
+        let (multi_workspace, cx) = cx.add_window_view(|window, cx| {
+            MultiWorkspace::test_new(main_project.clone(), window, cx)
+        });
+
+        let worktree_workspace = multi_workspace.update_in(cx, |mw, window, cx| {
+            mw.test_add_workspace(worktree_project.clone(), window, cx)
+        });
+
+        // Activate main workspace so the sidebar tracks the main panel.
+        multi_workspace.update_in(cx, |mw, window, cx| {
+            mw.activate_index(0, window, cx);
+        });
+
+        let sidebar = setup_sidebar(&multi_workspace, cx);
+
+        let main_workspace = multi_workspace.read_with(cx, |mw, _| mw.workspaces()[0].clone());
+        let main_panel = add_agent_panel(&main_workspace, &main_project, cx);
+        let _worktree_panel = add_agent_panel(&worktree_workspace, &worktree_project, cx);
+
+        // Open Thread 2 in the main panel and keep it running.
+        let connection = StubAgentConnection::new();
+        open_thread_with_connection(&main_panel, connection.clone(), cx);
+        send_message(&main_panel, cx);
+
+        let thread2_session_id = active_session_id(&main_panel, cx);
+
+        cx.update(|_, cx| {
+            connection.send_update(
+                thread2_session_id.clone(),
+                acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new("working...".into())),
+                cx,
+            );
+        });
+
+        // Save thread 2's metadata with a newer timestamp so it sorts above thread 1.
+        save_thread_metadata(
+            thread2_session_id.clone(),
+            "Thread 2".into(),
+            chrono::TimeZone::with_ymd_and_hms(&Utc, 2024, 1, 2, 0, 0, 0).unwrap(),
+            PathList::new(&[std::path::PathBuf::from("/project")]),
+            cx,
+        )
+        .await;
+
+        // Save thread 1's metadata with the worktree path and an older timestamp so
+        // it sorts below thread 2. archive_thread will find it as the "next" candidate.
+        let thread1_session_id = acp::SessionId::new(Arc::from("thread1-worktree-session"));
+        save_thread_metadata(
+            thread1_session_id.clone(),
+            "Thread 1".into(),
+            chrono::TimeZone::with_ymd_and_hms(&Utc, 2024, 1, 1, 0, 0, 0).unwrap(),
+            PathList::new(&[std::path::PathBuf::from("/wt-feature-a")]),
+            cx,
+        )
+        .await;
+
+        cx.run_until_parked();
+
+        // Verify the sidebar absorbed thread 1 under [project] with the worktree chip.
+        let entries_before = visible_entries_as_strings(&sidebar, cx);
+        assert!(
+            entries_before.iter().any(|s| s.contains("{wt-feature-a}")),
+            "Thread 1 should appear with the linked-worktree chip before archiving: {:?}",
+            entries_before
+        );
+
+        // The sidebar should track T2 as the focused thread (derived from the
+        // main panel's active view).
+        let focused = sidebar.read_with(cx, |s, _| s.focused_thread.clone());
+        assert_eq!(
+            focused,
+            Some(thread2_session_id.clone()),
+            "focused thread should be Thread 2 before archiving: {:?}",
+            focused
+        );
+
+        // Archive thread 2.
+        sidebar.update_in(cx, |sidebar, window, cx| {
+            sidebar.archive_thread(&thread2_session_id, window, cx);
+        });
+
+        cx.run_until_parked();
+
+        // The main panel's active thread must still be thread 2.
+        let main_active = main_panel.read_with(cx, |panel, cx| {
+            panel
+                .active_agent_thread(cx)
+                .map(|t| t.read(cx).session_id().clone())
+        });
+        assert_eq!(
+            main_active,
+            Some(thread2_session_id.clone()),
+            "main panel should not have been taken over by loading the linked-worktree thread T1; \
+             before the fix, archive_thread used group_workspace instead of next.workspace, \
+             causing T1 to be loaded in the wrong panel"
+        );
+
+        // Thread 1 should still appear in the sidebar with its worktree chip
+        // (Thread 2 was archived so it is gone from the list).
+        let entries_after = visible_entries_as_strings(&sidebar, cx);
+        assert!(
+            entries_after.iter().any(|s| s.contains("{wt-feature-a}")),
+            "T1 should still carry its linked-worktree chip after archiving T2: {:?}",
+            entries_after
         );
     }
 }

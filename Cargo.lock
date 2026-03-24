@@ -1207,10 +1207,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "collections",
+ "cpal",
+ "crossbeam",
+ "denoise",
  "gpui",
  "log",
+ "parking_lot",
  "rodio",
+ "serde",
  "settings",
+ "thiserror 2.0.17",
  "util",
 ]
 
@@ -2837,9 +2843,9 @@ dependencies = [
 
 [[package]]
 name = "codespan-reporting"
-version = "0.13.1"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af491d569909a7e4dee0ad7db7f5341fef5c614d5b8ec8cf765732aba3cff681"
+checksum = "ba7a06c0b31fff5ff2e1e7d37dbf940864e2a974b336e1a2938d10af6e8fb283"
 dependencies = [
  "serde",
  "termcolor",
@@ -3069,6 +3075,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "collections",
  "futures",
  "gpui",
@@ -3077,14 +3084,17 @@ dependencies = [
  "net",
  "parking_lot",
  "postage",
+ "rand 0.9.2",
  "schemars",
  "serde",
  "serde_json",
  "settings",
+ "sha2",
  "slotmap",
  "smol",
  "tempfile",
  "terminal",
+ "tiny_http",
  "url",
  "util",
 ]
@@ -3695,6 +3705,19 @@ checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
  "itertools 0.10.5",
+]
+
+[[package]]
+name = "crossbeam"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1137cd7e7fc0fb5d3c5a8678be38ec56e819125d8d7907411fe24ccb943faca8"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-deque",
+ "crossbeam-epoch",
+ "crossbeam-queue",
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -8575,6 +8598,7 @@ dependencies = [
  "ollama",
  "open_ai",
  "open_router",
+ "opencode",
  "partial-json-fixer",
  "pretty_assertions",
  "release_channel",
@@ -10226,9 +10250,9 @@ dependencies = [
 
 [[package]]
 name = "objc2-audio-toolbox"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "10cbe18d879e20a4aea544f8befe38bcf52255eb63d3f23eca2842f3319e4c07"
+checksum = "6948501a91121d6399b79abaa33a8aa4ea7857fe019f341b8c23ad6e81b79b08"
 dependencies = [
  "bitflags 2.10.0",
  "libc",
@@ -10241,9 +10265,9 @@ dependencies = [
 
 [[package]]
 name = "objc2-avf-audio"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfc1d11521c211a7ebe17739fc806719da41f56c6b3f949d9861b459188ce910"
+checksum = "13a380031deed8e99db00065c45937da434ca987c034e13b87e4441f9e4090be"
 dependencies = [
  "objc2",
  "objc2-foundation",
@@ -10251,9 +10275,9 @@ dependencies = [
 
 [[package]]
 name = "objc2-core-audio"
-version = "0.3.1"
+version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca44961e888e19313b808f23497073e3f6b3c22bb485056674c8b49f3b025c82"
+checksum = "e1eebcea8b0dbff5f7c8504f3107c68fc061a3eb44932051c8cf8a68d969c3b2"
 dependencies = [
  "dispatch2",
  "objc2",
@@ -10535,6 +10559,20 @@ dependencies = [
  "settings",
  "strum 0.27.2",
  "thiserror 2.0.17",
+]
+
+[[package]]
+name = "opencode"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "google_ai",
+ "http_client",
+ "schemars",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
 ]
 
 [[package]]
@@ -11868,6 +11906,7 @@ dependencies = [
  "clock",
  "collections",
  "context_server",
+ "credentials_provider",
  "dap",
  "encoding_rs",
  "extension",
@@ -16442,9 +16481,9 @@ dependencies = [
 
 [[package]]
 name = "tree-sitter-rust"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b9b18034c684a2420722be8b2a91c9c44f2546b631c039edf575ccba8c61be1"
+checksum = "f715f73a0687261ddb686f0d64a1e5af57bd199c4d12be5fdda6676ce1885bf9"
 dependencies = [
  "cc",
  "tree-sitter-language",
@@ -16773,9 +16812,9 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "ureq"
-version = "3.2.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fdc97a28575b85cfedf2a7e7d3cc64b3e11bd8ac766666318003abbacc7a21fc"
+checksum = "dea7109cdcd5864d4eeb1b58a1648dc9bf520360d7af16ec26d0a9354bafcfc0"
 dependencies = [
  "base64 0.22.1",
  "cookie_store",
@@ -16788,15 +16827,15 @@ dependencies = [
  "serde_json",
  "socks",
  "ureq-proto",
- "utf-8",
+ "utf8-zero",
  "webpki-roots 1.0.6",
 ]
 
 [[package]]
 name = "ureq-proto"
-version = "0.5.3"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d81f9efa9df032be5934a46a068815a10a042b494b6a58cb0a1a97bb5467ed6f"
+checksum = "e994ba84b0bd1b1b0cf92878b7ef898a5c1760108fe7b6010327e274917a808c"
 dependencies = [
  "base64 0.22.1",
  "http 1.3.1",
@@ -16863,6 +16902,12 @@ checksum = "ebe49e006d6df172d7f14794568a90fe41e05a1fa9e03dc276fa6da4bb747ec3"
 dependencies = [
  "arrayvec",
 ]
+
+[[package]]
+name = "utf8-zero"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8c0a043c9540bae7c578c88f91dda8bd82e59ae27c21baca69c8b191aaf5a6e"
 
 [[package]]
 name = "utf8_iter"
@@ -17733,9 +17778,9 @@ dependencies = [
 
 [[package]]
 name = "wayland-sys"
-version = "0.31.8"
+version = "0.31.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e6dbfc3ac5ef974c92a2235805cc0114033018ae1290a72e474aa8b28cbbdfd"
+checksum = "34949b42822155826b41db8e5d0c1be3a2bd296c747577a43a3e6daefc296142"
 dependencies = [
  "dlib",
  "log",

@@ -2455,7 +2455,7 @@ mod tests {
             .update(cx, |multi_workspace, window, cx| {
                 multi_workspace.workspace().update(cx, |workspace, cx| {
                     assert_eq!(workspace.worktrees(cx).count(), 2);
-                    assert!(workspace.left_dock().read(cx).is_open());
+                    assert!(workspace.right_dock().read(cx).is_open());
                     assert!(
                         workspace
                             .active_pane()
@@ -2514,7 +2514,7 @@ mod tests {
                         .collect::<Vec<_>>(),
                     &[Path::new(path!("/root/e")).into()]
                 );
-                assert!(workspace.left_dock().read(cx).is_open());
+                assert!(workspace.right_dock().read(cx).is_open());
                 assert!(workspace.active_pane().focus_handle(cx).is_focused(window));
             })
             .unwrap();

@@ -1,6 +1,6 @@
+use crate::Workspace;
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
-use crate::Workspace;
 use anyhow::Context as _;
 use client::proto;
 

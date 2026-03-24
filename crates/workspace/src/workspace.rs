@@ -25,7 +25,8 @@ pub use crate::notifications::NotificationFrame;
 pub use dock::{DeployProjectDiagnostics, Panel, ToggleProjectDiagnostics, ToggleProjectSearch};
 pub use multi_workspace::{
     CloseWorkspaceSidebar, DraggedSidebar, FocusWorkspaceSidebar, MultiWorkspace,
-    MultiWorkspaceEvent, Sidebar, SidebarHandle, ToggleWorkspaceSidebar,
+    MultiWorkspaceEvent, NextWorkspace, PreviousWorkspace, Sidebar, SidebarHandle,
+    ToggleWorkspaceSidebar,
 };
 pub use path_list::{PathList, SerializedPathList};
 pub use title_bar_item::{TitleBarItemView, TitleBarItemViewHandle};

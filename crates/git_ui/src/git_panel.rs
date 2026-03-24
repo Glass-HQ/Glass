@@ -2275,6 +2275,7 @@ impl GitPanel {
                 RewrapOptions {
                     override_language_settings: false,
                     preserve_existing_whitespace: true,
+                    line_length: None,
                 },
                 cx,
             );

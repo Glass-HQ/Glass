@@ -1864,6 +1864,7 @@ pub enum MultibufferSelectionMode {
 pub struct RewrapOptions {
     pub override_language_settings: bool,
     pub preserve_existing_whitespace: bool,
+    pub line_length: Option<usize>,
 }
 
 impl Editor {
@@ -2873,6 +2874,11 @@ impl Editor {
         if self.in_leading_whitespace {
             key_context.add("in_leading_whitespace");
         }
+        if self.edit_prediction_requires_modifier() {
+            key_context.set("edit_prediction_mode", "subtle")
+        } else {
+            key_context.set("edit_prediction_mode", "eager");
+        }
 
         if self.selection_mark_mode {
             key_context.add("selection_mode");
@@ -2940,7 +2946,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut App,
     ) -> Option<gpui::KeybindingKeystroke> {
-        let key_context = self.key_context_internal(self.has_active_edit_prediction(), window, cx);
+        let key_context = self.key_context_internal(true, window, cx);
 
         let bindings =
             match granularity {
@@ -2967,7 +2973,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut App,
     ) -> Option<gpui::KeybindingKeystroke> {
-        let key_context = self.key_context_internal(self.has_active_edit_prediction(), window, cx);
+        let key_context = self.key_context_internal(true, window, cx);
         let bindings = window.bindings_for_action_in_context(&AcceptEditPrediction, key_context);
         bindings
             .into_iter()
@@ -2976,6 +2982,32 @@ impl Editor {
                 [keystroke, ..] if keystroke.modifiers().modified() => Some(keystroke.clone()),
                 _ => None,
             })
+    }
+
+    fn edit_prediction_preview_modifiers_held(
+        &self,
+        modifiers: &Modifiers,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        let key_context = self.key_context_internal(true, window, cx);
+        let actions: [&dyn Action; 3] = [
+            &AcceptEditPrediction,
+            &AcceptNextWordEditPrediction,
+            &AcceptNextLineEditPrediction,
+        ];
+
+        actions.into_iter().any(|action| {
+            window
+                .bindings_for_action_in_context(action, key_context.clone())
+                .into_iter()
+                .rev()
+                .any(|binding| {
+                    binding.keystrokes().first().is_some_and(|keystroke| {
+                        keystroke.modifiers().modified() && keystroke.modifiers() == modifiers
+                    })
+                })
+        })
     }
 
     fn edit_prediction_cursor_popover_prefers_preview(
@@ -5087,6 +5119,7 @@ impl Editor {
                         RewrapOptions {
                             override_language_settings: true,
                             preserve_existing_whitespace: true,
+                            line_length: None,
                         },
                         cx,
                     )
@@ -8458,9 +8491,12 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.update_edit_prediction_settings(cx);
+
         // Ensure that the edit prediction preview is updated, even when not
         // enabled, if there's an active edit prediction preview.
         if self.show_edit_predictions_in_menu()
+            || self.edit_prediction_requires_modifier()
             || matches!(
                 self.edit_prediction_preview,
                 EditPredictionPreview::Active { .. }
@@ -8553,24 +8589,7 @@ impl Editor {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let mut modifiers_held = false;
-
-        let key_context = self.key_context_internal(self.has_active_edit_prediction(), window, cx);
-        let actions: [&dyn Action; 3] = [
-            &AcceptEditPrediction,
-            &AcceptNextWordEditPrediction,
-            &AcceptNextLineEditPrediction,
-        ];
-
-        for action in actions {
-            let bindings = window.bindings_for_action_in_context(action, key_context.clone());
-            for binding in bindings {
-                if let Some(keystroke) = binding.keystrokes().first() {
-                    modifiers_held = modifiers_held
-                        || (keystroke.modifiers() == modifiers && keystroke.modifiers().modified());
-                }
-            }
-        }
+        let modifiers_held = self.edit_prediction_preview_modifiers_held(modifiers, window, cx);
 
         if modifiers_held {
             if matches!(
@@ -13662,7 +13681,7 @@ impl Editor {
                 continue;
             };
 
-            let wrap_column = self.hard_wrap.unwrap_or_else(|| {
+            let wrap_column = options.line_length.or(self.hard_wrap).unwrap_or_else(|| {
                 buffer
                     .language_settings_at(Point::new(start_row, 0), cx)
                     .preferred_line_length as usize
