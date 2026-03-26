@@ -1,32 +1,21 @@
-use app_runtime::{
-    DetectedProject, ExecutionRequest, RuntimeAction, RuntimeCatalog, RuntimeDevice, RuntimeTarget,
-    SystemCommandRunner,
-};
+use std::sync::Arc;
+
+use app_runtime::{ExecutionRequest, RuntimeAction, RuntimeCatalog, SystemCommandRunner};
 use gpui::{
-    App, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, ParentElement, Render,
-    SharedString, Styled, Task, WeakEntity, Window,
+    App, AppContext, Context, DismissEvent, Entity, EventEmitter, FocusHandle, Focusable, Render,
+    SharedString, Task, WeakEntity,
 };
-use menu::Cancel;
+use picker::{Picker, PickerDelegate};
 use task::{HideStrategy, RevealStrategy, SaveStrategy, Shell, SpawnInTerminal, TaskId};
-use ui::{
-    Button, ButtonSize, Color, ContextMenu, Divider, DropdownMenu, DropdownStyle, KeyBinding,
-    Label, LabelSize, Tooltip, prelude::*,
-};
+use ui::{Color, Label, LabelSize, ListItem, ListItemSpacing, prelude::*};
 use uuid::Uuid;
-use workspace::{ModalView, Workspace};
+use workspace::notifications::NotificationId;
+use workspace::{ModalView, Toast, Workspace};
 
 use crate::OpenRuntimeActions;
 
 pub struct RuntimeActionsModal {
-    workspace: WeakEntity<Workspace>,
-    focus_handle: FocusHandle,
-    catalog: Option<RuntimeCatalog>,
-    selected_project_index: usize,
-    selected_target_index: usize,
-    selected_device_index: Option<usize>,
-    selected_action: RuntimeAction,
-    status_message: Option<SharedString>,
-    _load_task: Task<()>,
+    picker: Entity<Picker<RuntimeActionsDelegate>>,
 }
 
 impl RuntimeActionsModal {
@@ -55,7 +44,16 @@ impl RuntimeActionsModal {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let load_task = cx.spawn_in(window, async move |this, cx| {
+        let modal = cx.entity().downgrade();
+        let delegate = RuntimeActionsDelegate::new(modal, workspace, cx);
+        let picker = cx.new(|cx| {
+            Picker::list(delegate, window, cx)
+                .list_measure_all()
+                .show_scrollbar(true)
+        });
+
+        let picker_handle = picker.downgrade();
+        let load_task = cx.spawn_in(window, async move |_, cx| {
             let catalog = cx
                 .background_spawn(async move {
                     let runner = SystemCommandRunner;
@@ -63,136 +61,191 @@ impl RuntimeActionsModal {
                 })
                 .await;
 
-            this.update(cx, |this, cx| {
-                this.catalog = Some(catalog);
-                this.reset_selection();
-                cx.notify();
-            })
-            .ok();
+            picker_handle
+                .update_in(cx, |picker, window, cx| {
+                    picker
+                        .delegate
+                        .catalog_loaded(catalog, picker.query(cx).to_string(), window, cx);
+                    picker.refresh(window, cx);
+                })
+                .ok();
+        });
+        picker.update(cx, |picker, _| {
+            picker.delegate.set_loading_task(load_task);
         });
 
+        Self { picker }
+    }
+}
+
+impl EventEmitter<DismissEvent> for RuntimeActionsModal {}
+
+impl Focusable for RuntimeActionsModal {
+    fn focus_handle(&self, cx: &App) -> FocusHandle {
+        self.picker.focus_handle(cx)
+    }
+}
+
+impl ModalView for RuntimeActionsModal {}
+
+impl Render for RuntimeActionsModal {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+        v_flex().w(rems(34.)).child(self.picker.clone())
+    }
+}
+
+#[derive(Clone)]
+struct RuntimeActionEntry {
+    title: String,
+    subtitle: String,
+    searchable_text: String,
+    request: Option<ExecutionRequest>,
+}
+
+struct RuntimeActionsDelegate {
+    modal: WeakEntity<RuntimeActionsModal>,
+    workspace: WeakEntity<Workspace>,
+    catalog: Option<RuntimeCatalog>,
+    all_entries: Vec<RuntimeActionEntry>,
+    filtered_entries: Vec<RuntimeActionEntry>,
+    selected_index: usize,
+    loading: bool,
+    _loading_task: Option<Task<()>>,
+}
+
+impl RuntimeActionsDelegate {
+    fn new(
+        modal: WeakEntity<RuntimeActionsModal>,
+        workspace: WeakEntity<Workspace>,
+        _: &mut Context<RuntimeActionsModal>,
+    ) -> Self {
         Self {
+            modal,
             workspace,
-            focus_handle: cx.focus_handle(),
             catalog: None,
-            selected_project_index: 0,
-            selected_target_index: 0,
-            selected_device_index: None,
-            selected_action: RuntimeAction::Run,
-            status_message: None,
-            _load_task: load_task,
+            all_entries: Vec::new(),
+            filtered_entries: Vec::new(),
+            selected_index: 0,
+            loading: true,
+            _loading_task: None,
         }
     }
 
-    fn selected_project(&self) -> Option<&DetectedProject> {
-        self.catalog
-            .as_ref()?
-            .projects
-            .get(self.selected_project_index)
+    fn set_loading_task(&mut self, task: Task<()>) {
+        self._loading_task = Some(task);
     }
 
-    fn selected_target(&self) -> Option<&RuntimeTarget> {
-        self.selected_project()?
-            .targets
-            .get(self.selected_target_index)
+    fn catalog_loaded(
+        &mut self,
+        catalog: RuntimeCatalog,
+        query: String,
+        window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) {
+        self.catalog = Some(catalog);
+        self.loading = false;
+        self.all_entries = build_entries(self.catalog.as_ref().expect("catalog should be set"));
+        let _ = self.update_matches(query, window, cx);
+    }
+}
+
+impl PickerDelegate for RuntimeActionsDelegate {
+    type ListItem = ListItem;
+
+    fn match_count(&self) -> usize {
+        self.filtered_entries.len()
     }
 
-    fn selected_device(&self) -> Option<&RuntimeDevice> {
-        let device_index = self.selected_device_index?;
-        self.selected_project()?.devices.get(device_index)
+    fn selected_index(&self) -> usize {
+        self.selected_index
     }
 
-    fn reset_selection(&mut self) {
+    fn set_selected_index(
+        &mut self,
+        index: usize,
+        _: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) {
+        self.selected_index = index.min(self.filtered_entries.len().saturating_sub(1));
+        cx.notify();
+    }
+
+    fn can_select(
+        &self,
+        index: usize,
+        _: &mut Window,
+        _: &mut Context<Picker<Self>>,
+    ) -> bool {
+        self.filtered_entries
+            .get(index)
+            .is_some_and(|entry| entry.request.is_some())
+    }
+
+    fn placeholder_text(&self, _: &mut Window, _: &mut App) -> Arc<str> {
+        Arc::from("Search runtime actions")
+    }
+
+    fn no_matches_text(&self, _: &mut Window, _: &mut App) -> Option<SharedString> {
+        if self.loading {
+            Some("Detecting Apple runtime capabilities…".into())
+        } else if self.all_entries.is_empty() {
+            Some("No runnable Apple project was detected in this workspace".into())
+        } else {
+            Some("No runtime actions match the current query".into())
+        }
+    }
+
+    fn update_matches(
+        &mut self,
+        query: String,
+        _: &mut Window,
+        _: &mut Context<Picker<Self>>,
+    ) -> Task<()> {
+        let normalized_query = query.trim().to_lowercase();
+        self.filtered_entries = if normalized_query.is_empty() {
+            self.all_entries.clone()
+        } else {
+            self.all_entries
+                .iter()
+                .filter(|entry| entry.searchable_text.contains(&normalized_query))
+                .cloned()
+                .collect()
+        };
+        self.selected_index = 0;
+        Task::ready(())
+    }
+
+    fn confirm(
+        &mut self,
+        _: bool,
+        window: &mut Window,
+        cx: &mut Context<Picker<Self>>,
+    ) {
+        let Some(entry) = self.filtered_entries.get(self.selected_index) else {
+            return;
+        };
+        let Some(request) = entry.request.clone() else {
+            return;
+        };
         let Some(catalog) = self.catalog.as_ref() else {
-            self.selected_project_index = 0;
-            self.selected_target_index = 0;
-            self.selected_device_index = None;
-            self.status_message = None;
             return;
-        };
-
-        let Some(project) = catalog.projects.get(self.selected_project_index) else {
-            self.selected_project_index = 0;
-            self.selected_target_index = 0;
-            self.selected_device_index = None;
-            self.status_message = Some("No runnable Apple project was detected.".into());
-            return;
-        };
-
-        if self.selected_target_index >= project.targets.len() {
-            self.selected_target_index = 0;
-        }
-
-        if project.devices.is_empty() {
-            self.selected_device_index = None;
-        } else if self.selected_device_index.is_none() {
-            self.selected_device_index = Some(0);
-        } else if self.selected_device_index.unwrap_or_default() >= project.devices.len() {
-            self.selected_device_index = Some(0);
-        }
-
-        self.status_message = None;
-    }
-
-    fn choose_project(&mut self, project_index: usize, cx: &mut Context<Self>) {
-        self.selected_project_index = project_index;
-        self.selected_target_index = 0;
-        self.selected_device_index = None;
-        self.reset_selection();
-        cx.notify();
-    }
-
-    fn choose_target(&mut self, target_index: usize, cx: &mut Context<Self>) {
-        self.selected_target_index = target_index;
-        self.status_message = None;
-        cx.notify();
-    }
-
-    fn choose_device(&mut self, device_index: usize, cx: &mut Context<Self>) {
-        self.selected_device_index = Some(device_index);
-        self.status_message = None;
-        cx.notify();
-    }
-
-    fn choose_action(&mut self, action: RuntimeAction, cx: &mut Context<Self>) {
-        self.selected_action = action;
-        self.status_message = None;
-        cx.notify();
-    }
-
-    fn dismiss(&mut self, _: &Cancel, _: &mut Window, cx: &mut Context<Self>) {
-        cx.emit(DismissEvent);
-    }
-
-    fn execute(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(catalog) = self.catalog.as_ref() else {
-            self.status_message = Some("Runtime detection is still loading.".into());
-            cx.notify();
-            return;
-        };
-        let Some(project) = self.selected_project() else {
-            self.status_message = Some("No runnable Apple project was detected.".into());
-            cx.notify();
-            return;
-        };
-        let Some(target) = self.selected_target() else {
-            self.status_message = Some("No shared Xcode scheme was detected.".into());
-            cx.notify();
-            return;
-        };
-
-        let request = ExecutionRequest {
-            project_id: project.id.clone(),
-            target_id: target.id.clone(),
-            device_id: self.selected_device().map(|device| device.id.clone()),
-            action: self.selected_action,
         };
 
         let plan = match catalog.build_execution_plan(&request) {
             Ok(plan) => plan,
             Err(error) => {
-                self.status_message = Some(error.to_string().into());
-                cx.notify();
+                self.workspace
+                    .update(cx, |workspace, cx| {
+                        workspace.show_toast(
+                            Toast::new(
+                                NotificationId::unique::<RuntimeActionsModal>(),
+                                error.to_string(),
+                            )
+                            .autohide(),
+                            cx,
+                        );
+                    })
+                    .ok();
                 return;
             }
         };
@@ -218,250 +271,113 @@ impl RuntimeActionsModal {
             save: SaveStrategy::All,
         };
 
-        let spawned = self
-            .workspace
-            .update(cx, |workspace, cx| workspace.spawn_in_terminal(task, window, cx))
-            .is_ok();
+        self.workspace
+            .update(cx, |workspace, cx| {
+                workspace.spawn_in_terminal(task, window, cx).detach();
+                workspace.hide_modal(window, cx);
+            })
+            .ok();
+    }
 
-        if spawned {
-            cx.emit(DismissEvent);
-        } else {
-            self.status_message = Some("Glass could not start the runtime command.".into());
-            cx.notify();
+    fn dismissed(&mut self, _: &mut Window, cx: &mut Context<Picker<Self>>) {
+        self.modal.update(cx, |_, cx| cx.emit(DismissEvent)).ok();
+    }
+
+    fn render_match(
+        &self,
+        index: usize,
+        selected: bool,
+        _: &mut Window,
+        _: &mut Context<Picker<Self>>,
+    ) -> Option<Self::ListItem> {
+        let entry = self.filtered_entries.get(index)?;
+        let enabled = entry.request.is_some();
+
+        Some(
+            ListItem::new(index)
+                .inset(true)
+                .spacing(ListItemSpacing::Sparse)
+                .toggle_state(selected && enabled)
+                .disabled(!enabled)
+                .child(
+                    v_flex()
+                        .w_full()
+                        .min_w_0()
+                        .gap_0p5()
+                        .child(Label::new(entry.title.clone()).single_line())
+                        .child(
+                            Label::new(entry.subtitle.clone())
+                                .size(LabelSize::Small)
+                                .color(Color::Muted)
+                                .single_line()
+                                .truncate(),
+                        ),
+                ),
+        )
+    }
+}
+
+fn build_entries(catalog: &RuntimeCatalog) -> Vec<RuntimeActionEntry> {
+    let mut entries = Vec::new();
+
+    for project in &catalog.projects {
+        for target in &project.targets {
+            entries.push(RuntimeActionEntry {
+                title: format!("Build {}", target.label),
+                subtitle: format!("{} in {}", project.label, project.workspace_root.display()),
+                searchable_text: format!(
+                    "build {} {} {}",
+                    project.label.to_lowercase(),
+                    target.label.to_lowercase(),
+                    project.workspace_root.display()
+                ),
+                request: Some(ExecutionRequest {
+                    project_id: project.id.clone(),
+                    target_id: target.id.clone(),
+                    device_id: None,
+                    action: RuntimeAction::Build,
+                }),
+            });
+
+            if project.devices.is_empty() {
+                entries.push(RuntimeActionEntry {
+                    title: format!("Run {}", target.label),
+                    subtitle: "No iOS simulator is currently available".into(),
+                    searchable_text: format!(
+                        "run {} {}",
+                        project.label.to_lowercase(),
+                        target.label.to_lowercase()
+                    ),
+                    request: None,
+                });
+                continue;
+            }
+
+            for device in &project.devices {
+                let device_label = match &device.os_version {
+                    Some(os_version) => format!("{} ({os_version})", device.name),
+                    None => device.name.clone(),
+                };
+
+                entries.push(RuntimeActionEntry {
+                    title: format!("Run {} on {}", target.label, device_label),
+                    subtitle: project.label.clone(),
+                    searchable_text: format!(
+                        "run {} {} {}",
+                        project.label.to_lowercase(),
+                        target.label.to_lowercase(),
+                        device_label.to_lowercase()
+                    ),
+                    request: Some(ExecutionRequest {
+                        project_id: project.id.clone(),
+                        target_id: target.id.clone(),
+                        device_id: Some(device.id.clone()),
+                        action: RuntimeAction::Run,
+                    }),
+                });
+            }
         }
     }
 
-    fn project_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<ContextMenu> {
-        let entries = self
-            .catalog
-            .as_ref()
-            .map(|catalog| {
-                catalog
-                    .projects
-                    .iter()
-                    .enumerate()
-                    .map(|(index, project)| (index, project.label.clone()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let modal = cx.weak_entity();
-
-        ContextMenu::build(window, cx, move |mut menu, _, _| {
-            for (index, label) in entries.clone() {
-                let modal = modal.clone();
-                menu = menu.entry(label, None, move |_, cx| {
-                    if let Some(modal) = modal.upgrade() {
-                        modal.update(cx, |this, cx| this.choose_project(index, cx));
-                    }
-                });
-            }
-            menu
-        })
-    }
-
-    fn target_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<ContextMenu> {
-        let entries = self
-            .selected_project()
-            .map(|project| {
-                project
-                    .targets
-                    .iter()
-                    .enumerate()
-                    .map(|(index, target)| (index, target.label.clone()))
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let modal = cx.weak_entity();
-
-        ContextMenu::build(window, cx, move |mut menu, _, _| {
-            for (index, label) in entries.clone() {
-                let modal = modal.clone();
-                menu = menu.entry(label, None, move |_, cx| {
-                    if let Some(modal) = modal.upgrade() {
-                        modal.update(cx, |this, cx| this.choose_target(index, cx));
-                    }
-                });
-            }
-            menu
-        })
-    }
-
-    fn device_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<ContextMenu> {
-        let entries = self
-            .selected_project()
-            .map(|project| {
-                project
-                    .devices
-                    .iter()
-                    .enumerate()
-                    .map(|(index, device)| {
-                        let label = match &device.os_version {
-                            Some(os_version) => format!("{} ({os_version})", device.name),
-                            None => device.name.clone(),
-                        };
-                        (index, label)
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let modal = cx.weak_entity();
-
-        ContextMenu::build(window, cx, move |mut menu, _, _| {
-            for (index, label) in entries.clone() {
-                let modal = modal.clone();
-                menu = menu.entry(label, None, move |_, cx| {
-                    if let Some(modal) = modal.upgrade() {
-                        modal.update(cx, |this, cx| this.choose_device(index, cx));
-                    }
-                });
-            }
-            menu
-        })
-    }
-
-    fn action_menu(&self, window: &mut Window, cx: &mut Context<Self>) -> Entity<ContextMenu> {
-        let modal = cx.weak_entity();
-        ContextMenu::build(window, cx, move |mut menu, _, _| {
-            for action in [RuntimeAction::Run, RuntimeAction::Build] {
-                let modal = modal.clone();
-                menu = menu.entry(action.label(), None, move |_, cx| {
-                    if let Some(modal) = modal.upgrade() {
-                        modal.update(cx, |this, cx| this.choose_action(action, cx));
-                    }
-                });
-            }
-            menu
-        })
-    }
-}
-
-impl EventEmitter<DismissEvent> for RuntimeActionsModal {}
-
-impl Focusable for RuntimeActionsModal {
-    fn focus_handle(&self, _: &App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
-impl ModalView for RuntimeActionsModal {}
-
-impl Render for RuntimeActionsModal {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let loading = self.catalog.is_none();
-        let no_projects = self
-            .catalog
-            .as_ref()
-            .is_some_and(|catalog| catalog.projects.is_empty());
-
-        let project_label = self
-            .selected_project()
-            .map(|project| project.label.clone())
-            .unwrap_or_else(|| "No project".to_string());
-        let target_label = self
-            .selected_target()
-            .map(|target| target.label.clone())
-            .unwrap_or_else(|| "No target".to_string());
-        let device_label = self
-            .selected_device()
-            .map(|device| match &device.os_version {
-                Some(os_version) => format!("{} ({os_version})", device.name),
-                None => device.name.clone(),
-            })
-            .unwrap_or_else(|| "No device".to_string());
-        let execute_disabled = loading
-            || no_projects
-            || self.selected_target().is_none()
-            || (matches!(self.selected_action, RuntimeAction::Run) && self.selected_device().is_none());
-
-        v_flex()
-            .key_context("RuntimeActions")
-            .on_action(cx.listener(Self::dismiss))
-            .w(rems(34.))
-            .gap_3()
-            .p_3()
-            .child(
-                v_flex()
-                    .gap_1()
-                    .child(Label::new("Runtime Actions").size(LabelSize::Large))
-                    .child(
-                        Label::new("Run or build the detected Apple app from this workspace.")
-                            .size(LabelSize::Small)
-                            .color(Color::Muted),
-                    ),
-            )
-            .child(Divider::horizontal())
-            .child(
-                v_flex()
-                    .gap_2()
-                    .child(Label::new("Project").size(LabelSize::Small).color(Color::Muted))
-                    .child(
-                        DropdownMenu::new("runtime-project", project_label, self.project_menu(window, cx))
-                            .style(DropdownStyle::Outlined)
-                            .trigger_size(ButtonSize::Compact)
-                            .disabled(loading || no_projects),
-                    )
-                    .child(Label::new("Target").size(LabelSize::Small).color(Color::Muted))
-                    .child(
-                        DropdownMenu::new("runtime-target", target_label, self.target_menu(window, cx))
-                            .style(DropdownStyle::Outlined)
-                            .trigger_size(ButtonSize::Compact)
-                            .disabled(loading || no_projects),
-                    )
-                    .child(Label::new("Action").size(LabelSize::Small).color(Color::Muted))
-                    .child(
-                        DropdownMenu::new("runtime-action", self.selected_action.label(), self.action_menu(window, cx))
-                            .style(DropdownStyle::Outlined)
-                            .trigger_size(ButtonSize::Compact)
-                            .disabled(loading || no_projects),
-                    )
-                    .child(Label::new("Device").size(LabelSize::Small).color(Color::Muted))
-                    .child(
-                        DropdownMenu::new("runtime-device", device_label, self.device_menu(window, cx))
-                            .style(DropdownStyle::Outlined)
-                            .trigger_size(ButtonSize::Compact)
-                            .disabled(
-                                loading
-                                    || no_projects
-                                    || matches!(self.selected_action, RuntimeAction::Build)
-                                    || self.selected_project().is_none_or(|project| project.devices.is_empty()),
-                            ),
-                    ),
-            )
-            .when(loading, |this| {
-                this.child(
-                    Label::new("Detecting runtime capabilities...")
-                        .size(LabelSize::Small)
-                        .color(Color::Muted),
-                )
-            })
-            .when_some(self.status_message.clone(), |this, message| {
-                this.child(
-                    Label::new(message)
-                        .size(LabelSize::Small)
-                        .color(Color::Error),
-                )
-            })
-            .child(
-                h_flex()
-                    .justify_end()
-                    .gap_2()
-                    .child(
-                        Button::new("cancel-runtime-actions", "Cancel")
-                            .key_binding(KeyBinding::for_action(&Cancel, cx))
-                            .on_click(cx.listener(|this, _, window, cx| this.dismiss(&Cancel, window, cx))),
-                    )
-                    .child(
-                        Button::new("execute-runtime-action", self.selected_action.label())
-                            .disabled(execute_disabled)
-                            .tooltip(move |_window, cx| {
-                                Tooltip::for_action(
-                                    "Open Runtime Actions",
-                                    &OpenRuntimeActions,
-                                    cx,
-                                )
-                            })
-                            .on_click(cx.listener(|this, _, window, cx| this.execute(window, cx))),
-                    ),
-            )
-    }
+    entries
 }

@@ -18,7 +18,11 @@ impl<'a> AppleRuntimeProvider<'a> {
     }
 
     pub fn detect(&self, workspace_root: &Path) -> Option<DetectedProject> {
-        let project_path = detect_xcode_project(workspace_root)?;
+        let project_path = match detect_xcode_project(workspace_root) {
+            Some(project_path) => project_path,
+            None => return None,
+        };
+
         let targets = list_targets(&project_path);
         if targets.is_empty() {
             return None;
@@ -122,30 +126,104 @@ fn detect_xcode_project(workspace_root: &Path) -> Option<PathBuf> {
 }
 
 fn list_targets(project_path: &Path) -> Vec<RuntimeTarget> {
-    let scheme_dir = project_path.join("xcshareddata").join("xcschemes");
-    let Ok(entries) = std::fs::read_dir(scheme_dir) else {
-        return Vec::new();
-    };
+    let mut scheme_directories = vec![project_path.join("xcshareddata").join("xcschemes")];
 
-    let mut targets = entries
-        .filter_map(Result::ok)
-        .filter_map(|entry| {
+    let user_data_dir = project_path.join("xcuserdata");
+    if let Ok(entries) = std::fs::read_dir(&user_data_dir) {
+        for entry in entries.filter_map(Result::ok) {
             let path = entry.path();
-            let is_scheme = path.extension().and_then(|extension| extension.to_str()) == Some("xcscheme");
+            let is_user_dir =
+                path.extension().and_then(|extension| extension.to_str()) == Some("xcuserdatad");
+            if is_user_dir {
+                scheme_directories.push(path.join("xcschemes"));
+            }
+        }
+    }
+
+    let is_workspace =
+        project_path.extension().and_then(|extension| extension.to_str()) == Some("xcworkspace");
+    if is_workspace {
+        scheme_directories.extend(referenced_workspace_scheme_directories(project_path));
+    }
+
+    let mut targets = Vec::new();
+    for scheme_directory in scheme_directories {
+        let Ok(entries) = std::fs::read_dir(&scheme_directory) else {
+            continue;
+        };
+
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            let is_scheme =
+                path.extension().and_then(|extension| extension.to_str()) == Some("xcscheme");
             if !is_scheme {
-                return None;
+                continue;
             }
 
-            let label = path.file_stem()?.to_str()?.to_string();
-            Some(RuntimeTarget {
-                id: label.clone(),
-                label,
-            })
-        })
-        .collect::<Vec<_>>();
+            let Some(label) = path.file_stem().and_then(|stem| stem.to_str()) else {
+                continue;
+            };
+
+            if targets
+                .iter()
+                .any(|existing: &RuntimeTarget| existing.id == label)
+            {
+                continue;
+            }
+
+            targets.push(RuntimeTarget {
+                id: label.to_string(),
+                label: label.to_string(),
+            });
+        }
+    }
 
     targets.sort_by(|left, right| left.label.cmp(&right.label));
     targets
+}
+
+fn referenced_workspace_scheme_directories(project_path: &Path) -> Vec<PathBuf> {
+    let contents_path = project_path.join("contents.xcworkspacedata");
+    let Ok(contents) = std::fs::read_to_string(&contents_path) else {
+        return Vec::new();
+    };
+
+    let mut directories = Vec::new();
+    for line in contents.lines() {
+        let Some(start) = line.find("location = \"group:") else {
+            continue;
+        };
+        let rest = &line[start + 18..];
+        let Some(end) = rest.find('"') else {
+            continue;
+        };
+        let relative_path = &rest[..end];
+        if !relative_path.ends_with(".xcodeproj") {
+            continue;
+        }
+
+        let Some(workspace_parent) = project_path.parent() else {
+            continue;
+        };
+        let project_reference = workspace_parent.join(relative_path);
+        directories.push(project_reference.join("xcshareddata").join("xcschemes"));
+
+        let user_data_dir = project_reference.join("xcuserdata");
+        if let Ok(entries) = std::fs::read_dir(user_data_dir) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                let is_user_dir = path
+                    .extension()
+                    .and_then(|extension| extension.to_str())
+                    == Some("xcuserdatad");
+                if is_user_dir {
+                    directories.push(path.join("xcschemes"));
+                }
+            }
+        }
+    }
+
+    directories
 }
 
 fn list_simulators(runner: &dyn CommandRunner) -> Vec<RuntimeDevice> {

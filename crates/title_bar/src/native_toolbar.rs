@@ -708,9 +708,6 @@ impl NativeToolbarController {
                         }),
                 ));
             }
-            if let Some(item) = self.build_runtime_actions_item(cx) {
-                toolbar = toolbar.item(item);
-            }
             if let Some(ref encoding) = self.status_encoding {
                 toolbar = toolbar.item(NativeToolbarItem::Button(
                     NativeToolbarButton::new("glass.status.encoding", encoding.clone())
@@ -754,6 +751,15 @@ impl NativeToolbarController {
                         .on_click(|_event, window, cx| {
                             window
                                 .dispatch_action(workspace::ToggleProjectSearch.boxed_clone(), cx);
+                        }),
+                ));
+
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.runtime", "")
+                        .tool_tip("Runtime Actions")
+                        .icon("play.fill")
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
                         }),
                 ));
 
@@ -984,21 +990,6 @@ impl NativeToolbarController {
                             cx,
                         );
                     });
-                }),
-        ))
-    }
-
-    fn build_runtime_actions_item(&self, cx: &mut Context<Self>) -> Option<NativeToolbarItem> {
-        let runtime_button = self.right_item_view::<app_runtime_ui::RuntimeStatusButton>()?;
-        if !runtime_button.read(cx).should_render() {
-            return None;
-        }
-
-        Some(NativeToolbarItem::Button(
-            NativeToolbarButton::new("glass.runtime.actions", "Run App")
-                .tool_tip("Runtime Actions")
-                .on_click(|_event, window, cx| {
-                    window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
                 }),
         ))
     }

@@ -679,6 +679,7 @@ dependencies = [
  "app_runtime",
  "gpui",
  "menu",
+ "picker",
  "project",
  "task",
  "ui",

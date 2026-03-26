@@ -1,9 +1,7 @@
 mod runtime_actions_modal;
-mod runtime_status_button;
 
 use gpui::{App, actions};
 use runtime_actions_modal::RuntimeActionsModal;
-pub use runtime_status_button::RuntimeStatusButton;
 use workspace::Workspace;
 
 actions!(
