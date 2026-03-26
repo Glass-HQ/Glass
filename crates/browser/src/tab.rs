@@ -11,7 +11,9 @@
 
 use crate::client::{ClientBuilder, MANUAL_KEY_EVENT};
 use crate::context_menu_handler::ContextMenuContext;
-use crate::events::{self, BrowserEvent, DownloadUpdatedEvent, EventReceiver, FindResultEvent};
+use crate::events::{
+    self, BrowserEvent, DownloadUpdatedEvent, EventReceiver, FindResultEvent, OpenTargetRequest,
+};
 use crate::render_handler::RenderState;
 use anyhow::{Context as _, Result};
 use cef::{ImplBrowser, ImplBrowserHost, ImplFrame, ImplRequestContext, MouseButtonType};
@@ -78,6 +80,7 @@ pub enum TabEvent {
     FrameReady,
     NavigateToUrl(String),
     OpenNewTab(String),
+    OpenTargetRequested(OpenTargetRequest),
     FaviconChanged(Option<String>),
     LoadError {
         url: String,
@@ -218,6 +221,9 @@ impl BrowserTab {
                 }
                 BrowserEvent::ContextMenuRequested { context } => {
                     cx.emit(TabEvent::ContextMenuOpen { context });
+                }
+                BrowserEvent::OpenTargetRequested(request) => {
+                    cx.emit(TabEvent::OpenTargetRequested(request));
                 }
                 BrowserEvent::FaviconUrlChanged(urls) => {
                     if is_suspended {

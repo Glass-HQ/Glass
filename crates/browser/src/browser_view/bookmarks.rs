@@ -1,4 +1,5 @@
 use crate::bookmarks::{BookmarkBar, BookmarkBarEvent};
+use crate::events::BrowserTabOpenTarget;
 use crate::tab::BrowserTab;
 use gpui::{Context, Entity, Window};
 
@@ -19,8 +20,7 @@ impl BrowserView {
                 }
             }
             BookmarkBarEvent::OpenInNewTab(url) => {
-                self.pending_new_tab_urls.push(url.clone());
-                cx.notify();
+                self.queue_tab_open(url.clone(), BrowserTabOpenTarget::Background, cx);
             }
         }
     }

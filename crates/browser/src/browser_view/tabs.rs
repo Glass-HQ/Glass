@@ -5,8 +5,8 @@ use gpui::{App, AppContext as _, Context, Entity, Task, Window};
 use std::time::Duration;
 
 use super::{
-    BrowserView, CloseTab, MAX_CLOSED_TABS, NewTab, NextTab, PreviousTab, ReopenClosedTab,
-    TabBarMode, ToggleSidebar,
+    BrowserView, CloseTab, MAX_CLOSED_TABS, NewTab, NextTab, PendingTabOpenRequest, PreviousTab,
+    ReopenClosedTab, TabBarMode, ToggleSidebar,
 };
 
 impl BrowserView {
@@ -19,6 +19,7 @@ impl BrowserView {
 
         self.tabs.push(tab);
         self.active_tab_index = self.tabs.len() - 1;
+        self.pending_toolbar_sync = true;
         self.schedule_save(cx);
     }
 
@@ -42,6 +43,7 @@ impl BrowserView {
         let tab_ref = tab.clone();
         self.tabs.push(tab);
         self.active_tab_index = self.tabs.len() - 1;
+        self.pending_toolbar_sync = true;
 
         if self.message_pump_started {
             self.create_browser_and_navigate(&tab_ref, url, cx);
@@ -54,7 +56,7 @@ impl BrowserView {
         cx.notify();
     }
 
-    pub(super) fn add_tab_in_background(&mut self, url: &str, cx: &mut Context<Self>) {
+    fn create_tab_for_url(&mut self, url: &str, cx: &mut Context<Self>) -> Entity<BrowserTab> {
         let tab = cx.new(|cx| {
             let mut tab = BrowserTab::new(cx);
             tab.set_new_tab_page(false);
@@ -64,7 +66,56 @@ impl BrowserView {
         self.configure_tab_request_context(&tab, cx);
         let subscription = cx.subscribe(&tab, Self::handle_tab_event);
         self._subscriptions.push(subscription);
-        self.tabs.push(tab);
+        tab
+    }
+
+    pub(super) fn process_pending_tab_opens(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let requests = std::mem::take(&mut self.pending_tab_opens);
+        for request in requests {
+            self.open_pending_tab_request(request, window, cx);
+        }
+    }
+
+    fn open_pending_tab_request(
+        &mut self,
+        request: PendingTabOpenRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let new_tab = self.create_tab_for_url(&request.url, cx);
+
+        match request.target {
+            crate::events::BrowserTabOpenTarget::Foreground => {
+                if let Some(old_tab) = self.active_tab().cloned() {
+                    old_tab.update(cx, |tab, _| {
+                        tab.set_focus(false);
+                        tab.set_hidden(true);
+                    });
+                }
+
+                self.tabs.push(new_tab.clone());
+                self.active_tab_index = self.tabs.len() - 1;
+
+                if self.message_pump_started {
+                    self.create_browser_and_navigate(&new_tab, &request.url, cx);
+                    new_tab.update(cx, |tab, _| {
+                        tab.take_pending_url();
+                        tab.set_hidden(false);
+                        tab.set_focus(true);
+                    });
+                }
+
+                self.update_toolbar_active_tab(window, cx);
+                self.request_new_tab_search_focus(cx);
+            }
+            crate::events::BrowserTabOpenTarget::Background => {
+                self.tabs.push(new_tab);
+            }
+        }
 
         self.schedule_save(cx);
         cx.notify();

@@ -16,10 +16,11 @@ use self::swipe::SwipeNavigationState;
 
 use crate::bookmarks::BookmarkBar;
 use crate::cef_instance::CefInstance;
-use crate::events::DownloadUpdatedEvent;
+use crate::events::{BrowserTabOpenTarget, DownloadUpdatedEvent, OpenTargetRequest};
 use crate::history::BrowserHistory;
 use crate::session::{SerializedDownloadItem, SerializedTab};
 use crate::tab::{BrowserTab, TabEvent};
+#[cfg(not(target_os = "macos"))]
 use crate::toolbar::BrowserToolbar;
 use editor::Editor;
 use gpui::{
@@ -30,6 +31,7 @@ use gpui::{
     px,
 };
 use std::sync::atomic::{AtomicBool, Ordering};
+#[cfg(not(target_os = "macos"))]
 use workspace_modes::{ModeId, ModeViewRegistry};
 
 const MAX_CLOSED_TABS: usize = 20;
@@ -133,11 +135,28 @@ impl DownloadItemState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BrowserDownloadItem {
+    pub id: u32,
+    pub display_name: String,
+    pub status_text: String,
+    pub full_path: Option<String>,
+    pub is_complete: bool,
+    pub is_incognito: bool,
+}
+
+#[derive(Clone)]
+struct PendingTabOpenRequest {
+    url: String,
+    target: BrowserTabOpenTarget,
+}
+
 pub struct BrowserView {
     focus_handle: FocusHandle,
     tabs: Vec<Entity<BrowserTab>>,
     active_tab_index: usize,
     closed_tabs: Vec<SerializedTab>,
+    #[cfg(not(target_os = "macos"))]
     toolbar: Option<Entity<BrowserToolbar>>,
     bookmark_bar: Entity<BookmarkBar>,
     history: Entity<BrowserHistory>,
@@ -146,7 +165,8 @@ pub struct BrowserView {
     is_tab_owner: bool,
     message_pump_started: bool,
     last_viewport: Option<(u32, u32, u32)>,
-    pending_new_tab_urls: Vec<String>,
+    pending_tab_opens: Vec<PendingTabOpenRequest>,
+    pending_toolbar_sync: bool,
     new_tab_search_text: String,
     new_tab_suggestions: Vec<crate::history::HistoryMatch>,
     new_tab_selected_index: Option<usize>,
@@ -197,6 +217,7 @@ impl BrowserView {
             tabs: Vec::new(),
             active_tab_index: 0,
             closed_tabs: Vec::new(),
+            #[cfg(not(target_os = "macos"))]
             toolbar: None,
             bookmark_bar,
             history,
@@ -205,7 +226,8 @@ impl BrowserView {
             is_tab_owner: false,
             message_pump_started: false,
             last_viewport: None,
-            pending_new_tab_urls: Vec::new(),
+            pending_tab_opens: Vec::new(),
+            pending_toolbar_sync: false,
             new_tab_search_text: String::new(),
             new_tab_suggestions: Vec::new(),
             new_tab_selected_index: None,
@@ -242,7 +264,9 @@ impl BrowserView {
         };
 
         if cef_available {
-            this.restore_downloads();
+            if !this.is_incognito_window {
+                this.restore_downloads();
+            }
             let already_restored = TABS_RESTORED.swap(true, Ordering::SeqCst);
             this.is_tab_owner = !already_restored;
             let restored = if !already_restored {
@@ -253,6 +277,8 @@ impl BrowserView {
             if !restored {
                 this.add_tab(cx);
             }
+
+            this.sync_bookmark_bar_visibility(cx);
         }
 
         this
@@ -578,6 +604,7 @@ impl BrowserView {
             return;
         }
 
+        log::info!("[browser] switching browser view into incognito mode");
         self.is_incognito_window = true;
         self.ensure_incognito_request_context();
 
@@ -591,7 +618,8 @@ impl BrowserView {
         self.tabs.clear();
         self.closed_tabs.clear();
         self.active_tab_index = 0;
-        self.pending_new_tab_urls.clear();
+        self.pending_tab_opens.clear();
+        self.pending_toolbar_sync = true;
         self.context_menu = None;
         self.pending_context_menu = None;
         self.find_visible = false;
@@ -612,14 +640,19 @@ impl BrowserView {
     }
 
     fn update_toolbar_active_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let _ = window;
+
+        #[cfg(not(target_os = "macos"))]
         if let (Some(toolbar), Some(tab)) = (self.toolbar.clone(), self.active_tab().cloned()) {
             toolbar.update(cx, |toolbar, cx| {
                 toolbar.set_active_tab(tab, window, cx);
             });
         }
+
         self.sync_bookmark_bar_visibility(cx);
     }
 
+    #[cfg(not(target_os = "macos"))]
     fn focus_omnibox_if_new_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let is_new_tab = self
             .active_tab()
@@ -670,8 +703,10 @@ impl BrowserView {
                 self.create_browser_and_navigate(&tab_entity, &url, cx);
             }
             TabEvent::OpenNewTab(url) => {
-                self.pending_new_tab_urls.push(url.clone());
-                cx.notify();
+                self.queue_tab_open(url.clone(), BrowserTabOpenTarget::Background, cx);
+            }
+            TabEvent::OpenTargetRequested(request) => {
+                self.handle_open_target_request(tab_entity, request, cx);
             }
             TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) => {
                 if !self.is_incognito_window {
@@ -726,6 +761,33 @@ impl BrowserView {
         }
     }
 
+    fn handle_open_target_request(
+        &mut self,
+        _tab_entity: Entity<BrowserTab>,
+        request: &OpenTargetRequest,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(target) = request.disposition.app_tab_target() else {
+            return;
+        };
+
+        self.queue_tab_open(request.url.clone(), target, cx);
+    }
+
+    fn queue_tab_open(
+        &mut self,
+        url: String,
+        target: BrowserTabOpenTarget,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending_tab_opens
+            .push(PendingTabOpenRequest { url, target });
+        if matches!(target, BrowserTabOpenTarget::Foreground) {
+            self.pending_toolbar_sync = true;
+        }
+        cx.notify();
+    }
+
     fn update_download(&mut self, update: &DownloadUpdatedEvent, cx: &mut Context<Self>) {
         if let Some(existing) = self
             .downloads
@@ -745,6 +807,25 @@ impl BrowserView {
         }
     }
 
+    pub fn download_items(&self) -> Vec<BrowserDownloadItem> {
+        self.downloads
+            .iter()
+            .map(|download| BrowserDownloadItem {
+                id: download.item.id,
+                display_name: Self::download_display_name(download),
+                status_text: Self::download_status_line(download),
+                full_path: download.item.full_path.clone(),
+                is_complete: download.item.is_complete,
+                is_incognito: download.is_incognito,
+            })
+            .collect()
+    }
+
+    pub fn is_incognito_window(&self) -> bool {
+        self.is_incognito_window
+    }
+
+    #[cfg(not(target_os = "macos"))]
     fn create_toolbar(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(tab) = self.active_tab().cloned() {
             let history = self.history.clone();
@@ -844,22 +925,27 @@ impl Render for BrowserView {
                 .into_any_element();
         }
 
+        #[cfg(not(target_os = "macos"))]
         if self.toolbar.is_none() && !self.tabs.is_empty() {
             cx.defer_in(window, |this, window, cx| {
                 this.create_toolbar(window, cx);
             });
         }
 
+        #[cfg(not(target_os = "macos"))]
         if let Some(toolbar) = self.toolbar.clone() {
             ModeViewRegistry::global_mut(cx)
                 .set_titlebar_center_view(ModeId::BROWSER, toolbar.into());
         }
 
-        if !self.pending_new_tab_urls.is_empty() {
-            let urls: Vec<String> = std::mem::take(&mut self.pending_new_tab_urls);
-            for url in urls {
-                self.add_tab_in_background(&url, cx);
-            }
+        if !self.pending_tab_opens.is_empty() {
+            self.process_pending_tab_opens(window, cx);
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        if self.pending_toolbar_sync && self.toolbar.is_some() {
+            self.pending_toolbar_sync = false;
+            self.update_toolbar_active_tab(window, cx);
         }
 
         if let Some(pending) = self.pending_context_menu.take() {

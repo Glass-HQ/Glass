@@ -28,6 +28,7 @@ impl BrowserView {
             true,
         );
 
+        #[cfg(not(target_os = "macos"))]
         if let Some(toolbar) = self.toolbar.clone() {
             toolbar.update(cx, |toolbar, cx| {
                 toolbar.focus_omnibox(window, cx);

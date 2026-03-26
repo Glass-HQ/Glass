@@ -230,7 +230,7 @@ impl BrowserView {
         cx.notify();
     }
 
-    pub(super) fn open_download_with_system(&mut self, id: u32, cx: &mut Context<Self>) {
+    pub fn open_download_with_system(&mut self, id: u32, cx: &mut Context<Self>) {
         let path = self
             .downloads
             .iter()
@@ -241,7 +241,7 @@ impl BrowserView {
         }
     }
 
-    pub(super) fn reveal_download_in_finder(&mut self, id: u32, cx: &mut Context<Self>) {
+    pub fn reveal_download_in_finder(&mut self, id: u32, cx: &mut Context<Self>) {
         let path = self
             .downloads
             .iter()

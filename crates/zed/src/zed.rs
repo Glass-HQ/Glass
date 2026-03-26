@@ -1131,23 +1131,40 @@ fn register_actions(
                 let app_state = app_state.clone();
                 cx.defer(move |cx| {
                     if let Some(app_state) = app_state.upgrade() {
-                        open_new(
-                            Default::default(),
+                        log::info!("[browser] opening new incognito window");
+                        let task = workspace::Workspace::new_local(
+                            Vec::new(),
                             app_state,
+                            None,
+                            None,
+                            None,
+                            true,
                             cx,
-                            |workspace, window, cx| {
-                                cx.activate(true);
-                                workspace.switch_to_mode(ModeId::BROWSER, window, cx);
-                                if let Some(view) = workspace.mode_view(ModeId::BROWSER, cx) {
-                                    if let Ok(browser_view) = view.downcast::<BrowserView>() {
+                        );
+                        cx.spawn(async move |cx| {
+                            let open_result = task.await?;
+                            let window_handle = open_result.window;
+                            let workspace_handle = open_result.workspace;
+
+                            window_handle.update(cx, |_, window, cx| {
+                                window.activate_window();
+                                workspace_handle.update(cx, |workspace, cx| {
+                                    workspace.switch_to_mode(ModeId::BROWSER, window, cx);
+                                    if let Some(view) = workspace.mode_view(ModeId::BROWSER, cx)
+                                        && let Ok(browser_view) = view.downcast::<BrowserView>()
+                                    {
                                         browser_view.update(cx, |browser_view, cx| {
+                                            log::info!(
+                                                "[browser] configuring browser view as incognito"
+                                            );
                                             browser_view.configure_as_incognito_window(cx);
                                         });
                                     }
-                                }
-                            },
-                        )
-                        .detach();
+                                });
+                            })?;
+                            anyhow::Ok(())
+                        })
+                        .detach_and_log_err(cx);
                     }
                 });
             }

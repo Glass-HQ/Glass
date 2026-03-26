@@ -153,7 +153,7 @@ impl BrowserView {
         format!("{:.1} GB", safe_bytes / (1024.0 * 1024.0 * 1024.0))
     }
 
-    fn download_display_name(download: &super::DownloadItemState) -> String {
+    pub(super) fn download_display_name(download: &super::DownloadItemState) -> String {
         if !download.item.suggested_file_name.is_empty() {
             return download.item.suggested_file_name.clone();
         }
@@ -170,7 +170,7 @@ impl BrowserView {
             .unwrap_or_else(|| String::from("download"))
     }
 
-    fn download_status_line(download: &super::DownloadItemState) -> String {
+    pub(super) fn download_status_line(download: &super::DownloadItemState) -> String {
         if download.item.is_complete {
             return String::from("Complete");
         }

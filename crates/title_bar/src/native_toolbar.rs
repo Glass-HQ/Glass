@@ -8,11 +8,12 @@ use editor::Editor;
 use gpui::{
     Action, AnyElement, App, AppContext as _, Context, Corner, DismissEvent, Entity, Focusable,
     IntoElement, NativePanel, NativePanelAnchor, NativePanelLevel, NativePanelMaterial,
-    NativePanelStyle, NativePopoverClickableRow, NativePopoverContentItem, NativeToolbar,
-    NativeToolbarButton, NativeToolbarDisplayMode, NativeToolbarItem, NativeToolbarLabel,
-    NativeToolbarMenuButton, NativeToolbarMenuItem, NativeToolbarSearchEvent,
-    NativeToolbarSearchField, NativeToolbarSizeMode, Render, SharedString, Styled, Subscription,
-    WeakEntity, Window, anchored, deferred, div, point, px,
+    NativePanelStyle, NativePopover, NativePopoverAnchor, NativePopoverBehavior,
+    NativePopoverClickableRow, NativePopoverContentItem, NativeToolbar, NativeToolbarButton,
+    NativeToolbarDisplayMode, NativeToolbarItem, NativeToolbarLabel, NativeToolbarMenuButton,
+    NativeToolbarMenuItem, NativeToolbarSearchEvent, NativeToolbarSearchField,
+    NativeToolbarSizeMode, Render, SharedString, Styled, Subscription, WeakEntity, Window,
+    anchored, deferred, div, point, px,
 };
 use image_viewer::ImageView;
 use language::LineEnding;
@@ -814,6 +815,10 @@ impl NativeToolbarController {
             }
         }
 
+        if is_browser_mode {
+            toolbar = toolbar.item(self.build_downloads_item());
+        }
+
         if title_bar_settings.show_user_menu {
             toolbar = toolbar.item(self.build_user_menu_item(&user, cx));
         }
@@ -1224,6 +1229,30 @@ impl NativeToolbarController {
         )
     }
 
+    fn build_downloads_item(&self) -> NativeToolbarItem {
+        let workspace = self.workspace.clone();
+        NativeToolbarItem::Button(
+            NativeToolbarButton::new("glass.browser.downloads", "")
+                .tool_tip("Downloads")
+                .icon("arrow.down.circle")
+                .on_click(move |_event, window, cx| {
+                    let Some(workspace) = workspace.upgrade() else {
+                        return;
+                    };
+                    let Some(controller) = workspace
+                        .read(cx)
+                        .titlebar_item()
+                        .and_then(|item| item.downcast::<NativeToolbarController>().ok())
+                    else {
+                        return;
+                    };
+                    controller.update(cx, |controller, cx| {
+                        controller.show_downloads_panel(window, cx);
+                    });
+                }),
+        )
+    }
+
     fn omnibox_row_count(&self) -> usize {
         let mut count = self.omnibox_suggestions.len();
         if !self.omnibox_text.is_empty() {
@@ -1359,6 +1388,85 @@ impl NativeToolbarController {
         window.show_native_panel(
             panel,
             NativePanelAnchor::ToolbarItem("glass.omnibox".into()),
+        );
+    }
+
+    fn show_downloads_panel(&self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(browser_view) = self.browser_view(cx) else {
+            return;
+        };
+
+        let (downloads, is_incognito_window) = browser_view.read_with(cx, |browser_view, _| {
+            (
+                browser_view.download_items(),
+                browser_view.is_incognito_window(),
+            )
+        });
+
+        let mut items: Vec<NativePopoverContentItem> = Vec::new();
+        let mut row_count: usize = 0;
+
+        items.push(NativePopoverContentItem::heading("Downloads"));
+        row_count += 1;
+
+        if is_incognito_window {
+            items.push(NativePopoverContentItem::small_label(
+                "Incognito downloads stay in memory for this window only.".to_string(),
+            ));
+            row_count += 1;
+            if !downloads.is_empty() {
+                items.push(NativePopoverContentItem::separator());
+                row_count += 1;
+            }
+        }
+
+        if downloads.is_empty() {
+            items.push(NativePopoverContentItem::small_label(
+                "No downloads yet.".to_string(),
+            ));
+            row_count += 1;
+        } else {
+            for download in downloads {
+                let browser_view = browser_view.clone();
+                let detail = if download.is_incognito {
+                    format!("{} • Incognito", download.status_text)
+                } else {
+                    download.status_text.clone()
+                };
+
+                if download.is_complete && download.full_path.is_some() {
+                    let id = download.id;
+                    items.push(
+                        NativePopoverClickableRow::new(download.display_name)
+                            .icon("arrow.down.doc")
+                            .detail(detail)
+                            .on_click(move |window, cx| {
+                                window.dismiss_native_panel();
+                                browser_view.update(cx, |browser_view, cx| {
+                                    browser_view.open_download_with_system(id, cx);
+                                });
+                            })
+                            .into(),
+                    );
+                } else {
+                    items.push(NativePopoverContentItem::small_label(format!(
+                        "{} — {}",
+                        download.display_name, detail
+                    )));
+                }
+                row_count += 1;
+            }
+        }
+
+        let popover_height = (row_count as f64 * 28.0 + 32.0).clamp(120.0, 360.0);
+        let popover = NativePopover::new(360.0, popover_height)
+            .behavior(NativePopoverBehavior::Transient)
+            .items(items);
+
+        window.dismiss_native_popover();
+        window.show_native_popover(
+            popover,
+            NativePopoverAnchor::ToolbarItem("glass.browser.downloads".into()),
         );
     }
 

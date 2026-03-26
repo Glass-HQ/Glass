@@ -184,7 +184,7 @@ impl ClientBuilder {
         let load_handler = OsrLoadHandler::new(event_sender.clone());
         let display_handler = OsrDisplayHandler::new(event_sender.clone());
         let life_span_handler = OsrLifeSpanHandler::new(event_sender.clone());
-        let request_handler = OsrRequestHandler::new();
+        let request_handler = OsrRequestHandler::new(event_sender.clone());
         let download_handler = OsrDownloadHandler::new(event_sender.clone());
         let find_handler = OsrFindHandler::new(event_sender.clone());
         let context_menu_handler = OsrContextMenuHandler::new(event_sender);

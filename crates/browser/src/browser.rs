@@ -20,15 +20,17 @@ mod load_handler;
 #[cfg(target_os = "macos")]
 mod macos_protocol;
 mod new_tab_page;
+#[cfg(not(target_os = "macos"))]
 mod omnibox;
 mod permission_handler;
 mod render_handler;
 mod request_handler;
 mod session;
 mod tab;
+#[cfg(not(target_os = "macos"))]
 mod toolbar;
 
-pub use browser_view::{BrowserSidebarPanel, BrowserView};
+pub use browser_view::{BrowserDownloadItem, BrowserSidebarPanel, BrowserView};
 pub use cef_instance::CefInstance;
 pub use tab::BrowserTab;
 
