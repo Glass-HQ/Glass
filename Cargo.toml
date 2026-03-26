@@ -11,6 +11,8 @@ members = [
     "crates/agent_ui",
     "crates/ai_onboarding",
     "crates/anthropic",
+    "crates/app_runtime",
+    "crates/app_runtime_ui",
     "crates/askpass",
     "crates/assets",
     "crates/assistant_text_thread",
@@ -136,6 +138,7 @@ members = [
     "crates/rules_library",
     "crates/schema_generator",
     "crates/search",
+    "crates/service_hub",
     "crates/session",
     "crates/settings",
     "crates/settings_content",
@@ -235,6 +238,8 @@ agent_settings = { path = "crates/agent_settings" }
 agent_servers = { path = "crates/agent_servers" }
 ai_onboarding = { path = "crates/ai_onboarding" }
 anthropic = { path = "crates/anthropic" }
+app_runtime = { path = "crates/app_runtime" }
+app_runtime_ui = { path = "crates/app_runtime_ui" }
 askpass = { path = "crates/askpass" }
 assets = { path = "crates/assets" }
 assistant_text_thread = { path = "crates/assistant_text_thread" }
@@ -368,6 +373,7 @@ rpc = { path = "crates/rpc" }
 rules_library = { path = "crates/rules_library" }
 scheduler = { git = "https://github.com/Glass-HQ/gpui.git" }
 search = { path = "crates/search" }
+service_hub = { path = "crates/service_hub" }
 session = { path = "crates/session" }
 sidebar = { path = "crates/sidebar" }
 settings = { path = "crates/settings" }

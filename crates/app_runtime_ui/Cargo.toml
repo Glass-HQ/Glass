@@ -1,0 +1,23 @@
+[package]
+name = "app_runtime_ui"
+description = "UI entry points for app runtime actions"
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-or-later"
+
+[lib]
+path = "src/app_runtime_ui.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+app_runtime.workspace = true
+gpui.workspace = true
+menu.workspace = true
+picker.workspace = true
+project.workspace = true
+task.workspace = true
+ui.workspace = true
+uuid.workspace = true
+workspace.workspace = true

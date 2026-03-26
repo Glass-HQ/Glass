@@ -1,0 +1,12 @@
+[package]
+name = "service_hub"
+description = "Internal service provider abstractions for remote app services"
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-or-later"
+
+[lib]
+path = "src/service_hub.rs"
+
+[lints]
+workspace = true

@@ -661,6 +661,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
+name = "app_runtime"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "walkdir",
+]
+
+[[package]]
+name = "app_runtime_ui"
+version = "0.0.0"
+dependencies = [
+ "app_runtime",
+ "gpui",
+ "menu",
+ "picker",
+ "project",
+ "task",
+ "ui",
+ "uuid",
+ "workspace",
+]
+
+[[package]]
 name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -14000,6 +14027,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "service_hub"
+version = "0.0.0"
+
+[[package]]
 name = "session"
 version = "0.1.0"
 dependencies = [
@@ -15786,6 +15817,7 @@ name = "title_bar"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "app_runtime_ui",
  "auto_update",
  "browser",
  "chrono",
@@ -19620,6 +19652,7 @@ dependencies = [
  "agent_settings",
  "agent_ui",
  "anyhow",
+ "app_runtime_ui",
  "ashpd",
  "askpass",
  "assets",

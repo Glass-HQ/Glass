@@ -755,6 +755,15 @@ impl NativeToolbarController {
                         }),
                 ));
 
+                toolbar = toolbar.item(NativeToolbarItem::Button(
+                    NativeToolbarButton::new("glass.nav.runtime", "")
+                        .tool_tip("Runtime Actions")
+                        .icon("play.fill")
+                        .on_click(|_event, window, cx| {
+                            window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
+                        }),
+                ));
+
                 let diagnostics_icon = if diagnostics.error_count > 0 {
                     "xmark.circle"
                 } else if diagnostics.warning_count > 0 {
