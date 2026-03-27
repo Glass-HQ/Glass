@@ -669,6 +669,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.17",
+ "toml 0.8.23",
  "walkdir",
 ]
 
@@ -676,13 +677,19 @@ dependencies = [
 name = "app_runtime_ui"
 version = "0.0.0"
 dependencies = [
+ "anyhow",
  "app_runtime",
+ "editor",
+ "futures",
  "gpui",
+ "language",
  "menu",
+ "multi_buffer",
  "picker",
  "project",
  "task",
  "ui",
+ "util",
  "uuid",
  "workspace",
 ]
@@ -14029,6 +14036,25 @@ dependencies = [
 [[package]]
 name = "service_hub"
 version = "0.0.0"
+dependencies = [
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "service_hub_ui"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "gpui",
+ "project",
+ "serde",
+ "serde_json",
+ "service_hub",
+ "task",
+ "ui",
+ "util",
+ "workspace",
+]
 
 [[package]]
 name = "session"
@@ -19755,6 +19781,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "service_hub_ui",
  "session",
  "settings",
  "settings_profile_selector",

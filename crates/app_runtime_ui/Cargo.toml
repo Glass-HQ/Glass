@@ -12,12 +12,18 @@ path = "src/app_runtime_ui.rs"
 workspace = true
 
 [dependencies]
+anyhow.workspace = true
 app_runtime.workspace = true
+editor.workspace = true
+futures.workspace = true
 gpui.workspace = true
+language.workspace = true
 menu.workspace = true
+multi_buffer.workspace = true
 picker.workspace = true
 project.workspace = true
 task.workspace = true
 ui.workspace = true
+util.workspace = true
 uuid.workspace = true
 workspace.workspace = true

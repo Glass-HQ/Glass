@@ -1,9 +1,9 @@
 use std::path::{Path, PathBuf};
 
 use crate::{
-    CapabilityState, CommandRunner, DetectedProject, ExecutionPlan, ExecutionRequest,
-    ProjectKind, RuntimeAction, RuntimeDeviceKind, RuntimeError,
-    apple_runtime_provider::AppleRuntimeProvider,
+    CapabilityState, CommandRunner, DetectedProject, ExecutionPlan, ExecutionRequest, ProjectKind,
+    RuntimeAction, RuntimeDeviceKind, RuntimeError, apple_runtime_provider::AppleRuntimeProvider,
+    gpui_runtime_provider::GpuiRuntimeProvider, runtime_provider::RuntimeProvider,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -13,12 +13,14 @@ pub struct RuntimeCatalog {
 
 impl RuntimeCatalog {
     pub fn discover(workspace_roots: &[PathBuf], runner: &dyn CommandRunner) -> Self {
-        let provider = AppleRuntimeProvider::new(runner);
+        let apple_provider = AppleRuntimeProvider::new(runner);
+        let gpui_provider = GpuiRuntimeProvider::new(runner);
+        let providers: [&dyn RuntimeProvider; 2] = [&apple_provider, &gpui_provider];
         let mut projects = Vec::new();
 
         for workspace_root in workspace_roots {
-            if let Some(project) = provider.detect(workspace_root) {
-                projects.push(project);
+            for provider in providers {
+                projects.extend(provider.detect(workspace_root));
             }
         }
 
@@ -44,7 +46,18 @@ impl RuntimeCatalog {
         match request.action {
             RuntimeAction::Build => {
                 if let CapabilityState::Available = project.capabilities.build {
-                    Ok(build_plan(project.workspace_root.as_path(), project, target.label.as_str()))
+                    Ok(match project.kind {
+                        ProjectKind::AppleWorkspace | ProjectKind::AppleProject => {
+                            build_apple_plan(
+                                project.workspace_root.as_path(),
+                                project,
+                                target.label.as_str(),
+                            )
+                        }
+                        ProjectKind::GpuiApplication => {
+                            build_gpui_plan(project, target.label.as_str())
+                        }
+                    })
                 } else {
                     Err(RuntimeError::ActionUnavailable(
                         request.action.into(),
@@ -64,16 +77,30 @@ impl RuntimeCatalog {
                         .find(|device| &device.id == device_id)
                         .ok_or_else(|| RuntimeError::DeviceNotFound(device_id.clone()))?;
 
-                    if !matches!(device.kind, RuntimeDeviceKind::Simulator) {
-                        return Err(RuntimeError::UnsupportedDeviceKind);
-                    }
+                    Ok(match project.kind {
+                        ProjectKind::AppleWorkspace | ProjectKind::AppleProject => {
+                            match device.kind {
+                                RuntimeDeviceKind::Simulator => run_apple_simulator_plan(
+                                    project.workspace_root.as_path(),
+                                    project,
+                                    target.label.as_str(),
+                                    device.id.as_str(),
+                                ),
+                                RuntimeDeviceKind::Desktop => run_apple_desktop_plan(
+                                    project.workspace_root.as_path(),
+                                    project,
+                                    target.label.as_str(),
+                                ),
+                            }
+                        }
+                        ProjectKind::GpuiApplication => {
+                            if !matches!(device.kind, RuntimeDeviceKind::Desktop) {
+                                return Err(RuntimeError::UnsupportedDeviceKind);
+                            }
 
-                    Ok(run_plan(
-                        project.workspace_root.as_path(),
-                        project,
-                        target.label.as_str(),
-                        device.id.as_str(),
-                    ))
+                            run_gpui_plan(project, target.label.as_str())
+                        }
+                    })
                 } else {
                     Err(RuntimeError::ActionUnavailable(
                         request.action.into(),
@@ -85,7 +112,11 @@ impl RuntimeCatalog {
     }
 }
 
-fn build_plan(workspace_root: &Path, project: &DetectedProject, target: &str) -> ExecutionPlan {
+fn build_apple_plan(
+    workspace_root: &Path,
+    project: &DetectedProject,
+    target: &str,
+) -> ExecutionPlan {
     let command = "zsh".to_string();
     let args = vec![
         "-lc".to_string(),
@@ -105,7 +136,7 @@ fn build_plan(workspace_root: &Path, project: &DetectedProject, target: &str) ->
     }
 }
 
-fn run_plan(
+fn run_apple_simulator_plan(
     workspace_root: &Path,
     project: &DetectedProject,
     target: &str,
@@ -150,6 +181,74 @@ fn run_plan(
     }
 }
 
+fn run_apple_desktop_plan(
+    workspace_root: &Path,
+    project: &DetectedProject,
+    target: &str,
+) -> ExecutionPlan {
+    let derived_data_path = workspace_root
+        .join(".glass")
+        .join("app_runtime")
+        .join(target.replace('/', "-"));
+    let derived_data = derived_data_path.to_string_lossy();
+    let selector = xcode_selector(project);
+    let target = shell_escape(target);
+
+    ExecutionPlan {
+        label: format!("Run {}", project.label),
+        command_label: format!("xcodebuild {} build and open", target),
+        command: "zsh".to_string(),
+        args: vec![
+            "-lc".to_string(),
+            format!(
+                "set -euo pipefail\n\
+                mkdir -p {derived_data}\n\
+                {selector} -scheme {target} -destination 'platform=macOS' -derivedDataPath {derived_data} build\n\
+                app_path=\"$(find {derived_data}/Build/Products -maxdepth 2 -name '*.app' -print -quit)\"\n\
+                if [ -z \"$app_path\" ]; then\n\
+                  echo 'Glass could not find the built .app bundle.' >&2\n\
+                  exit 1\n\
+                fi\n\
+                open -n \"$app_path\"\n",
+                derived_data = shell_escape(derived_data.as_ref()),
+            ),
+        ],
+        cwd: workspace_root.to_path_buf(),
+    }
+}
+
+fn build_gpui_plan(project: &DetectedProject, target: &str) -> ExecutionPlan {
+    ExecutionPlan {
+        label: format!("Build {}", project.label),
+        command_label: format!("cargo build --bin {}", target),
+        command: "cargo".to_string(),
+        args: vec![
+            "build".to_string(),
+            "--manifest-path".to_string(),
+            project.project_path.to_string_lossy().into_owned(),
+            "--bin".to_string(),
+            target.to_string(),
+        ],
+        cwd: project.workspace_root.clone(),
+    }
+}
+
+fn run_gpui_plan(project: &DetectedProject, target: &str) -> ExecutionPlan {
+    ExecutionPlan {
+        label: format!("Run {}", project.label),
+        command_label: format!("cargo run --bin {}", target),
+        command: "cargo".to_string(),
+        args: vec![
+            "run".to_string(),
+            "--manifest-path".to_string(),
+            project.project_path.to_string_lossy().into_owned(),
+            "--bin".to_string(),
+            target.to_string(),
+        ],
+        cwd: project.workspace_root.clone(),
+    }
+}
+
 fn capability_reason(capability: &CapabilityState) -> String {
     match capability {
         CapabilityState::Available => "available".to_string(),
@@ -169,6 +268,9 @@ fn xcode_selector(project: &DetectedProject) -> String {
             "xcodebuild -project {}",
             shell_escape(project.project_path.to_string_lossy().as_ref())
         ),
+        ProjectKind::GpuiApplication => {
+            unreachable!("xcode selector is only valid for Apple runtime projects")
+        }
     }
 }
 
@@ -178,12 +280,7 @@ fn shell_escape(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::BTreeMap,
-        fs,
-        path::Path,
-        sync::Mutex,
-    };
+    use std::{collections::BTreeMap, fs, path::Path, sync::Mutex};
 
     use crate::{
         CommandOutput, ExecutionRequest, RuntimeAction, RuntimeCatalog, RuntimeError,
@@ -242,9 +339,38 @@ mod tests {
     }
 
     #[test]
+    fn detects_gpui_application_and_marks_missing_cargo_as_setup_required() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        create_gpui_fixture(temp_dir.path(), "mini-gpui", &["mini-gpui"]);
+
+        let runner = FakeCommandRunner::new(BTreeMap::from([(
+            "cargo --version".to_string(),
+            CommandOutput {
+                success: false,
+                stdout: String::new(),
+                stderr: "cargo missing".to_string(),
+            },
+        )]));
+
+        let catalog = RuntimeCatalog::discover(&[temp_dir.path().to_path_buf()], &runner);
+        let project = catalog
+            .projects
+            .iter()
+            .find(|project| project.label == "mini-gpui")
+            .unwrap();
+
+        assert_eq!(project.kind, crate::ProjectKind::GpuiApplication);
+        assert!(!project.capabilities.build.is_available());
+        assert!(!project.capabilities.run.is_available());
+        assert_eq!(project.targets.len(), 1);
+        assert_eq!(project.devices.len(), 1);
+    }
+
+    #[test]
     fn detects_schemes_and_simulators_before_ui_integration() {
         let temp_dir = tempfile::tempdir().unwrap();
         create_workspace_fixture(temp_dir.path());
+        let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
             (
@@ -256,22 +382,14 @@ mod tests {
                 },
             ),
             (
-                "xcrun simctl list devices --json".to_string(),
+                format!(
+                    "xcodebuild -workspace {} -scheme Demo -showdestinations -quiet",
+                    workspace_path.display()
+                ),
                 CommandOutput {
                     success: true,
-                    stdout: serde_json::json!({
-                        "devices": {
-                            "com.apple.CoreSimulator.SimRuntime.iOS-18-2": [
-                                {
-                                    "udid": "SIM-1",
-                                    "isAvailable": true,
-                                    "state": "Booted",
-                                    "name": "iPhone 16 Pro"
-                                }
-                            ]
-                        }
-                    })
-                    .to_string(),
+                    stdout: "{ platform:iOS Simulator, id:SIM-1, OS:18.2, name:iPhone 16 Pro }"
+                        .to_string(),
                     stderr: String::new(),
                 },
             ),
@@ -290,6 +408,7 @@ mod tests {
     fn validates_that_run_requires_a_device() {
         let temp_dir = tempfile::tempdir().unwrap();
         create_workspace_fixture(temp_dir.path());
+        let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
             (
@@ -301,22 +420,14 @@ mod tests {
                 },
             ),
             (
-                "xcrun simctl list devices --json".to_string(),
+                format!(
+                    "xcodebuild -workspace {} -scheme Demo -showdestinations -quiet",
+                    workspace_path.display()
+                ),
                 CommandOutput {
                     success: true,
-                    stdout: serde_json::json!({
-                        "devices": {
-                            "com.apple.CoreSimulator.SimRuntime.iOS-18-2": [
-                                {
-                                    "udid": "SIM-1",
-                                    "isAvailable": true,
-                                    "state": "Shutdown",
-                                    "name": "iPhone 16"
-                                }
-                            ]
-                        }
-                    })
-                    .to_string(),
+                    stdout: "{ platform:iOS Simulator, id:SIM-1, OS:18.2, name:iPhone 16 }"
+                        .to_string(),
                     stderr: String::new(),
                 },
             ),
@@ -339,6 +450,7 @@ mod tests {
     fn builds_an_xcodebuild_plan_for_build_and_run() {
         let temp_dir = tempfile::tempdir().unwrap();
         create_workspace_fixture(temp_dir.path());
+        let workspace_path = temp_dir.path().join("Demo.xcworkspace");
 
         let runner = FakeCommandRunner::new(BTreeMap::from([
             (
@@ -350,22 +462,14 @@ mod tests {
                 },
             ),
             (
-                "xcrun simctl list devices --json".to_string(),
+                format!(
+                    "xcodebuild -workspace {} -scheme Demo -showdestinations -quiet",
+                    workspace_path.display()
+                ),
                 CommandOutput {
                     success: true,
-                    stdout: serde_json::json!({
-                        "devices": {
-                            "com.apple.CoreSimulator.SimRuntime.iOS-18-2": [
-                                {
-                                    "udid": "SIM-1",
-                                    "isAvailable": true,
-                                    "state": "Shutdown",
-                                    "name": "iPhone 16"
-                                }
-                            ]
-                        }
-                    })
-                    .to_string(),
+                    stdout: "{ platform:iOS Simulator, id:SIM-1, OS:18.2, name:iPhone 16 }"
+                        .to_string(),
                     stderr: String::new(),
                 },
             ),
@@ -397,6 +501,105 @@ mod tests {
         assert!(run_plan.args[1].contains("xcrun simctl launch"));
     }
 
+    #[test]
+    fn builds_a_macos_run_plan_when_a_mac_destination_is_available() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        create_workspace_fixture(temp_dir.path());
+        let workspace_path = temp_dir.path().join("Demo.xcworkspace");
+
+        let runner = FakeCommandRunner::new(BTreeMap::from([
+            (
+                "xcodebuild -version".to_string(),
+                CommandOutput {
+                    success: true,
+                    stdout: "Xcode 16.2".to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                format!(
+                    "xcodebuild -workspace {} -scheme Demo -showdestinations -quiet",
+                    workspace_path.display()
+                ),
+                CommandOutput {
+                    success: true,
+                    stdout: "{ platform:macOS, arch:arm64, id:MAC-1, name:My Mac }\n".to_string(),
+                    stderr: String::new(),
+                },
+            ),
+        ]));
+
+        let catalog = RuntimeCatalog::discover(&[temp_dir.path().to_path_buf()], &runner);
+        let project = catalog.projects.first().unwrap();
+        let desktop = project
+            .devices
+            .iter()
+            .find(|device| device.kind == crate::RuntimeDeviceKind::Desktop)
+            .unwrap();
+
+        let run_plan = catalog
+            .build_execution_plan(&ExecutionRequest {
+                project_id: project.id.clone(),
+                target_id: project.targets[0].id.clone(),
+                device_id: Some(desktop.id.clone()),
+                action: RuntimeAction::Run,
+            })
+            .unwrap();
+
+        assert!(run_plan.args[1].contains("-destination 'platform=macOS'"));
+        assert!(run_plan.args[1].contains("open -n \"$app_path\""));
+    }
+
+    #[test]
+    fn builds_cargo_plans_for_gpui_targets() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        create_gpui_fixture(
+            temp_dir.path(),
+            "mini-gpui",
+            &["mini-gpui", "mini-gpui-debug"],
+        );
+
+        let runner = FakeCommandRunner::new(BTreeMap::from([(
+            "cargo --version".to_string(),
+            CommandOutput {
+                success: true,
+                stdout: "cargo 1.87.0".to_string(),
+                stderr: String::new(),
+            },
+        )]));
+
+        let catalog = RuntimeCatalog::discover(&[temp_dir.path().to_path_buf()], &runner);
+        let project = catalog
+            .projects
+            .iter()
+            .find(|project| project.label == "mini-gpui")
+            .unwrap();
+
+        let build_plan = catalog
+            .build_execution_plan(&ExecutionRequest {
+                project_id: project.id.clone(),
+                target_id: project.targets[0].id.clone(),
+                device_id: None,
+                action: RuntimeAction::Build,
+            })
+            .unwrap();
+        assert_eq!(build_plan.command, "cargo");
+        assert_eq!(build_plan.args[0], "build");
+        assert!(build_plan.args.contains(&"--manifest-path".to_string()));
+
+        let run_plan = catalog
+            .build_execution_plan(&ExecutionRequest {
+                project_id: project.id.clone(),
+                target_id: project.targets[0].id.clone(),
+                device_id: Some(project.devices[0].id.clone()),
+                action: RuntimeAction::Run,
+            })
+            .unwrap();
+        assert_eq!(run_plan.command, "cargo");
+        assert_eq!(run_plan.args[0], "run");
+        assert!(run_plan.args.contains(&"--bin".to_string()));
+    }
+
     fn create_workspace_fixture(root: &Path) {
         let workspace = root.join("Demo.xcworkspace");
         let scheme_dir = workspace.join("xcshareddata").join("xcschemes");
@@ -408,5 +611,51 @@ mod tests {
         )
         .unwrap();
         fs::write(scheme_dir.join("Demo.xcscheme"), "<Scheme />").unwrap();
+    }
+
+    fn create_gpui_fixture(root: &Path, package_name: &str, bins: &[&str]) {
+        let src_dir = root.join("src");
+        fs::create_dir_all(&src_dir).unwrap();
+        fs::write(src_dir.join("main.rs"), "fn main() {}").unwrap();
+
+        let manifest = if bins.len() <= 1 {
+            format!(
+                r#"[package]
+name = "{package_name}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gpui = "0.1"
+"#,
+            )
+        } else {
+            let bin_sections = bins
+                .iter()
+                .map(|bin| {
+                    format!(
+                        r#"[[bin]]
+name = "{bin}"
+path = "src/main.rs"
+"#
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!(
+                r#"[package]
+name = "{package_name}"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gpui = "0.1"
+
+{bin_sections}
+"#,
+            )
+        };
+
+        fs::write(root.join("Cargo.toml"), manifest).unwrap();
     }
 }

@@ -6,6 +6,7 @@ use walkdir::WalkDir;
 use crate::{
     CapabilityState, CommandRunner, DetectedProject, ProjectKind, RuntimeCapabilitySet,
     RuntimeDevice, RuntimeDeviceKind, RuntimeDeviceState, RuntimeTarget,
+    runtime_provider::RuntimeProvider,
 };
 
 pub struct AppleRuntimeProvider<'a> {
@@ -17,7 +18,7 @@ impl<'a> AppleRuntimeProvider<'a> {
         Self { runner }
     }
 
-    pub fn detect(&self, workspace_root: &Path) -> Option<DetectedProject> {
+    fn detect_project(&self, workspace_root: &Path) -> Option<DetectedProject> {
         let project_path = match detect_xcode_project(workspace_root) {
             Some(project_path) => project_path,
             None => return None,
@@ -34,8 +35,15 @@ impl<'a> AppleRuntimeProvider<'a> {
             .map(|output| output.success)
             .unwrap_or(false);
 
+        let project_kind =
+            if project_path.extension().and_then(|ext| ext.to_str()) == Some("xcworkspace") {
+                ProjectKind::AppleWorkspace
+            } else {
+                ProjectKind::AppleProject
+            };
+
         let devices = if toolchain_ready {
-            list_simulators(self.runner)
+            list_supported_devices(&project_path, &project_kind, &targets, self.runner)
         } else {
             Vec::new()
         };
@@ -54,7 +62,9 @@ impl<'a> AppleRuntimeProvider<'a> {
                 }
             } else if devices.is_empty() {
                 CapabilityState::RequiresSetup {
-                    reason: "Boot an iOS simulator in Xcode before running.".to_string(),
+                    reason:
+                        "No supported Apple simulator or macOS destination is available for the detected schemes."
+                            .to_string(),
                 }
             } else {
                 CapabilityState::Available
@@ -70,17 +80,19 @@ impl<'a> AppleRuntimeProvider<'a> {
         Some(DetectedProject {
             id: project_path.to_string_lossy().into_owned(),
             label,
-            kind: if project_path.extension().and_then(|ext| ext.to_str()) == Some("xcworkspace") {
-                ProjectKind::AppleWorkspace
-            } else {
-                ProjectKind::AppleProject
-            },
+            kind: project_kind,
             workspace_root: workspace_root.to_path_buf(),
             project_path,
             targets,
             devices,
             capabilities,
         })
+    }
+}
+
+impl RuntimeProvider for AppleRuntimeProvider<'_> {
+    fn detect(&self, workspace_root: &Path) -> Vec<DetectedProject> {
+        self.detect_project(workspace_root).into_iter().collect()
     }
 }
 
@@ -122,7 +134,10 @@ fn detect_xcode_project(workspace_root: &Path) -> Option<PathBuf> {
     workspaces.sort_by_key(|path| path.components().count());
     projects.sort_by_key(|path| path.components().count());
 
-    workspaces.into_iter().next().or_else(|| projects.into_iter().next())
+    workspaces
+        .into_iter()
+        .next()
+        .or_else(|| projects.into_iter().next())
 }
 
 fn list_targets(project_path: &Path) -> Vec<RuntimeTarget> {
@@ -140,8 +155,10 @@ fn list_targets(project_path: &Path) -> Vec<RuntimeTarget> {
         }
     }
 
-    let is_workspace =
-        project_path.extension().and_then(|extension| extension.to_str()) == Some("xcworkspace");
+    let is_workspace = project_path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        == Some("xcworkspace");
     if is_workspace {
         scheme_directories.extend(referenced_workspace_scheme_directories(project_path));
     }
@@ -212,9 +229,7 @@ fn referenced_workspace_scheme_directories(project_path: &Path) -> Vec<PathBuf> 
         if let Ok(entries) = std::fs::read_dir(user_data_dir) {
             for entry in entries.filter_map(Result::ok) {
                 let path = entry.path();
-                let is_user_dir = path
-                    .extension()
-                    .and_then(|extension| extension.to_str())
+                let is_user_dir = path.extension().and_then(|extension| extension.to_str())
                     == Some("xcuserdatad");
                 if is_user_dir {
                     directories.push(path.join("xcschemes"));
@@ -226,64 +241,140 @@ fn referenced_workspace_scheme_directories(project_path: &Path) -> Vec<PathBuf> 
     directories
 }
 
-fn list_simulators(runner: &dyn CommandRunner) -> Vec<RuntimeDevice> {
-    let Ok(output) = runner.run("xcrun", &["simctl", "list", "devices", "--json"]) else {
-        return Vec::new();
-    };
-    if !output.success {
-        return Vec::new();
-    }
-
-    let Ok(parsed) = serde_json::from_str::<SimctlListOutput>(&output.stdout) else {
-        return Vec::new();
-    };
-
+fn list_supported_devices(
+    project_path: &Path,
+    project_kind: &ProjectKind,
+    targets: &[RuntimeTarget],
+    runner: &dyn CommandRunner,
+) -> Vec<RuntimeDevice> {
     let mut devices = Vec::new();
-    for (runtime, runtime_devices) in parsed.devices {
-        let os_version = runtime_to_os_version(runtime.as_str());
-        for device in runtime_devices {
-            if !device.is_available {
-                continue;
+    for target in targets {
+        let output = match runner.run(
+            "xcodebuild",
+            &show_destinations_args(project_path, project_kind, target.label.as_str()),
+        ) {
+            Ok(output) if output.success => output,
+            _ => continue,
+        };
+
+        for destination in parse_xcode_destinations(&output.stdout) {
+            if let Some(device) = coerce_destination(destination) {
+                if devices
+                    .iter()
+                    .all(|existing: &RuntimeDevice| existing.id != device.id)
+                {
+                    devices.push(device);
+                }
             }
-
-            let state = match device.state.as_str() {
-                "Booted" => RuntimeDeviceState::Booted,
-                "Shutdown" => RuntimeDeviceState::Shutdown,
-                _ => RuntimeDeviceState::Unknown,
-            };
-
-            devices.push(RuntimeDevice {
-                id: device.udid,
-                name: device.name,
-                kind: RuntimeDeviceKind::Simulator,
-                state,
-                os_version: os_version.clone(),
-            });
         }
     }
 
-    devices.sort_by(|left, right| left.name.cmp(&right.name));
+    devices.sort_by(|left, right| {
+        left.kind
+            .cmp(&right.kind)
+            .then_with(|| left.name.cmp(&right.name))
+            .then_with(|| left.id.cmp(&right.id))
+    });
     devices
 }
 
-fn runtime_to_os_version(runtime: &str) -> Option<String> {
-    let trimmed = runtime.strip_prefix("com.apple.CoreSimulator.SimRuntime.")?;
-    let trimmed = trimmed.replace('-', ".");
-    trimmed
-        .strip_prefix("iOS.")
-        .map(|version| format!("iOS {version}"))
+fn show_destinations_args<'a>(
+    project_path: &'a Path,
+    project_kind: &'a ProjectKind,
+    scheme: &'a str,
+) -> Vec<&'a str> {
+    let selector_flag = match project_kind {
+        ProjectKind::AppleWorkspace => "-workspace",
+        ProjectKind::AppleProject => "-project",
+        ProjectKind::GpuiApplication => unreachable!("Apple provider cannot receive GPUI projects"),
+    };
+
+    vec![
+        selector_flag,
+        project_path.to_str().unwrap_or_default(),
+        "-scheme",
+        scheme,
+        "-showdestinations",
+        "-quiet",
+    ]
+}
+
+fn parse_xcode_destinations(stdout: &str) -> Vec<XcodeDestination> {
+    stdout
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if !line.starts_with('{') || !line.ends_with('}') {
+                return None;
+            }
+
+            let inner = &line[1..line.len() - 1];
+            let mut platform = None;
+            let mut arch = None;
+            let mut id = None;
+            let mut name = None;
+            let mut os = None;
+
+            for part in inner.split(", ") {
+                let (key, value) = part.split_once(':')?;
+                match key.trim() {
+                    "platform" => platform = Some(value.trim().to_string()),
+                    "arch" => arch = Some(value.trim().to_string()),
+                    "id" => id = Some(value.trim().to_string()),
+                    "name" => name = Some(value.trim().to_string()),
+                    "OS" => os = Some(value.trim().to_string()),
+                    "variant" => {}
+                    _ => {}
+                }
+            }
+
+            Some(XcodeDestination {
+                platform: platform?,
+                arch,
+                id: id?,
+                name: name?,
+                os,
+            })
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
-struct SimctlListOutput {
-    devices: std::collections::HashMap<String, Vec<SimctlDevice>>,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SimctlDevice {
-    udid: String,
-    is_available: bool,
-    state: String,
+struct XcodeDestination {
+    platform: String,
+    arch: Option<String>,
+    id: String,
     name: String,
+    #[serde(rename = "OS")]
+    os: Option<String>,
+}
+
+fn coerce_destination(destination: XcodeDestination) -> Option<RuntimeDevice> {
+    let platform = destination.platform.as_str();
+
+    if platform.ends_with("Simulator") {
+        let os_version = destination
+            .os
+            .as_ref()
+            .map(|os| format!("{} {}", platform.trim_end_matches(" Simulator"), os));
+        return Some(RuntimeDevice {
+            id: destination.id,
+            name: destination.name,
+            kind: RuntimeDeviceKind::Simulator,
+            state: RuntimeDeviceState::Unknown,
+            os_version,
+        });
+    }
+
+    if platform == "macOS" && destination.arch.is_some() {
+        return Some(RuntimeDevice {
+            id: destination.id,
+            name: destination.name,
+            kind: RuntimeDeviceKind::Desktop,
+            state: RuntimeDeviceState::Unknown,
+            os_version: None,
+        });
+    }
+
+    None
 }

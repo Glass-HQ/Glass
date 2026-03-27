@@ -10,3 +10,6 @@ path = "src/service_hub.rs"
 
 [lints]
 workspace = true
+
+[dependencies]
+thiserror.workspace = true

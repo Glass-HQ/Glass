@@ -14,7 +14,7 @@ pub enum RuntimeError {
     DeviceRequired,
     #[error("runtime device `{0}` was not found")]
     DeviceNotFound(String),
-    #[error("only iOS simulator execution is supported in this phase")]
+    #[error("the selected device kind is not supported for this runtime target")]
     UnsupportedDeviceKind,
 }
 

@@ -760,7 +760,10 @@ impl NativeToolbarController {
                         .tool_tip("Runtime Actions")
                         .icon("play.fill")
                         .on_click(|_event, window, cx| {
-                            window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
+                            window.dispatch_action(
+                                app_runtime_ui::OpenRuntimeActions.boxed_clone(),
+                                cx,
+                            );
                         }),
                 ));
 

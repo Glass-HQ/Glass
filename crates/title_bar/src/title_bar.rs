@@ -1074,7 +1074,11 @@ impl TitleBar {
                 IconButton::new("glass-nav-agent", IconName::AiZed)
                     .icon_size(IconSize::Small)
                     .tooltip(|_window, cx| {
-                        Tooltip::for_action("Toggle Agent Panel", &zed_actions::assistant::Toggle, cx)
+                        Tooltip::for_action(
+                            "Toggle Agent Panel",
+                            &zed_actions::assistant::Toggle,
+                            cx,
+                        )
                     })
                     .on_click(|_, window, cx| {
                         window.dispatch_action(zed_actions::assistant::Toggle.boxed_clone(), cx);
@@ -1094,10 +1098,15 @@ impl TitleBar {
                 IconButton::new("glass-nav-runtime", IconName::PlayFilled)
                     .icon_size(IconSize::Small)
                     .tooltip(|_window, cx| {
-                        Tooltip::for_action("Runtime Actions", &app_runtime_ui::OpenRuntimeActions, cx)
+                        Tooltip::for_action(
+                            "Runtime Actions",
+                            &app_runtime_ui::OpenRuntimeActions,
+                            cx,
+                        )
                     })
                     .on_click(|_, window, cx| {
-                        window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
+                        window
+                            .dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
                     }),
             )
             .child(
@@ -1111,10 +1120,8 @@ impl TitleBar {
                         )
                     })
                     .on_click(|_, window, cx| {
-                        window.dispatch_action(
-                            workspace::ToggleProjectDiagnostics.boxed_clone(),
-                            cx,
-                        );
+                        window
+                            .dispatch_action(workspace::ToggleProjectDiagnostics.boxed_clone(), cx);
                     }),
             )
             .child(

@@ -18,4 +18,5 @@ pub struct DetectedProject {
 pub enum ProjectKind {
     AppleWorkspace,
     AppleProject,
+    GpuiApplication,
 }

@@ -598,8 +598,9 @@ impl EditPredictionButton {
 
         match provider {
             EditPredictionProvider::Copilot => {
-                let copilot = EditPredictionStore::try_global(cx)
-                    .and_then(|store| store.read(cx).copilot_for_project(&self.project.upgrade()?))?;
+                let copilot = EditPredictionStore::try_global(cx).and_then(|store| {
+                    store.read(cx).copilot_for_project(&self.project.upgrade()?)
+                })?;
                 let status = copilot.read(cx).status();
                 Some(match status {
                     Status::Authorized => self.build_copilot_context_menu(window, cx),

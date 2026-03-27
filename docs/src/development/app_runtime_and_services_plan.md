@@ -41,7 +41,7 @@ The right architectural axis is:
 - project detection
 - capabilities
 - targets and devices
-- build, run, test, and debug execution
+- build and run execution
 - remote services and release management
 
 This is explicitly not organized around a `native platforms` concept.
@@ -58,7 +58,6 @@ It should:
 
 - be reachable from the title bar or command palette
 - open a dialog with target, device, and action controls
-- support optional pinning of compact controls into the title bar for users who want them always visible
 - stay out of the user’s way in monorepos and non-runnable workspaces
 
 This layer is for fast actions, not for rich dashboards.
@@ -71,8 +70,6 @@ Examples:
 
 - running opens or updates a run session item
 - building opens or updates build output
-- testing opens or updates test results
-- debugging uses the existing debugger surface
 
 The user should keep editing code normally and only see these surfaces when an action produces output.
 
@@ -83,7 +80,6 @@ This is a separate product area from local runtime tooling.
 Examples:
 
 - App Store Connect
-- Google Play Console
 - Vercel
 - Convex
 - Supabase
@@ -100,10 +96,7 @@ Capabilities can include:
 - discover devices
 - run on simulator
 - run on physical device
-- build debug artifacts
-- build release artifacts
-- run tests
-- attach debugger
+- build artifacts
 - upload release artifacts
 - manage service metadata
 
@@ -118,19 +111,15 @@ Local runtime tooling includes:
 - Xcode
 - simulators
 - physical device tooling
-- Android SDK
-- adb
-- Gradle
 
 Remote services include:
 
 - App Store Connect
-- Google Play Console
 - Vercel
 - Convex
 - Supabase
 
-Xcode is not analogous to App Store Connect. Android Studio is not analogous to Google Play Console. The model must preserve that distinction.
+Xcode is not analogous to App Store Connect. The model must preserve that distinction.
 
 ## Language Model
 
@@ -153,58 +142,75 @@ Proposed shape:
 - `app_runtime`
 - `app_runtime_ui`
 - `service_hub`
-- provider crates such as `apple_tooling`, `android_tooling`, `gpui_tooling`
+- provider crates such as `apple_tooling`, `gpui_tooling`
 
 These names are placeholders. The important decision is the separation of responsibilities.
 
 ## Steps
 
+Status snapshot on `feature/app-runtime-next-steps` as of 2026-03-27.
+
 ### Step 1: Delete The Prototype
 
 Status: Done in this branch.
 
-- remove `native_platforms`
-- remove `native_platforms_ui`
-- remove workspace integration and marketing references
+- [x] remove `native_platforms`
+- [x] remove `native_platforms_ui`
+- [x] remove workspace integration and marketing references
 
 ### Step 2: Define Detection And Capability Interfaces
 
-- detect runnable project types in the workspace
-- map detected projects to capability sets
-- keep the model independent from UI concerns
+Status: Done in this worktree.
+
+- [x] detect Apple runnable project types in the workspace
+- [x] detect GPUI runnable project types in the workspace
+- [x] map detected projects to capability sets
+- [x] keep the model independent from UI concerns
 
 ### Step 3: Build The Action Dialog
 
-- add a title bar button and command palette entry
-- open a dialog for target selection, device selection, and execution actions
-- support optional pinning of compact controls into the title bar
+Status: Done in this worktree.
+
+- [x] add a title bar button and command palette entry
+- [x] open a dialog for target selection, device selection, and execution actions
 
 ### Step 4: Add Execution Surfaces
 
-- create run/build/test output items
-- route action results into those items
-- integrate debug actions with the existing debugger surface
+Status: Done in this worktree.
+
+- [x] route Apple and GPUI run/build actions into reusable center-pane execution surfaces
+- [x] separate runtime action selection from execution dispatch
+- [x] create dedicated non-terminal run/build output items
 
 ### Step 5: Add Apple As The First Provider Set
 
-- implement Apple runtime capabilities against the new model
-- reintroduce App Store Connect as a service provider, not as part of a `native platforms` feature
+Status: Done in this worktree.
 
-### Step 6: Add Android And GPUI Support
+- [x] implement Apple runtime capabilities against the new model, including simulator and macOS desktop local destinations
+- [x] reintroduce App Store Connect as a service provider, not as part of a `native platforms` feature
 
-- implement Android runtime capabilities
-- implement GPUI project detection and execution support
+### Step 6: Add GPUI Support
+
+Status: Done in this worktree.
+
+- [x] implement GPUI project detection and execution support
 
 ### Step 7: Introduce Internal Service Provider Abstractions
 
-- support service management through one internal model
-- validate it against at least a few materially different providers
+Status: Done in this worktree.
+
+- [x] introduce an internal `service_hub` model
+- [x] add a real App Store Connect provider backed by `asc` command planning
+- [x] validate explicit artifact handoff for ASC build upload operations
+- [x] surface ASC authentication, app browsing, build browsing, upload, and release operations in a workspace item
 
 ### Step 8: Consider Protocol Extraction Later
 
-- do not publish a protocol early
-- first prove the model inside Glass
-- extract it only after the abstraction is stable and useful across multiple providers
+Status: Done for this phase.
+
+- [x] do not publish a protocol early
+- [x] first prove the model inside Glass
+- [x] keep protocol extraction explicitly deferred until a later multi-provider phase
 
 ## Non-Goals For The Rebuild
 

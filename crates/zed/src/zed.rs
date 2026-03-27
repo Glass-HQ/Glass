@@ -5085,6 +5085,7 @@ mod tests {
             notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
             workspace::init(app_state.clone(), cx);
             app_runtime_ui::init(cx);
+            service_hub_ui::init(cx);
             workspace_modes::init(cx);
             release_channel::init(Version::new(0, 0, 0), cx);
             command_palette::init(cx);

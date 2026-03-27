@@ -1,0 +1,24 @@
+[package]
+name = "service_hub_ui"
+description = "UI entry points for service provider management"
+edition.workspace = true
+publish.workspace = true
+license = "GPL-3.0-or-later"
+
+[lib]
+path = "src/service_hub_ui.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow.workspace = true
+gpui.workspace = true
+project.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+service_hub.workspace = true
+task.workspace = true
+ui.workspace = true
+util.workspace = true
+workspace.workspace = true

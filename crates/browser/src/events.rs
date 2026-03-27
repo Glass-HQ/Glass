@@ -87,10 +87,9 @@ impl From<WindowOpenDisposition> for OpenDisposition {
 impl OpenDisposition {
     pub fn app_tab_target(self) -> Option<BrowserTabOpenTarget> {
         match self {
-            Self::NewForegroundTab
-            | Self::NewWindow
-            | Self::OffTheRecord
-            | Self::SwitchToTab => Some(BrowserTabOpenTarget::Foreground),
+            Self::NewForegroundTab | Self::NewWindow | Self::OffTheRecord | Self::SwitchToTab => {
+                Some(BrowserTabOpenTarget::Foreground)
+            }
             Self::NewBackgroundTab => Some(BrowserTabOpenTarget::Background),
             Self::Unknown
             | Self::CurrentTab

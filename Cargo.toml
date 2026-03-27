@@ -139,6 +139,7 @@ members = [
     "crates/schema_generator",
     "crates/search",
     "crates/service_hub",
+    "crates/service_hub_ui",
     "crates/session",
     "crates/settings",
     "crates/settings_content",
@@ -374,6 +375,7 @@ rules_library = { path = "crates/rules_library" }
 scheduler = { git = "https://github.com/Glass-HQ/gpui.git" }
 search = { path = "crates/search" }
 service_hub = { path = "crates/service_hub" }
+service_hub_ui = { path = "crates/service_hub_ui" }
 session = { path = "crates/session" }
 sidebar = { path = "crates/sidebar" }
 settings = { path = "crates/settings" }

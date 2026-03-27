@@ -710,6 +710,7 @@ fn main() {
         workspace_modes::init(cx);
         workspace::init(app_state.clone(), cx);
         app_runtime_ui::init(cx);
+        service_hub_ui::init(cx);
         ui_prompt::init(cx);
 
         go_to_line::init(cx);

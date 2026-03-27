@@ -6,13 +6,12 @@ use gpui::{
     SharedString, Task, WeakEntity,
 };
 use picker::{Picker, PickerDelegate};
-use task::{HideStrategy, RevealStrategy, SaveStrategy, Shell, SpawnInTerminal, TaskId};
 use ui::{Color, Label, LabelSize, ListItem, ListItemSpacing, prelude::*};
-use uuid::Uuid;
 use workspace::notifications::NotificationId;
 use workspace::{ModalView, Toast, Workspace};
 
 use crate::OpenRuntimeActions;
+use crate::runtime_execution::execute_runtime_request;
 
 pub struct RuntimeActionsModal {
     picker: Entity<Picker<RuntimeActionsDelegate>>,
@@ -34,7 +33,12 @@ impl RuntimeActionsModal {
         let workspace_handle = workspace.weak_handle();
 
         workspace.toggle_modal(window, cx, |window, cx| {
-            Self::new(workspace_handle.clone(), workspace_paths.clone(), window, cx)
+            Self::new(
+                workspace_handle.clone(),
+                workspace_paths.clone(),
+                window,
+                cx,
+            )
         });
     }
 
@@ -63,9 +67,12 @@ impl RuntimeActionsModal {
 
             picker_handle
                 .update_in(cx, |picker, window, cx| {
-                    picker
-                        .delegate
-                        .catalog_loaded(catalog, picker.query(cx).to_string(), window, cx);
+                    picker.delegate.catalog_loaded(
+                        catalog,
+                        picker.query(cx).to_string(),
+                        window,
+                        cx,
+                    );
                     picker.refresh(window, cx);
                 })
                 .ok();
@@ -160,22 +167,12 @@ impl PickerDelegate for RuntimeActionsDelegate {
         self.selected_index
     }
 
-    fn set_selected_index(
-        &mut self,
-        index: usize,
-        _: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) {
+    fn set_selected_index(&mut self, index: usize, _: &mut Window, cx: &mut Context<Picker<Self>>) {
         self.selected_index = index.min(self.filtered_entries.len().saturating_sub(1));
         cx.notify();
     }
 
-    fn can_select(
-        &self,
-        index: usize,
-        _: &mut Window,
-        _: &mut Context<Picker<Self>>,
-    ) -> bool {
+    fn can_select(&self, index: usize, _: &mut Window, _: &mut Context<Picker<Self>>) -> bool {
         self.filtered_entries
             .get(index)
             .is_some_and(|entry| entry.request.is_some())
@@ -187,9 +184,9 @@ impl PickerDelegate for RuntimeActionsDelegate {
 
     fn no_matches_text(&self, _: &mut Window, _: &mut App) -> Option<SharedString> {
         if self.loading {
-            Some("Detecting Apple runtime capabilities…".into())
+            Some("Detecting runtime capabilities…".into())
         } else if self.all_entries.is_empty() {
-            Some("No runnable Apple project was detected in this workspace".into())
+            Some("No runnable project was detected in this workspace".into())
         } else {
             Some("No runtime actions match the current query".into())
         }
@@ -215,12 +212,7 @@ impl PickerDelegate for RuntimeActionsDelegate {
         Task::ready(())
     }
 
-    fn confirm(
-        &mut self,
-        _: bool,
-        window: &mut Window,
-        cx: &mut Context<Picker<Self>>,
-    ) {
+    fn confirm(&mut self, _: bool, window: &mut Window, cx: &mut Context<Picker<Self>>) {
         let Some(entry) = self.filtered_entries.get(self.selected_index) else {
             return;
         };
@@ -231,49 +223,22 @@ impl PickerDelegate for RuntimeActionsDelegate {
             return;
         };
 
-        let plan = match catalog.build_execution_plan(&request) {
-            Ok(plan) => plan,
-            Err(error) => {
-                self.workspace
-                    .update(cx, |workspace, cx| {
-                        workspace.show_toast(
-                            Toast::new(
-                                NotificationId::unique::<RuntimeActionsModal>(),
-                                error.to_string(),
-                            )
-                            .autohide(),
-                            cx,
-                        );
-                    })
-                    .ok();
-                return;
-            }
-        };
-
-        let task = SpawnInTerminal {
-            id: TaskId(format!("app-runtime-{}", Uuid::new_v4())),
-            full_label: plan.label.clone(),
-            label: plan.label,
-            command: Some(plan.command),
-            args: plan.args,
-            command_label: plan.command_label,
-            cwd: Some(plan.cwd),
-            env: Default::default(),
-            use_new_terminal: true,
-            allow_concurrent_runs: true,
-            reveal: RevealStrategy::Always,
-            reveal_target: task::RevealTarget::Dock,
-            hide: HideStrategy::Never,
-            shell: Shell::System,
-            show_summary: true,
-            show_command: true,
-            show_rerun: true,
-            save: SaveStrategy::All,
-        };
-
         self.workspace
             .update(cx, |workspace, cx| {
-                workspace.spawn_in_terminal(task, window, cx).detach();
+                if let Err(error) =
+                    execute_runtime_request(workspace, catalog, &request, window, cx)
+                {
+                    workspace.show_toast(
+                        Toast::new(
+                            NotificationId::unique::<RuntimeActionsModal>(),
+                            error.to_string(),
+                        )
+                        .autohide(),
+                        cx,
+                    );
+                    return;
+                }
+
                 workspace.hide_modal(window, cx);
             })
             .ok();
@@ -342,7 +307,7 @@ fn build_entries(catalog: &RuntimeCatalog) -> Vec<RuntimeActionEntry> {
             if project.devices.is_empty() {
                 entries.push(RuntimeActionEntry {
                     title: format!("Run {}", target.label),
-                    subtitle: "No iOS simulator is currently available".into(),
+                    subtitle: "No supported runtime destination is currently available".into(),
                     searchable_text: format!(
                         "run {} {}",
                         project.label.to_lowercase(),
