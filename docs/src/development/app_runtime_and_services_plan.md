@@ -159,52 +159,70 @@ These names are placeholders. The important decision is the separation of respon
 
 ## Steps
 
+Status snapshot on `main` as of 2026-03-26.
+
 ### Step 1: Delete The Prototype
 
 Status: Done in this branch.
 
-- remove `native_platforms`
-- remove `native_platforms_ui`
-- remove workspace integration and marketing references
+- [x] remove `native_platforms`
+- [x] remove `native_platforms_ui`
+- [x] remove workspace integration and marketing references
 
 ### Step 2: Define Detection And Capability Interfaces
 
-- detect runnable project types in the workspace
-- map detected projects to capability sets
-- keep the model independent from UI concerns
+Status: In progress on `main`.
+
+- [x] detect Apple runnable project types in the workspace
+- [x] map detected Apple projects to capability sets
+- [x] keep the model independent from UI concerns
+- [ ] expand detection beyond Apple projects
 
 ### Step 3: Build The Action Dialog
 
-- add a title bar button and command palette entry
-- open a dialog for target selection, device selection, and execution actions
-- support optional pinning of compact controls into the title bar
+Status: In progress on `main`.
+
+- [x] add a title bar button and command palette entry
+- [x] open a dialog for target selection, device selection, and execution actions
+- [ ] support optional pinning of compact controls into the title bar
 
 ### Step 4: Add Execution Surfaces
 
-- create run/build/test output items
-- route action results into those items
-- integrate debug actions with the existing debugger surface
+Status: In progress on `main`.
+
+- [x] route Apple run/build actions into terminal execution surfaces
+- [ ] create dedicated run/build/test output items
+- [ ] integrate debug actions with the existing debugger surface
 
 ### Step 5: Add Apple As The First Provider Set
 
-- implement Apple runtime capabilities against the new model
-- reintroduce App Store Connect as a service provider, not as part of a `native platforms` feature
+Status: In progress on `main`.
+
+- [x] implement Apple runtime capabilities against the new model
+- [ ] reintroduce App Store Connect as a service provider, not as part of a `native platforms` feature
 
 ### Step 6: Add Android And GPUI Support
 
-- implement Android runtime capabilities
-- implement GPUI project detection and execution support
+Status: Not started on `main`.
+
+- [ ] implement Android runtime capabilities
+- [ ] implement GPUI project detection and execution support
 
 ### Step 7: Introduce Internal Service Provider Abstractions
 
-- support service management through one internal model
-- validate it against at least a few materially different providers
+Status: In progress on `main`.
+
+- [x] introduce a minimal internal `service_hub` model
+- [ ] support service management through one internal model
+- [ ] validate it against at least a few materially different providers
 
 ### Step 8: Consider Protocol Extraction Later
 
-- do not publish a protocol early
-- first prove the model inside Glass
-- extract it only after the abstraction is stable and useful across multiple providers
+Status: Deferred by design.
+
+- [x] do not publish a protocol early
+- [ ] first prove the model inside Glass
+- [ ] extract it only after the abstraction is stable and useful across multiple providers
 
 ## Non-Goals For The Rebuild
 
