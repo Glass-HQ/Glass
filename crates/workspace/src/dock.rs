@@ -1,4 +1,4 @@
-use crate::Workspace;
+use crate::{MultiWorkspace, Workspace};
 use crate::persistence::model::DockData;
 use crate::{DraggedDock, Event, ModalLayer, Pane};
 use anyhow::Context as _;
@@ -52,6 +52,12 @@ impl DockButtonBar {
 
 impl Render for DockButtonBar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        #[derive(Clone, Copy)]
+        enum DockBarEntry {
+            Panel(EntityId),
+            WorkspaceSidebar,
+        }
+
         let Some(workspace) = self.workspace.upgrade() else {
             return div().into_any_element();
         };
@@ -70,7 +76,7 @@ impl Render for DockButtonBar {
         // Collect all panels from all docks for the segmented control.
         let mut panel_labels: Vec<SharedString> = Vec::new();
         let mut panel_symbols: Vec<SharedString> = Vec::new();
-        let mut panel_ids: Vec<EntityId> = Vec::new();
+        let mut panel_entries: Vec<DockBarEntry> = Vec::new();
         let mut selected_segment: Option<usize> = None;
 
         for (dock_entity, dock_position) in &all_docks {
@@ -105,15 +111,29 @@ impl Render for DockButtonBar {
 
                 panel_labels.push(name.into());
                 panel_symbols.push(icon_to_sf_symbol(icon).into());
-                panel_ids.push(panel.panel_id());
+                panel_entries.push(DockBarEntry::Panel(panel.panel_id()));
             }
+        }
+
+        let multi_workspace = window.root::<MultiWorkspace>().flatten();
+        if let Some(multi_workspace) = multi_workspace.clone()
+            && multi_workspace.read(cx).multi_workspace_enabled(cx)
+            && multi_workspace.read(cx).sidebar().is_some()
+        {
+            if multi_workspace.read(cx).sidebar_open() {
+                selected_segment = Some(panel_labels.len());
+            }
+            panel_labels.push("Projects".into());
+            panel_symbols.push("square.grid.2x2".into());
+            panel_entries.push(DockBarEntry::WorkspaceSidebar);
         }
 
         if panel_labels.is_empty() {
             return div().into_any_element();
         }
 
-        let callback_panel_ids = panel_ids.clone();
+        let callback_panel_entries = panel_entries.clone();
+        let callback_multi_workspace = multi_workspace.clone();
         let label_strs: Vec<&str> = panel_labels.iter().map(|s| s.as_ref()).collect();
         let symbol_strs: Vec<&str> = panel_symbols.iter().map(|s| s.as_ref()).collect();
         let mut segmented_control_hasher = DefaultHasher::new();
@@ -127,11 +147,40 @@ impl Render for DockButtonBar {
             .w_full()
             .on_select(
                 cx.listener(move |this, event: &SegmentSelectEvent, window, cx| {
-                    if let Some(panel_id) = callback_panel_ids.get(event.index).copied() {
-                        if let Some(workspace) = this.workspace.upgrade() {
-                            workspace.update(cx, |workspace, cx| {
-                                workspace.toggle_panel_for_id(panel_id, window, cx);
-                            });
+                    let Some(entry) = callback_panel_entries.get(event.index).copied() else {
+                        return;
+                    };
+
+                    match entry {
+                        DockBarEntry::Panel(panel_id) => {
+                            if let Some(multi_workspace) = callback_multi_workspace.as_ref()
+                                && multi_workspace.read(cx).sidebar_open()
+                            {
+                                multi_workspace.update(cx, |multi_workspace, cx| {
+                                    multi_workspace.close_sidebar(window, cx);
+                                });
+                            }
+
+                            if let Some(workspace) = this.workspace.upgrade() {
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.toggle_panel_for_id(panel_id, window, cx);
+                                });
+                            }
+                        }
+                        DockBarEntry::WorkspaceSidebar => {
+                            if let Some(multi_workspace) = callback_multi_workspace.as_ref() {
+                                multi_workspace.update(cx, |multi_workspace, cx| {
+                                    if multi_workspace.sidebar_open() {
+                                        multi_workspace.close_sidebar(window, cx);
+                                    } else {
+                                        multi_workspace.open_sidebar(cx);
+                                        if let Some(sidebar) = multi_workspace.sidebar() {
+                                            sidebar.prepare_for_focus(window, cx);
+                                            sidebar.focus(window, cx);
+                                        }
+                                    }
+                                });
+                            }
                         }
                     }
                 }),
@@ -553,6 +602,10 @@ impl Dock {
             .iter()
             .find(|entry| entry.panel.panel_key() == key)
             .map(|entry| &entry.panel)
+    }
+
+    pub(crate) fn native_sidebar_button_bar(&self) -> Option<Entity<DockButtonBar>> {
+        self.dock_button_bar.clone()
     }
 
     pub fn first_enabled_panel_idx(&mut self, cx: &mut Context<Self>) -> anyhow::Result<usize> {

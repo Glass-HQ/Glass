@@ -170,6 +170,8 @@ pub struct WorkspaceSidebarHost {
     active_mode: ModeId,
     left_dock: Entity<Dock>,
     mode_sidebar_views: HashMap<ModeId, AnyView>,
+    workspace_sidebar_view: Option<AnyView>,
+    workspace_sidebar_visible: bool,
     width: f64,
 }
 
@@ -180,6 +182,8 @@ impl WorkspaceSidebarHost {
             active_mode: ModeId::BROWSER,
             left_dock,
             mode_sidebar_views: HashMap::default(),
+            workspace_sidebar_view: None,
+            workspace_sidebar_visible: false,
             width: DEFAULT_SIDEBAR_WIDTH,
         }
     }
@@ -217,6 +221,24 @@ impl WorkspaceSidebarHost {
         self.mode_sidebar_view(self.active_mode)
     }
 
+    pub fn set_workspace_sidebar_view(&mut self, view: Option<AnyView>, cx: &mut Context<Self>) {
+        if self.workspace_sidebar_view != view {
+            self.workspace_sidebar_view = view;
+            cx.notify();
+        }
+    }
+
+    pub fn set_workspace_sidebar_visible(&mut self, visible: bool, cx: &mut Context<Self>) {
+        if self.workspace_sidebar_visible != visible {
+            self.workspace_sidebar_visible = visible;
+            cx.notify();
+        }
+    }
+
+    pub fn workspace_sidebar_visible(&self) -> bool {
+        self.workspace_sidebar_visible
+    }
+
     pub fn set_left_dock(&mut self, left_dock: Entity<Dock>, cx: &mut Context<Self>) {
         if self.left_dock.entity_id() != left_dock.entity_id() {
             self.left_dock = left_dock;
@@ -238,9 +260,32 @@ impl WorkspaceSidebarHost {
 
 #[cfg(target_os = "macos")]
 impl Render for WorkspaceSidebarHost {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         if let Some(view) = self.active_mode_sidebar_view() {
             return div().size_full().child(view.clone()).into_any_element();
+        }
+        if self.workspace_sidebar_visible
+            && let Some(view) = self.workspace_sidebar_view.as_ref()
+        {
+            let button_bar = self.left_dock.read(cx).native_sidebar_button_bar();
+            return div()
+                .size_full()
+                .flex()
+                .flex_col()
+                .overflow_hidden()
+                .when_some(button_bar, |this, dock_button_bar| {
+                    this.child(dock_button_bar)
+                })
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .flex_1()
+                        .size_full()
+                        .overflow_hidden()
+                        .child(view.clone()),
+                )
+                .into_any_element();
         }
         div()
             .size_full()
@@ -5106,6 +5151,8 @@ impl Workspace {
             .has_mode_sidebar_view(self.active_mode)
         {
             !self.active_mode_sidebar_visible(cx)
+        } else if self.workspace_sidebar_host.read(cx).workspace_sidebar_visible() {
+            false
         } else {
             !self.left_dock.read(cx).has_visible_content(window, cx)
         }

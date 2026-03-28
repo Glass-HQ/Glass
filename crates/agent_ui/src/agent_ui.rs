@@ -420,9 +420,9 @@ pub fn init(
         SettingsStore::update_global(cx, |store, cx| {
             store.update_default_settings(cx, |defaults| {
                 if is_enabled {
-                    defaults.agent.get_or_insert_default().dock = Some(DockPosition::Left);
-                    defaults.project_panel.get_or_insert_default().dock = Some(DockSide::Right);
-                    defaults.git_panel.get_or_insert_default().dock = Some(DockPosition::Right);
+                    defaults.agent.get_or_insert_default().dock = Some(DockPosition::Right);
+                    defaults.project_panel.get_or_insert_default().dock = Some(DockSide::Left);
+                    defaults.git_panel.get_or_insert_default().dock = Some(DockPosition::Left);
                     defaults.notification_panel.get_or_insert_default().button = Some(false);
                 } else {
                     defaults.agent.get_or_insert_default().dock = Some(DockPosition::Right);

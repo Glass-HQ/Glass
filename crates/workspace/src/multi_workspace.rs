@@ -1,11 +1,13 @@
 use anyhow::Result;
 use gpui::{
     AnyView, App, Context, DragMoveEvent, Entity, EntityId, EventEmitter, FocusHandle, Focusable,
-    ManagedView, MouseButton, Pixels, Render, Subscription, Task, Tiling,
-    Window, WindowBackgroundAppearance, WindowId, actions, deferred, px,
+    ManagedView, Pixels, Render, Subscription, Task, Tiling, Window,
+    WindowBackgroundAppearance, WindowId, actions,
 };
 #[cfg(target_os = "macos")]
 use gpui::native_sidebar;
+#[cfg(not(target_os = "macos"))]
+use gpui::{MouseButton, deferred, px};
 use project::Project;
 use std::future::Future;
 use std::path::PathBuf;
@@ -16,6 +18,7 @@ use util::ResultExt;
 use workspace_modes::{ModeId, ModeViewRegistry, RegisteredModeView};
 use zed_actions::agents_sidebar::MoveWorkspaceToNewWindow;
 
+#[cfg(not(target_os = "macos"))]
 pub const SIDEBAR_RESIZE_HANDLE_SIZE: Pixels = px(6.0);
 
 use crate::{
@@ -376,24 +379,33 @@ impl MultiWorkspace {
     #[cfg(target_os = "macos")]
     fn sync_workspace_sidebar_host(&self, cx: &mut App) {
         let active_ws = self.workspace().clone();
-        let (left_dock, mode, sidebar_view) = {
+        let (left_dock, mode, mode_sidebar_view, workspace_sidebar_view, workspace_sidebar_visible) = {
             let workspace = active_ws.read(cx);
             let mode = workspace.active_mode_id();
-            let sidebar_view = workspace
+            let mode_sidebar_view = workspace
                 .workspace_sidebar_host
                 .read(cx)
                 .mode_sidebar_view(mode)
                 .cloned();
-            (workspace.left_dock().clone(), mode, sidebar_view)
+            let workspace_sidebar_view = self.sidebar.as_ref().map(|sidebar| sidebar.to_any());
+            (
+                workspace.left_dock().clone(),
+                mode,
+                mode_sidebar_view,
+                workspace_sidebar_view,
+                self.sidebar_open,
+            )
         };
         self.workspace_sidebar_host.update(cx, |sidebar, cx| {
             sidebar.set_left_dock(left_dock, cx);
             sidebar.set_mode(mode, cx);
-            if let Some(view) = sidebar_view {
+            if let Some(view) = mode_sidebar_view {
                 sidebar.set_mode_sidebar_view(mode, view, cx);
             } else {
                 sidebar.clear_mode_sidebar_view(mode, cx);
             }
+            sidebar.set_workspace_sidebar_view(workspace_sidebar_view, cx);
+            sidebar.set_workspace_sidebar_visible(workspace_sidebar_visible, cx);
         });
     }
 
@@ -841,6 +853,7 @@ impl Render for MultiWorkspace {
         self.sync_workspace_sidebar_host(cx);
 
         let multi_workspace_enabled = self.multi_workspace_enabled(cx);
+        #[cfg(not(target_os = "macos"))]
         let sidebar = if multi_workspace_enabled && self.sidebar_open() {
             self.sidebar.as_ref().map(|sidebar_handle| {
                 let weak = cx.weak_entity();
@@ -888,6 +901,8 @@ impl Render for MultiWorkspace {
         } else {
             None
         };
+        #[cfg(target_os = "macos")]
+        let sidebar: Option<AnyView> = None;
 
         let ui_font = theme::setup_ui_font(window, cx);
         let text_color = cx.theme().colors().text;
@@ -999,7 +1014,7 @@ impl Render for MultiWorkspace {
             window,
             cx,
             Tiling {
-                left: multi_workspace_enabled && self.sidebar_open(),
+                left: cfg!(not(target_os = "macos")) && multi_workspace_enabled && self.sidebar_open(),
                 ..Tiling::default()
             },
         )
