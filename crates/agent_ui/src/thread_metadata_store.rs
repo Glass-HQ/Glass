@@ -1,4 +1,8 @@
-use std::{path::Path, sync::Arc};
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use acp_thread::AgentSessionInfo;
 use agent::{ThreadStore, ZED_AGENT_ID};
@@ -16,10 +20,10 @@ use db::{
 use feature_flags::{AgentV2FeatureFlag, FeatureFlagAppExt};
 use futures::{FutureExt as _, future::Shared};
 use gpui::{AppContext as _, Entity, Global, Subscription, Task};
-use project::AgentId;
+use project::{AgentId, Project, git_store::RepositorySnapshot};
 use ui::{App, Context, SharedString};
 use util::ResultExt as _;
-use workspace::PathList;
+use workspace::{PathList, Workspace};
 
 use crate::DEFAULT_THREAD_TITLE;
 
@@ -113,6 +117,74 @@ pub struct ThreadMetadata {
     pub updated_at: DateTime<Utc>,
     pub created_at: Option<DateTime<Utc>>,
     pub folder_paths: PathList,
+}
+
+pub fn workspace_folder_paths(workspace: &Entity<Workspace>, cx: &App) -> PathList {
+    PathList::new(&workspace.read(cx).root_paths(cx))
+}
+
+pub fn workspace_root_repository_snapshots(
+    workspace: &Entity<Workspace>,
+    cx: &App,
+) -> Vec<RepositorySnapshot> {
+    let path_list = workspace_folder_paths(workspace, cx);
+    let project = workspace.read(cx).project().read(cx);
+    project
+        .repositories(cx)
+        .values()
+        .filter_map(|repo| {
+            let snapshot = repo.read(cx).snapshot();
+            let is_root = path_list
+                .paths()
+                .iter()
+                .any(|path| path.as_path() == snapshot.work_directory_abs_path.as_ref());
+            is_root.then_some(snapshot)
+        })
+        .collect()
+}
+
+pub fn classify_project_worktrees(
+    project: &Entity<Project>,
+    cx: &App,
+) -> (Vec<Entity<project::git_store::Repository>>, Vec<PathBuf>) {
+    let repositories = project.read(cx).repositories(cx).clone();
+    let mut git_repos: Vec<Entity<project::git_store::Repository>> = Vec::new();
+    let mut non_git_paths: Vec<PathBuf> = Vec::new();
+    let mut seen_repo_ids = HashSet::new();
+
+    for worktree in project.read(cx).visible_worktrees(cx) {
+        let worktree_path = worktree.read(cx).abs_path();
+
+        let matching_repo = repositories
+            .iter()
+            .filter_map(|(id, repo)| {
+                let work_dir = repo.read(cx).work_directory_abs_path.clone();
+                if worktree_path.starts_with(work_dir.as_ref())
+                    || work_dir.starts_with(worktree_path.as_ref())
+                {
+                    Some((*id, repo.clone(), work_dir.as_ref().components().count()))
+                } else {
+                    None
+                }
+            })
+            .max_by(
+                |(left_id, _left_repo, left_depth), (right_id, _right_repo, right_depth)| {
+                    left_depth
+                        .cmp(right_depth)
+                        .then_with(|| left_id.cmp(right_id))
+                },
+            );
+
+        if let Some((id, repo, _)) = matching_repo {
+            if seen_repo_ids.insert(id) {
+                git_repos.push(repo);
+            }
+        } else {
+            non_git_paths.push(worktree_path.to_path_buf());
+        }
+    }
+
+    (git_repos, non_git_paths)
 }
 
 impl ThreadMetadata {

@@ -3905,37 +3905,17 @@ impl GitPanel {
         path + file_name + depth * 2
     }
 
-    fn render_overflow_menu(&self, id: impl Into<ElementId>) -> gpui::AnyElement {
-        let focus_handle = self.focus_handle.clone();
-        let has_tracked_changes = self.has_tracked_changes();
-        let has_staged_changes = self.has_staged_changes();
-        let has_unstaged_changes = self.has_unstaged_changes();
-        let has_new_changes = self.new_count > 0;
-        let has_stash_items = self.stash_entries.entries.len() > 0;
-
-        PopoverMenu::new(id.into())
-            .trigger(
-                IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted),
-            )
-            .menu(move |window, cx| {
-                Some(git_panel_context_menu(
-                    focus_handle.clone(),
-                    GitMenuState {
-                        has_tracked_changes,
-                        has_staged_changes,
-                        has_unstaged_changes,
-                        has_new_changes,
-                        sort_by_path: GitPanelSettings::get_global(cx).sort_by_path,
-                        has_stash_items,
-                        tree_view: GitPanelSettings::get_global(cx).tree_view,
-                    },
-                    window,
-                    cx,
-                ))
-            })
-            .anchor(Corner::TopRight)
+    fn render_overflow_menu(
+        &self,
+        _id: impl Into<ElementId>,
+        cx: &Context<Self>,
+    ) -> gpui::AnyElement {
+        IconButton::new("overflow-menu-trigger", IconName::Ellipsis)
+            .icon_size(IconSize::Small)
+            .icon_color(Color::Muted)
+            .on_click(cx.listener(|this, _, window, cx| {
+                this.deploy_panel_context_menu(window.mouse_position_in_window(), window, cx);
+            }))
             .into_any_element()
     }
 
@@ -4201,7 +4181,7 @@ impl GitPanel {
                 .child(
                     h_flex()
                         .gap_1()
-                        .child(self.render_overflow_menu("overflow_menu"))
+                        .child(self.render_overflow_menu("overflow_menu", cx))
                         .child(
                             panel_filled_button(text)
                                 .tooltip(Tooltip::for_action_title_in(
@@ -5671,6 +5651,7 @@ impl Render for GitPanel {
                         .anchor(Corner::TopLeft)
                         .child(menu.clone()),
                 )
+                .window_overlay()
                 .with_priority(1)
             }))
     }

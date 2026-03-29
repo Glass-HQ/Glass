@@ -35,12 +35,12 @@ actions!(
         NextWorkspaceInWindow,
         /// Switches to the previous workspace within the current window.
         PreviousWorkspaceInWindow,
-        /// Toggles the workspace switcher sidebar.
-        ToggleWorkspaceSidebar,
-        /// Closes the workspace sidebar.
-        CloseWorkspaceSidebar,
-        /// Moves focus to or from the workspace sidebar without closing it.
-        FocusWorkspaceSidebar,
+        /// Toggles project navigation.
+        ToggleProjectNavigation,
+        /// Closes project navigation.
+        CloseProjectNavigation,
+        /// Moves focus to or from project navigation without closing it.
+        FocusProjectNavigation,
         /// Switches to the next workspace.
         NextWorkspace,
         /// Switches to the previous workspace.
@@ -910,17 +910,17 @@ impl Render for MultiWorkspace {
                 )
                 .when(self.multi_workspace_enabled(cx), |this| {
                     this.on_action(cx.listener(
-                        |this: &mut Self, _: &ToggleWorkspaceSidebar, window, cx| {
+                        |this: &mut Self, _: &ToggleProjectNavigation, window, cx| {
                             this.toggle_sidebar(window, cx);
                         },
                     ))
                     .on_action(cx.listener(
-                        |this: &mut Self, _: &CloseWorkspaceSidebar, window, cx| {
+                        |this: &mut Self, _: &CloseProjectNavigation, window, cx| {
                             this.close_sidebar_action(window, cx);
                         },
                     ))
                     .on_action(cx.listener(
-                        |this: &mut Self, _: &FocusWorkspaceSidebar, window, cx| {
+                        |this: &mut Self, _: &FocusProjectNavigation, window, cx| {
                             this.focus_sidebar(window, cx);
                         },
                     ))

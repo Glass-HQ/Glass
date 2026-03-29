@@ -696,8 +696,8 @@
       "cmd-shift-j": "workspace::ToggleBottomDock",
       "cmd-j": "workspace_modes::SwitchToTerminalMode",
       "cmd-e": "workspace_modes::SwitchToEditorMode",
-      "cmd-alt-j": "multi_workspace::ToggleWorkspaceSidebar",
-      "cmd-alt-;": "multi_workspace::FocusWorkspaceSidebar",
+      "cmd-alt-j": "multi_workspace::ToggleProjectNavigation",
+      "cmd-alt-;": "multi_workspace::FocusProjectNavigation",
       "alt-cmd-y": "workspace::ToggleAllDocks",
       // For 0px parameter, uses UI font size value.
       "ctrl-alt-0": "workspace::ResetActiveDockSize",

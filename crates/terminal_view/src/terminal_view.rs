@@ -1227,7 +1227,7 @@ impl Render for TerminalView {
                                 terminal.select_word_at_event_position(event);
                             });
                         };
-                        this.deploy_context_menu(event.position, window, cx);
+                        this.deploy_context_menu(window.mouse_position_in_window(), window, cx);
                         cx.notify();
                     }
                 }),
@@ -1269,6 +1269,7 @@ impl Render for TerminalView {
                         .anchor(gpui::Corner::TopLeft)
                         .child(menu.clone()),
                 )
+                .window_overlay()
                 .with_priority(1)
             }))
     }

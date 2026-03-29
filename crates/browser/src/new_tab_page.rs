@@ -71,7 +71,9 @@ pub fn render_new_tab_page(
                                         );
                                     }
                                 })
-                                .on_submit(move |event: &SearchSubmitEvent, _window, cx| {
+                                .on_submit(move |event: &SearchSubmitEvent, window, cx| {
+                                    window.dismiss_native_search_suggestion_menu();
+                                    window.blur_native_field_editor();
                                     if let Err(error) = browser_view_for_submit.update(cx, |browser_view, cx| {
                                         browser_view.submit_new_tab_search(&event.text, cx);
                                     }) {

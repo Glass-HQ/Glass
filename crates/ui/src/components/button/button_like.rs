@@ -659,11 +659,10 @@ impl RenderOnce for ButtonLike {
             })
             .when(is_outlined, |this| this.border_1())
             .when_some(self.rounding, |this, rounding| {
-                let radius = cx.theme().component_radius().button.unwrap_or(px(4.0));
-                this.when(rounding.top_left, |this| this.rounded_tl(radius))
-                    .when(rounding.top_right, |this| this.rounded_tr(radius))
-                    .when(rounding.bottom_right, |this| this.rounded_br(radius))
-                    .when(rounding.bottom_left, |this| this.rounded_bl(radius))
+                this.when(rounding.top_left, |this| this.rounded_tl_sm())
+                    .when(rounding.top_right, |this| this.rounded_tr_sm())
+                    .when(rounding.bottom_right, |this| this.rounded_br_sm())
+                    .when(rounding.bottom_left, |this| this.rounded_bl_sm())
             })
             .gap(DynamicSpacing::Base04.rems(cx))
             .map(|this| match self.size {

@@ -286,24 +286,20 @@ impl Render for BrowserSidebarPanel {
                     .p_1()
                     .gap_1()
                     .child(
-                        SidebarRow::new(
-                            "native-sidebar-new-tab-button",
-                            "New Tab",
-                            IconName::Plus,
-                        )
-                        .centered()
-                        .on_click(move |_, window, cx| {
-                            let Some(workspace) = Workspace::for_window(window, cx) else {
-                                return;
-                            };
-                            workspace.update(cx, |workspace, cx| {
-                                workspace.create_sidebar_entry(
-                                    WorkspaceSidebarSection::BrowserTabs,
-                                    window,
-                                    cx,
-                                );
-                            });
-                        }),
+                        SidebarRow::new("native-sidebar-new-tab-button", "New Tab", IconName::Plus)
+                            .centered()
+                            .on_click(move |_, window, cx| {
+                                let Some(workspace) = Workspace::for_window(window, cx) else {
+                                    return;
+                                };
+                                workspace.update(cx, |workspace, cx| {
+                                    workspace.create_sidebar_entry(
+                                        WorkspaceSidebarSection::BrowserTabs,
+                                        window,
+                                        cx,
+                                    );
+                                });
+                            }),
                     )
                     .when_some(open_browser_label, |this, label| {
                         this.child(

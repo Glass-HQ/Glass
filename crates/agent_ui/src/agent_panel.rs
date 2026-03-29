@@ -48,6 +48,7 @@ use crate::{
 use crate::{
     ExpandMessageEditor, ThreadHistoryView,
     text_thread_history::{TextThreadHistory, TextThreadHistoryEvent},
+    thread_metadata_store::classify_project_worktrees,
 };
 use crate::{ManageProfiles, ThreadHistoryViewEvent};
 use crate::{ThreadHistory, agent_connection_store::AgentConnectionStore};
@@ -84,7 +85,7 @@ use ui::{
 use util::{ResultExt as _, debug_panic};
 use workspace::{
     CollaboratorId, DraggedSelection, DraggedTab, OpenResult, PathList, SerializedPathList,
-    ToggleWorkspaceSidebar, ToggleZoom, ToolbarItemView, Workspace, WorkspaceId,
+    ToggleProjectNavigation, ToggleZoom, ToolbarItemView, Workspace, WorkspaceId,
     dock::{DockPosition, Panel, PanelEvent},
 };
 use zed_actions::{
@@ -2558,64 +2559,6 @@ impl AgentPanel {
         }
     }
 
-    // TODO: The mapping from workspace root paths to git repositories needs a
-    // unified approach across the codebase: this method, `sidebar::is_root_repo`,
-    // thread persistence (which PathList is saved to the database), and thread
-    // querying (which PathList is used to read threads back). All of these need
-    // to agree on how repos are resolved for a given workspace, especially in
-    // multi-root and nested-repo configurations.
-    /// Partitions the project's visible worktrees into git-backed repositories
-    /// and plain (non-git) paths. Git repos will have worktrees created for
-    /// them; non-git paths are carried over to the new workspace as-is.
-    ///
-    /// When multiple worktrees map to the same repository, the most specific
-    /// match wins (deepest work directory path), with a deterministic
-    /// tie-break on entity id. Each repository appears at most once.
-    fn classify_worktrees(
-        &self,
-        cx: &App,
-    ) -> (Vec<Entity<project::git_store::Repository>>, Vec<PathBuf>) {
-        let project = &self.project;
-        let repositories = project.read(cx).repositories(cx).clone();
-        let mut git_repos: Vec<Entity<project::git_store::Repository>> = Vec::new();
-        let mut non_git_paths: Vec<PathBuf> = Vec::new();
-        let mut seen_repo_ids = std::collections::HashSet::new();
-
-        for worktree in project.read(cx).visible_worktrees(cx) {
-            let wt_path = worktree.read(cx).abs_path();
-
-            let matching_repo = repositories
-                .iter()
-                .filter_map(|(id, repo)| {
-                    let work_dir = repo.read(cx).work_directory_abs_path.clone();
-                    if wt_path.starts_with(work_dir.as_ref())
-                        || work_dir.starts_with(wt_path.as_ref())
-                    {
-                        Some((*id, repo.clone(), work_dir.as_ref().components().count()))
-                    } else {
-                        None
-                    }
-                })
-                .max_by(
-                    |(left_id, _left_repo, left_depth), (right_id, _right_repo, right_depth)| {
-                        left_depth
-                            .cmp(right_depth)
-                            .then_with(|| left_id.cmp(right_id))
-                    },
-                );
-
-            if let Some((id, repo, _)) = matching_repo {
-                if seen_repo_ids.insert(id) {
-                    git_repos.push(repo);
-                }
-            } else {
-                non_git_paths.push(wt_path.to_path_buf());
-            }
-        }
-
-        (git_repos, non_git_paths)
-    }
-
     /// Kicks off an async git-worktree creation for each repository. Returns:
     ///
     /// - `creation_infos`: a vec of `(repo, new_path, receiver)` tuples—the
@@ -2762,7 +2705,7 @@ impl AgentPanel {
         self.worktree_creation_status = Some(WorktreeCreationStatus::Creating);
         cx.notify();
 
-        let (git_repos, non_git_paths) = self.classify_worktrees(cx);
+        let (git_repos, non_git_paths) = classify_project_worktrees(&self.project, cx);
 
         if git_repos.is_empty() {
             self.set_worktree_creation_error(
@@ -3491,7 +3434,10 @@ impl AgentPanel {
                             .action("Profiles", Box::new(ManageProfiles::default()))
                             .action("Settings", Box::new(OpenSettings))
                             .separator()
-                            .action("Toggle Threads Sidebar", Box::new(ToggleWorkspaceSidebar))
+                            .action(
+                                "Toggle Project Navigation",
+                                Box::new(ToggleProjectNavigation),
+                            )
                             .action(full_screen_label, Box::new(ToggleZoom));
 
                         if has_auth_methods {

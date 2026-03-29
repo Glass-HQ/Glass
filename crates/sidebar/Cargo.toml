@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later"
 workspace = true
 
 [lib]
-path = "src/sidebar.rs"
+path = "src/threads_navigator.rs"
 
 [features]
 default = []

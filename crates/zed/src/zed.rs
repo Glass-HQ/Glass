@@ -69,7 +69,7 @@ use settings::{
     initial_local_debug_tasks_content, initial_project_settings_content, initial_tasks_content,
     update_settings_file,
 };
-use sidebar::Sidebar;
+use sidebar::ThreadsNavigator;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
@@ -389,10 +389,15 @@ pub fn initialize_workspace(
         cx.defer(move |cx| {
             window_handle
                 .update(cx, |_, window, cx| {
-                    let sidebar =
-                        cx.new(|cx| Sidebar::new(multi_workspace_handle.clone(), window, cx));
+                    let threads_navigator = cx.new(|cx| {
+                        ThreadsNavigator::new(multi_workspace_handle.clone(), window, cx)
+                    });
+                    let Some(project_navigation) = threads_navigator.read(cx).project_surface()
+                    else {
+                        return;
+                    };
                     multi_workspace_handle.update(cx, |multi_workspace, cx| {
-                        multi_workspace.register_sidebar(sidebar, cx);
+                        multi_workspace.register_sidebar(project_navigation, cx);
                     });
                 })
                 .ok();
@@ -5151,8 +5156,6 @@ mod tests {
         // Use the proper initialization for runtime state
         let app_state = init_keymap_test(cx);
 
-        eprintln!("Running test_opening_project_settings_when_excluded");
-
         // 1. Set up a project with some project settings
         let settings_init =
             r#"{ "UNIQUEVALUE": true, "git": { "inline_blame": { "enabled": false } } }"#;
@@ -5169,8 +5172,6 @@ mod tests {
             )
             .await;
 
-        eprintln!("Created project with .zed/settings.json containing UNIQUEVALUE");
-
         // 2. Create a project with the file system and load it
         let project = Project::test(app_state.fs.clone(), [Path::new("/root")], cx).await;
 
@@ -5183,8 +5184,6 @@ mod tests {
 
         let original_settings_str = original_settings.clone();
 
-        // Verify settings exist on disk and have expected content
-        eprintln!("Original settings content: {}", original_settings_str);
         assert!(
             original_settings_str.contains("UNIQUEVALUE"),
             "Test setup failed - settings file doesn't contain our marker"
@@ -5198,8 +5197,6 @@ mod tests {
             });
         });
 
-        eprintln!("Added .zed to file_scan_exclusions in settings");
-
         // 4. Run tasks to apply settings
         cx.background_executor.run_until_parked();
 
@@ -5208,11 +5205,6 @@ mod tests {
 
         let has_zed_entry =
             cx.update(|cx| worktree.read(cx).entry_for_path(rel_path(".zed")).is_some());
-
-        eprintln!(
-            "Is .zed directory visible in worktree after exclusion: {}",
-            has_zed_entry
-        );
 
         // This assertion verifies the test is set up correctly to show the bug
         // If .zed is not excluded, the test will fail here
@@ -5231,7 +5223,6 @@ mod tests {
             .update(cx, |_, window, cx| {
                 workspace.update(cx, |workspace, cx| {
                     // Call the exact function that contains the bug
-                    eprintln!("About to call open_project_settings_file");
                     open_project_settings_file(workspace, &OpenProjectSettingsFile, window, cx);
                 });
             })
@@ -5246,14 +5237,11 @@ mod tests {
             .load(Path::new("/root/.zed/settings.json"))
             .await
             .unwrap();
-
         let new_content_str = new_content;
-        eprintln!("New settings content: {}", new_content_str);
 
         // The bug causes the settings to be overwritten with empty settings
         // So if the unique value is no longer present, the bug has been reproduced
         let bug_exists = !new_content_str.contains("UNIQUEVALUE");
-        eprintln!("Bug reproduced: {}", bug_exists);
 
         // This assertion should fail if the bug exists - showing the bug is real
         assert!(

@@ -142,7 +142,8 @@ pub fn init(cx: &mut App) {
                 .clone()
                 .downcast::<BrowserView>()
                 .expect("shared browser view should downcast to BrowserView");
-            Box::new(BrowserPaneItem::new(&browser_view, workspace, cx)) as Box<dyn workspace::ItemHandle>
+            Box::new(BrowserPaneItem::new(&browser_view, workspace, cx))
+                as Box<dyn workspace::ItemHandle>
         }),
         cx,
     );
@@ -151,9 +152,11 @@ pub fn init(cx: &mut App) {
         |workspace: &mut workspace::Workspace,
          _window: Option<&mut Window>,
          _cx: &mut gpui::Context<workspace::Workspace>| {
-            workspace.register_action(|workspace, _: &browser_view::OpenBrowserPane, window, cx| {
-                workspace.show_browser_surface(true, window, cx).log_err();
-            });
+            workspace.register_action(
+                |workspace, _: &browser_view::OpenBrowserPane, window, cx| {
+                    workspace.show_browser_surface(true, window, cx).log_err();
+                },
+            );
         },
     )
     .detach();

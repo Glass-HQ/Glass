@@ -13,7 +13,7 @@ use gpui::{
 use settings::SettingsStore;
 use std::sync::Arc;
 use theme::{ActiveTheme, active_component_radius};
-use ui::{Divider, IconButtonShape, Tooltip, prelude::*};
+use ui::{Divider, Tooltip, prelude::*};
 use workspace_chrome::SidebarRow;
 use zed_actions::OpenRecent;
 
@@ -84,6 +84,8 @@ impl Render for DockButtonBar {
                 .cloned()
         });
 
+        const MAX_BRANCH_BUTTON_LABEL_LEN: usize = 18;
+
         let branch_label = selected_repository
             .as_ref()
             .and_then(|repository| {
@@ -91,7 +93,7 @@ impl Render for DockButtonBar {
                 repository
                     .branch
                     .as_ref()
-                    .map(|branch| util::truncate_and_trailoff(branch.name(), 32))
+                    .map(|branch| branch.name().to_string())
                     .or_else(|| {
                         repository
                             .head_commit
@@ -100,6 +102,11 @@ impl Render for DockButtonBar {
                     })
             })
             .unwrap_or_else(|| "Switch Branch".to_string());
+        let branch_button_label = if branch_label.len() <= MAX_BRANCH_BUTTON_LABEL_LEN {
+            branch_label.clone()
+        } else {
+            util::truncate_and_trailoff(branch_label.trim_ascii(), MAX_BRANCH_BUTTON_LABEL_LEN)
+        };
 
         let mut project_panel_badge = None;
         let mut git_panel_badge = None;
@@ -120,26 +127,29 @@ impl Render for DockButtonBar {
             }
         }
 
-        let show_workspaces_row = multi_workspace.as_ref().is_some_and(|multi_workspace| {
-            multi_workspace.read(cx).multi_workspace_enabled(cx)
-                && multi_workspace.read(cx).sidebar().is_some()
-        });
-
         let project_picker_row = SidebarRow::new(
             "sidebar-project-picker",
             project_label,
             IconName::OpenFolder,
         )
         .end_slot(
-            IconButton::new("sidebar-branch-picker", IconName::GitBranchAlt)
-                .shape(IconButtonShape::Square)
-                .icon_size(IconSize::Small)
-                .icon_color(Color::Muted)
-                .tooltip(Tooltip::text(branch_label.clone()))
-                .on_click(|_, window, cx| {
-                    cx.stop_propagation();
-                    window.dispatch_action(zed_actions::git::Branch.boxed_clone(), cx);
-                }),
+            div().max_w(rems(9.5)).child(
+                Button::new("sidebar-branch-picker", branch_button_label)
+                    .style(ButtonStyle::Transparent)
+                    .size(ButtonSize::None)
+                    .label_size(LabelSize::Small)
+                    .start_icon(
+                        Icon::new(IconName::GitBranchAlt)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    )
+                    .truncate(true)
+                    .tooltip(Tooltip::text(branch_label.clone()))
+                    .on_click(|_, window: &mut Window, cx: &mut App| {
+                        cx.stop_propagation();
+                        window.dispatch_action(zed_actions::git::Branch.boxed_clone(), cx);
+                    }),
+            ),
         )
         .on_click(|_, window, cx| {
             window.dispatch_action(
@@ -283,39 +293,6 @@ impl Render for DockButtonBar {
                 })
                 .into_any_element(),
         );
-
-        if show_workspaces_row {
-            mode_rows.push(
-                SidebarRow::new("sidebar-workspaces", "Workspaces", IconName::Screen)
-                    .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Workspaces)
-                    .on_click({
-                        let multi_workspace = multi_workspace.clone();
-                        let workspace = self.workspace.clone();
-                        move |_, window, cx| {
-                            if let Some(multi_workspace) = multi_workspace.as_ref() {
-                                multi_workspace.update(cx, |multi_workspace, cx| {
-                                    multi_workspace.open_sidebar(cx);
-                                    if let Some(sidebar) = multi_workspace.sidebar() {
-                                        sidebar.prepare_for_focus(window, cx);
-                                        sidebar.focus(window, cx);
-                                    }
-                                });
-                            }
-
-                            if let Some(workspace) = workspace.upgrade() {
-                                workspace.update(cx, |workspace, cx| {
-                                    workspace.select_sidebar_section(
-                                        crate::WorkspaceSidebarSection::Workspaces,
-                                        window,
-                                        cx,
-                                    );
-                                });
-                            }
-                        }
-                    })
-                    .into_any_element(),
-            );
-        }
 
         let radius = cx.theme().component_radius().panel.unwrap_or(px(10.0));
 
@@ -965,8 +942,8 @@ impl Dock {
                         }
                     }
                     PanelEvent::Close => {
-                        let panel_had_focus = PanelHandle::panel_focus_handle(panel, cx)
-                            .contains_focused(window, cx);
+                        let panel_had_focus =
+                            PanelHandle::panel_focus_handle(panel, cx).contains_focused(window, cx);
                         if this
                             .visible_panel()
                             .is_some_and(|p| p.panel_id() == Entity::entity_id(panel))

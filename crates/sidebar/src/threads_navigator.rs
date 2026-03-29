@@ -1,7 +1,10 @@
 use acp_thread::ThreadStatus;
 use action_log::DiffStats;
 use agent_client_protocol::{self as acp};
-use agent_ui::thread_metadata_store::{SidebarThreadMetadataStore, ThreadMetadata};
+use agent_ui::thread_metadata_store::{
+    SidebarThreadMetadataStore, ThreadMetadata, workspace_folder_paths,
+    workspace_root_repository_snapshots,
+};
 use agent_ui::threads_archive_view::{
     ThreadsArchiveView, ThreadsArchiveViewEvent, format_history_entry_timestamp,
 };
@@ -11,7 +14,7 @@ use agent_ui::{
 use chrono::Utc;
 use editor::Editor;
 use gpui::{
-    Action as _, AnyElement, App, Context, DismissEvent, Entity, FocusHandle, Focusable, ListState,
+    Action as _, AnyElement, AnyView, App, Context, Entity, FocusHandle, Focusable, ListState,
     Pixels, Render, SharedString, WeakEntity, Window, WindowHandle, list, prelude::*, px,
 };
 use menu::{
@@ -24,12 +27,12 @@ use ui::utils::platform_title_bar_height;
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::path::Path;
-use std::rc::Rc;
 use std::sync::Arc;
 use theme::ActiveTheme;
 use ui::{
     AgentThreadStatus, CommonAnimationExt, ContextMenu, Divider, HighlightedLabel, KeyBinding,
-    PopoverMenu, PopoverMenuHandle, Tab, ThreadItem, TintColor, Tooltip, WithScrollbar, prelude::*,
+    PopoverMenu, PopoverMenuHandle, Tab, ThreadItem, TintColor, ToggleButtonGroup,
+    ToggleButtonGroupStyle, ToggleButtonSimple, Tooltip, WithScrollbar, prelude::*,
 };
 use util::ResultExt as _;
 use util::path_list::PathList;
@@ -179,36 +182,6 @@ fn fuzzy_match_positions(query: &str, candidate: &str) -> Option<Vec<usize>> {
     }
 }
 
-// TODO: The mapping from workspace root paths to git repositories needs a
-// unified approach across the codebase: this function, `AgentPanel::classify_worktrees`,
-// thread persistence (which PathList is saved to the database), and thread
-// querying (which PathList is used to read threads back). All of these need
-// to agree on how repos are resolved for a given workspace, especially in
-// multi-root and nested-repo configurations.
-fn root_repository_snapshots(
-    workspace: &Entity<Workspace>,
-    cx: &App,
-) -> Vec<project::git_store::RepositorySnapshot> {
-    let path_list = workspace_path_list(workspace, cx);
-    let project = workspace.read(cx).project().read(cx);
-    project
-        .repositories(cx)
-        .values()
-        .filter_map(|repo| {
-            let snapshot = repo.read(cx).snapshot();
-            let is_root = path_list
-                .paths()
-                .iter()
-                .any(|p| p.as_path() == snapshot.work_directory_abs_path.as_ref());
-            is_root.then_some(snapshot)
-        })
-        .collect()
-}
-
-fn workspace_path_list(workspace: &Entity<Workspace>, cx: &App) -> PathList {
-    PathList::new(&workspace.read(cx).root_paths(cx))
-}
-
 fn workspace_label_from_path_list(path_list: &PathList) -> SharedString {
     let mut names = Vec::with_capacity(path_list.paths().len());
     for abs_path in path_list.paths() {
@@ -224,12 +197,326 @@ fn workspace_label_from_path_list(path_list: &PathList) -> SharedString {
     }
 }
 
+fn build_project_navigation_context_menu(
+    workspace: Entity<Workspace>,
+    multi_workspace: WeakEntity<MultiWorkspace>,
+    window: &mut Window,
+    cx: &mut App,
+) -> Entity<ContextMenu> {
+    let worktrees: Vec<_> = workspace
+        .read(cx)
+        .visible_worktrees(cx)
+        .map(|worktree| {
+            let worktree_read = worktree.read(cx);
+            let id = worktree_read.id();
+            let name: SharedString = worktree_read.root_name().as_unix_str().to_string().into();
+            (id, name)
+        })
+        .collect();
+
+    let worktree_count = worktrees.len();
+
+    ContextMenu::build_persistent(window, cx, move |menu, _window, cx| {
+        let mut menu = menu
+            .header("Project Folders")
+            .end_slot_action(Box::new(menu::EndSlot));
+
+        for (worktree_id, name) in &worktrees {
+            let worktree_id = *worktree_id;
+            let workspace_for_worktree = workspace.clone();
+            let workspace_for_remove_worktree = workspace.clone();
+            let multi_workspace_for_worktree = multi_workspace.clone();
+
+            let remove_handler = move |window: &mut Window, cx: &mut App| {
+                if worktree_count <= 1 {
+                    if let Some(multi_workspace) = multi_workspace_for_worktree.upgrade() {
+                        let workspace = workspace_for_remove_worktree.clone();
+                        multi_workspace.update(cx, |multi_workspace, cx| {
+                            if let Some(index) = multi_workspace
+                                .workspaces()
+                                .iter()
+                                .position(|candidate| *candidate == workspace)
+                            {
+                                multi_workspace.remove_workspace(index, window, cx);
+                            }
+                        });
+                    }
+                } else {
+                    workspace_for_worktree.update(cx, |workspace, cx| {
+                        workspace.project().update(cx, |project, cx| {
+                            project.remove_worktree(worktree_id, cx);
+                        });
+                    });
+                }
+            };
+
+            menu = menu.entry_with_end_slot_on_hover(
+                name.clone(),
+                None,
+                |_, _| {},
+                IconName::Close,
+                "Remove Folder".into(),
+                remove_handler,
+            );
+        }
+
+        let workspace_for_add = workspace.clone();
+        let multi_workspace_for_add = multi_workspace.clone();
+        let menu = menu.separator().entry(
+            "Add Folder to Project",
+            Some(Box::new(AddFolderToProject)),
+            move |window, cx| {
+                if let Some(multi_workspace) = multi_workspace_for_add.upgrade() {
+                    multi_workspace.update(cx, |multi_workspace, cx| {
+                        multi_workspace.activate(workspace_for_add.clone(), cx);
+                    });
+                }
+                workspace_for_add.update(cx, |workspace, cx| {
+                    workspace.add_folder_to_project(&AddFolderToProject, window, cx);
+                });
+            },
+        );
+
+        let workspace_count = multi_workspace.upgrade().map_or(0, |multi_workspace| {
+            multi_workspace.read(cx).workspaces().len()
+        });
+        let menu = if workspace_count > 1 {
+            let workspace_for_move = workspace.clone();
+            let multi_workspace_for_move = multi_workspace.clone();
+            menu.entry(
+                "Move to New Window",
+                Some(Box::new(
+                    zed_actions::agents_sidebar::MoveWorkspaceToNewWindow,
+                )),
+                move |window, cx| {
+                    if let Some(multi_workspace) = multi_workspace_for_move.upgrade() {
+                        multi_workspace.update(cx, |multi_workspace, cx| {
+                            if let Some(index) = multi_workspace
+                                .workspaces()
+                                .iter()
+                                .position(|candidate| *candidate == workspace_for_move)
+                            {
+                                multi_workspace.move_workspace_to_new_window(index, window, cx);
+                            }
+                        });
+                    }
+                },
+            )
+        } else {
+            menu
+        };
+
+        let workspace_for_remove = workspace.clone();
+        let multi_workspace_for_remove = multi_workspace.clone();
+        menu.separator()
+            .entry("Remove Project", None, move |window, cx| {
+                if let Some(multi_workspace) = multi_workspace_for_remove.upgrade() {
+                    let workspace = workspace_for_remove.clone();
+                    multi_workspace.update(cx, |multi_workspace, cx| {
+                        if let Some(index) = multi_workspace
+                            .workspaces()
+                            .iter()
+                            .position(|candidate| *candidate == workspace)
+                        {
+                            multi_workspace.remove_workspace(index, window, cx);
+                        }
+                    });
+                }
+            })
+    })
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ProjectSidebarTab {
+    #[default]
+    Files,
+    Threads,
+}
+
+pub struct ProjectSidebarSurface {
+    multi_workspace: WeakEntity<MultiWorkspace>,
+    threads_navigator: Entity<ThreadsNavigator>,
+    focus_handle: FocusHandle,
+    active_tab: ProjectSidebarTab,
+    width: Pixels,
+}
+
+impl ProjectSidebarSurface {
+    fn new(
+        multi_workspace: WeakEntity<MultiWorkspace>,
+        threads_navigator: Entity<ThreadsNavigator>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        Self {
+            multi_workspace,
+            threads_navigator,
+            focus_handle: cx.focus_handle(),
+            active_tab: ProjectSidebarTab::default(),
+            width: DEFAULT_WIDTH,
+        }
+    }
+
+    fn set_active_tab(&mut self, active_tab: ProjectSidebarTab, cx: &mut Context<Self>) {
+        if self.active_tab != active_tab {
+            self.active_tab = active_tab;
+            cx.notify();
+        }
+    }
+
+    fn active_workspace(&self, cx: &App) -> Option<Entity<Workspace>> {
+        let multi_workspace = self.multi_workspace.upgrade()?;
+        Some(multi_workspace.read(cx).workspace().clone())
+    }
+
+    fn project_panel_view(&self, cx: &App) -> Option<AnyView> {
+        let workspace = self.active_workspace(cx)?;
+
+        for dock in [
+            workspace.read(cx).left_dock().clone(),
+            workspace.read(cx).right_dock().clone(),
+            workspace.read(cx).bottom_dock().clone(),
+        ] {
+            let view = {
+                let dock = dock.read(cx);
+                dock.panel_for_key("ProjectPanel")
+                    .map(|panel| panel.to_any())
+            };
+            if view.is_some() {
+                return view;
+            }
+        }
+
+        None
+    }
+
+    fn threads_view(&self, _cx: &App) -> Option<AnyView> {
+        Some(self.threads_navigator.clone().into())
+    }
+}
+
+impl Focusable for ProjectSidebarSurface {
+    fn focus_handle(&self, _cx: &App) -> FocusHandle {
+        self.focus_handle.clone()
+    }
+}
+
+impl WorkspaceSidebar for ProjectSidebarSurface {
+    fn width(&self, _cx: &App) -> Pixels {
+        self.width
+    }
+
+    fn set_width(&mut self, width: Option<Pixels>, cx: &mut Context<Self>) {
+        self.width = width.unwrap_or(DEFAULT_WIDTH).clamp(MIN_WIDTH, MAX_WIDTH);
+        cx.notify();
+    }
+
+    fn has_notifications(&self, cx: &App) -> bool {
+        !self
+            .threads_navigator
+            .read(cx)
+            .contents
+            .notified_threads
+            .is_empty()
+    }
+
+    fn is_threads_list_view_active(&self) -> bool {
+        self.active_tab == ProjectSidebarTab::Threads
+    }
+
+    fn prepare_for_focus(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
+        self.set_active_tab(ProjectSidebarTab::Threads, cx);
+    }
+}
+
+impl Render for ProjectSidebarSurface {
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let selected_index = match self.active_tab {
+            ProjectSidebarTab::Files => 0,
+            ProjectSidebarTab::Threads => 1,
+        };
+        let active_workspace = self.active_workspace(cx);
+
+        let content = match self.active_tab {
+            ProjectSidebarTab::Files => self.project_panel_view(cx),
+            ProjectSidebarTab::Threads => self.threads_view(cx),
+        }
+        .map(|view| view.into_any_element())
+        .unwrap_or_else(|| div().size_full().into_any_element());
+
+        v_flex()
+            .size_full()
+            .overflow_hidden()
+            .bg(cx.theme().colors().panel_background)
+            .child(
+                h_flex()
+                    .px_1p5()
+                    .pt_1p5()
+                    .pb_1()
+                    .gap_2()
+                    .border_b_1()
+                    .border_color(cx.theme().colors().border)
+                    .child(
+                        ToggleButtonGroup::single_row(
+                            "project-sidebar-tabs",
+                            [
+                                ToggleButtonSimple::new("Files", {
+                                    cx.listener(|this, _, _, cx| {
+                                        this.set_active_tab(ProjectSidebarTab::Files, cx);
+                                    })
+                                }),
+                                ToggleButtonSimple::new("Threads", {
+                                    cx.listener(|this, _, _, cx| {
+                                        this.set_active_tab(ProjectSidebarTab::Threads, cx);
+                                    })
+                                }),
+                            ],
+                        )
+                        .style(ToggleButtonGroupStyle::Filled)
+                        .full_width()
+                        .selected_index(selected_index),
+                    )
+                    .when_some(active_workspace, |this, workspace| {
+                        this.child(
+                            PopoverMenu::new("project-navigation-menu")
+                                .window_overlay()
+                                .menu({
+                                    let multi_workspace = self.multi_workspace.clone();
+                                    move |window, cx| {
+                                        Some(build_project_navigation_context_menu(
+                                            workspace.clone(),
+                                            multi_workspace.clone(),
+                                            window,
+                                            cx,
+                                        ))
+                                    }
+                                })
+                                .trigger(
+                                    IconButton::new(
+                                        "project-navigation-menu-trigger",
+                                        IconName::Ellipsis,
+                                    )
+                                    .icon_size(IconSize::Small)
+                                    .icon_color(Color::Muted),
+                                )
+                                .anchor(gpui::Corner::TopRight)
+                                .offset(gpui::Point {
+                                    x: px(0.),
+                                    y: px(1.),
+                                }),
+                        )
+                    }),
+            )
+            .child(div().flex_1().size_full().overflow_hidden().child(content))
+    }
+}
+
 /// The sidebar re-derives its entire entry list from scratch on every
 /// change via `update_entries` → `rebuild_contents`. Avoid adding
 /// incremental or inter-event coordination state — if something can
 /// be computed from the current world state, compute it in the rebuild.
-pub struct Sidebar {
+pub struct ThreadsNavigator {
     multi_workspace: WeakEntity<MultiWorkspace>,
+    project_surface: WeakEntity<ProjectSidebarSurface>,
     width: Pixels,
     focus_handle: FocusHandle,
     filter_editor: Entity<Editor>,
@@ -251,12 +538,39 @@ pub struct Sidebar {
     expanded_groups: HashMap<PathList, usize>,
     view: SidebarView,
     recent_projects_popover_handle: PopoverMenuHandle<SidebarRecentProjects>,
-    project_header_menu_ix: Option<usize>,
     _subscriptions: Vec<gpui::Subscription>,
     _draft_observation: Option<gpui::Subscription>,
 }
 
-impl Sidebar {
+impl ThreadsNavigator {
+    pub fn project_surface(&self) -> Option<Entity<ProjectSidebarSurface>> {
+        self.project_surface.upgrade()
+    }
+
+    #[cfg(target_os = "macos")]
+    fn install_project_section_view(
+        workspace: &Entity<Workspace>,
+        project_surface: &Entity<ProjectSidebarSurface>,
+        cx: &mut App,
+    ) {
+        let project_surface = project_surface.clone();
+        workspace.update(cx, |workspace, cx| {
+            workspace.set_sidebar_section_view(
+                workspace::WorkspaceSidebarSection::Project,
+                Some(project_surface.into()),
+                cx,
+            );
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    fn install_project_section_view(
+        _workspace: &Entity<Workspace>,
+        _project_surface: &Entity<ProjectSidebarSurface>,
+        _cx: &mut App,
+    ) {
+    }
+
     pub fn new(
         multi_workspace: Entity<MultiWorkspace>,
         window: &mut Window,
@@ -272,6 +586,10 @@ impl Sidebar {
             editor.set_placeholder_text("Search…", window, cx);
             editor
         });
+        let threads_navigator = cx.entity();
+        let project_surface = cx.new(|cx| {
+            ProjectSidebarSurface::new(multi_workspace.downgrade(), threads_navigator.clone(), cx)
+        });
 
         cx.subscribe_in(
             &multi_workspace,
@@ -282,6 +600,9 @@ impl Sidebar {
                     this.update_entries(cx);
                 }
                 MultiWorkspaceEvent::WorkspaceAdded(workspace) => {
+                    if let Some(project_surface) = this.project_surface.upgrade() {
+                        Self::install_project_section_view(workspace, &project_surface, cx);
+                    }
                     this.subscribe_to_workspace(workspace, window, cx);
                     this.update_entries(cx);
                 }
@@ -316,6 +637,9 @@ impl Sidebar {
         let workspaces = multi_workspace.read(cx).workspaces().to_vec();
         cx.defer_in(window, move |this, window, cx| {
             for workspace in &workspaces {
+                if let Some(project_surface) = this.project_surface.upgrade() {
+                    Self::install_project_section_view(workspace, &project_surface, cx);
+                }
                 this.subscribe_to_workspace(workspace, window, cx);
             }
             this.update_entries(cx);
@@ -323,6 +647,7 @@ impl Sidebar {
 
         Self {
             multi_workspace: multi_workspace.downgrade(),
+            project_surface: project_surface.downgrade(),
             width: DEFAULT_WIDTH,
             focus_handle,
             filter_editor,
@@ -337,7 +662,6 @@ impl Sidebar {
             expanded_groups: HashMap::new(),
             view: SidebarView::default(),
             recent_projects_popover_handle: PopoverMenuHandle::default(),
-            project_header_menu_ix: None,
             _subscriptions: Vec::new(),
             _draft_observation: None,
         }
@@ -664,7 +988,7 @@ impl Sidebar {
         let mut absorbed_workspace_by_path: HashMap<Arc<Path>, usize> = HashMap::new();
 
         for (i, workspace) in workspaces.iter().enumerate() {
-            for snapshot in root_repository_snapshots(workspace, cx) {
+            for snapshot in workspace_root_repository_snapshots(workspace, cx) {
                 if snapshot.work_directory_abs_path == snapshot.original_repo_abs_path {
                     main_repo_workspace
                         .entry(snapshot.work_directory_abs_path.clone())
@@ -701,7 +1025,7 @@ impl Sidebar {
 
         let has_open_projects = workspaces
             .iter()
-            .any(|ws| !workspace_path_list(ws, cx).paths().is_empty());
+            .any(|ws| !workspace_folder_paths(ws, cx).paths().is_empty());
 
         let active_ws_index = active_workspace
             .as_ref()
@@ -712,7 +1036,7 @@ impl Sidebar {
                 continue;
             }
 
-            let path_list = workspace_path_list(workspace, cx);
+            let path_list = workspace_folder_paths(workspace, cx);
             if path_list.paths().is_empty() {
                 continue;
             }
@@ -786,7 +1110,7 @@ impl Sidebar {
                 {
                     let mut linked_worktree_queries: Vec<(PathList, SharedString, Arc<Path>)> =
                         Vec::new();
-                    for snapshot in root_repository_snapshots(workspace, cx) {
+                    for snapshot in workspace_root_repository_snapshots(workspace, cx) {
                         if snapshot.work_directory_abs_path != snapshot.original_repo_abs_path {
                             continue;
                         }
@@ -1217,8 +1541,6 @@ impl Sidebar {
             .is_some_and(|entry| matches!(entry, ListEntry::NewThread { .. }));
         let show_new_thread_button = !has_new_thread_entry && !self.has_filter_query(cx);
 
-        let workspace_for_remove = workspace.clone();
-        let workspace_for_menu = workspace.clone();
         let workspace_for_open = workspace.clone();
 
         let path_list_for_toggle = path_list.clone();
@@ -1306,20 +1628,10 @@ impl Sidebar {
                 let path_list_for_new_thread = path_list.clone();
 
                 h_flex()
-                    .when(
-                        cfg!(not(target_os = "macos")) && self.project_header_menu_ix != Some(ix),
-                        |this| this.visible_on_hover(group_name),
-                    )
+                    .visible_on_hover(group_name)
                     .on_mouse_down(gpui::MouseButton::Left, |_, _, cx| {
                         cx.stop_propagation();
                     })
-                    .child(self.render_project_header_menu(
-                        ix,
-                        id_prefix,
-                        &workspace_for_menu,
-                        &workspace_for_remove,
-                        cx,
-                    ))
                     .when(view_more_expanded && !is_collapsed, |this| {
                         this.child(
                             IconButton::new(
@@ -1399,196 +1711,6 @@ impl Sidebar {
                 this.selection = None;
                 this.toggle_collapse(&path_list_for_toggle, window, cx);
             }))
-            .into_any_element()
-    }
-
-    fn build_project_header_context_menu(
-        workspace: Entity<Workspace>,
-        workspace_for_remove: Entity<Workspace>,
-        multi_workspace: WeakEntity<MultiWorkspace>,
-        window: &mut Window,
-        cx: &mut App,
-    ) -> Entity<ContextMenu> {
-        let worktrees: Vec<_> = workspace
-            .read(cx)
-            .visible_worktrees(cx)
-            .map(|worktree| {
-                let worktree_read = worktree.read(cx);
-                let id = worktree_read.id();
-                let name: SharedString = worktree_read.root_name().as_unix_str().to_string().into();
-                (id, name)
-            })
-            .collect();
-
-        let worktree_count = worktrees.len();
-
-        ContextMenu::build_persistent(window, cx, move |menu, _window, cx| {
-            let mut menu = menu
-                .header("Project Folders")
-                .end_slot_action(Box::new(menu::EndSlot));
-
-            for (worktree_id, name) in &worktrees {
-                let worktree_id = *worktree_id;
-                let workspace_for_worktree = workspace.clone();
-                let workspace_for_remove_worktree = workspace_for_remove.clone();
-                let multi_workspace_for_worktree = multi_workspace.clone();
-
-                let remove_handler = move |window: &mut Window, cx: &mut App| {
-                    if worktree_count <= 1 {
-                        if let Some(multi_workspace) = multi_workspace_for_worktree.upgrade() {
-                            let workspace = workspace_for_remove_worktree.clone();
-                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                if let Some(index) = multi_workspace
-                                    .workspaces()
-                                    .iter()
-                                    .position(|candidate| *candidate == workspace)
-                                {
-                                    multi_workspace.remove_workspace(index, window, cx);
-                                }
-                            });
-                        }
-                    } else {
-                        workspace_for_worktree.update(cx, |workspace, cx| {
-                            workspace.project().update(cx, |project, cx| {
-                                project.remove_worktree(worktree_id, cx);
-                            });
-                        });
-                    }
-                };
-
-                menu = menu.entry_with_end_slot_on_hover(
-                    name.clone(),
-                    None,
-                    |_, _| {},
-                    IconName::Close,
-                    "Remove Folder".into(),
-                    remove_handler,
-                );
-            }
-
-            let workspace_for_add = workspace.clone();
-            let multi_workspace_for_add = multi_workspace.clone();
-            let menu = menu.separator().entry(
-                "Add Folder to Project",
-                Some(Box::new(AddFolderToProject)),
-                move |window, cx| {
-                    if let Some(multi_workspace) = multi_workspace_for_add.upgrade() {
-                        multi_workspace.update(cx, |multi_workspace, cx| {
-                            multi_workspace.activate(workspace_for_add.clone(), cx);
-                        });
-                    }
-                    workspace_for_add.update(cx, |workspace, cx| {
-                        workspace.add_folder_to_project(&AddFolderToProject, window, cx);
-                    });
-                },
-            );
-
-            let workspace_count = multi_workspace.upgrade().map_or(0, |multi_workspace| {
-                multi_workspace.read(cx).workspaces().len()
-            });
-            let menu = if workspace_count > 1 {
-                let workspace_for_move = workspace.clone();
-                let multi_workspace_for_move = multi_workspace.clone();
-                menu.entry(
-                    "Move to New Window",
-                    Some(Box::new(
-                        zed_actions::agents_sidebar::MoveWorkspaceToNewWindow,
-                    )),
-                    move |window, cx| {
-                        if let Some(multi_workspace) = multi_workspace_for_move.upgrade() {
-                            multi_workspace.update(cx, |multi_workspace, cx| {
-                                if let Some(index) = multi_workspace
-                                    .workspaces()
-                                    .iter()
-                                    .position(|candidate| *candidate == workspace_for_move)
-                                {
-                                    multi_workspace.move_workspace_to_new_window(index, window, cx);
-                                }
-                            });
-                        }
-                    },
-                )
-            } else {
-                menu
-            };
-
-            let workspace_for_remove = workspace_for_remove.clone();
-            let multi_workspace_for_remove = multi_workspace.clone();
-            menu.separator()
-                .entry("Remove Project", None, move |window, cx| {
-                    if let Some(multi_workspace) = multi_workspace_for_remove.upgrade() {
-                        let workspace = workspace_for_remove.clone();
-                        multi_workspace.update(cx, |multi_workspace, cx| {
-                            if let Some(index) = multi_workspace
-                                .workspaces()
-                                .iter()
-                                .position(|candidate| *candidate == workspace)
-                            {
-                                multi_workspace.remove_workspace(index, window, cx);
-                            }
-                        });
-                    }
-                })
-        })
-    }
-
-    fn render_project_header_menu(
-        &self,
-        ix: usize,
-        id_prefix: &str,
-        workspace: &Entity<Workspace>,
-        workspace_for_remove: &Entity<Workspace>,
-        cx: &mut Context<Self>,
-    ) -> AnyElement {
-        let workspace_for_menu = workspace.clone();
-        let workspace_for_remove = workspace_for_remove.clone();
-        let multi_workspace = self.multi_workspace.clone();
-        let this = cx.weak_entity();
-        let trigger_id = SharedString::from(format!("{id_prefix}-ellipsis-menu-{ix}"));
-        PopoverMenu::new(format!("{id_prefix}project-header-menu-{ix}"))
-            .on_open(Rc::new({
-                let this = this.clone();
-                move |_window, cx| {
-                    this.update(cx, |sidebar, cx| {
-                        sidebar.project_header_menu_ix = Some(ix);
-                        cx.notify();
-                    })
-                    .ok();
-                }
-            }))
-            .menu(move |window, cx| {
-                let menu = Self::build_project_header_context_menu(
-                    workspace_for_menu.clone(),
-                    workspace_for_remove.clone(),
-                    multi_workspace.clone(),
-                    window,
-                    cx,
-                );
-
-                let this = this.clone();
-                window
-                    .subscribe(&menu, cx, move |_, _: &DismissEvent, _window, cx| {
-                        this.update(cx, |sidebar, cx| {
-                            sidebar.project_header_menu_ix = None;
-                            cx.notify();
-                        })
-                        .ok();
-                    })
-                    .detach();
-
-                Some(menu)
-            })
-            .trigger(
-                IconButton::new(trigger_id, IconName::Ellipsis)
-                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
-                    .icon_size(IconSize::Small)
-                    .icon_color(Color::Muted),
-            )
-            .anchor(gpui::Corner::TopRight)
-            .offset(gpui::Point {
-                x: px(0.),
-                y: px(1.),
-            })
             .into_any_element()
     }
 
@@ -1687,7 +1809,7 @@ impl Sidebar {
         // repo open in any workspace.
         let mut known_worktree_paths: HashSet<std::path::PathBuf> = HashSet::new();
         for workspace in &workspaces {
-            for snapshot in root_repository_snapshots(workspace, cx) {
+            for snapshot in workspace_root_repository_snapshots(workspace, cx) {
                 if snapshot.work_directory_abs_path != snapshot.original_repo_abs_path {
                     continue;
                 }
@@ -1703,11 +1825,11 @@ impl Sidebar {
         // contains other folders.
         let mut to_remove: Vec<Entity<Workspace>> = Vec::new();
         for workspace in &workspaces {
-            let path_list = workspace_path_list(workspace, cx);
+            let path_list = workspace_folder_paths(workspace, cx);
             if path_list.paths().len() != 1 {
                 continue;
             }
-            let should_prune = root_repository_snapshots(workspace, cx)
+            let should_prune = workspace_root_repository_snapshots(workspace, cx)
                 .iter()
                 .any(|snapshot| {
                     snapshot.work_directory_abs_path != snapshot.original_repo_abs_path
@@ -2128,7 +2250,7 @@ impl Sidebar {
         cx: &App,
     ) -> Option<Entity<Workspace>> {
         self.find_workspace_in_current_window(cx, |workspace, cx| {
-            workspace_path_list(workspace, cx).paths() == path_list.paths()
+            workspace_folder_paths(workspace, cx).paths() == path_list.paths()
         })
     }
 
@@ -2138,7 +2260,7 @@ impl Sidebar {
         cx: &App,
     ) -> Option<(WindowHandle<MultiWorkspace>, Entity<Workspace>)> {
         self.find_workspace_across_windows(cx, |workspace, cx| {
-            workspace_path_list(workspace, cx).paths() == path_list.paths()
+            workspace_folder_paths(workspace, cx).paths() == path_list.paths()
         })
     }
 
@@ -2635,6 +2757,7 @@ impl Sidebar {
 
         let popover_handle = self.recent_projects_popover_handle.clone();
         PopoverMenu::new("sidebar-recent-projects-menu")
+            .window_overlay()
             .with_handle(popover_handle)
             .menu(move |window, cx| {
                 workspace.as_ref().map(|ws| {
@@ -3002,7 +3125,7 @@ impl Sidebar {
     }
 }
 
-impl WorkspaceSidebar for Sidebar {
+impl WorkspaceSidebar for ThreadsNavigator {
     fn width(&self, _cx: &App) -> Pixels {
         self.width
     }
@@ -3026,13 +3149,13 @@ impl WorkspaceSidebar for Sidebar {
     }
 }
 
-impl Focusable for Sidebar {
+impl Focusable for ThreadsNavigator {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
-impl Render for Sidebar {
+impl Render for ThreadsNavigator {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let _titlebar_height = ui::utils::platform_title_bar_height(window);
         let ui_font = theme::setup_ui_font(window, cx);
@@ -3163,7 +3286,7 @@ mod tests {
         });
     }
 
-    fn has_thread_entry(sidebar: &Sidebar, session_id: &acp::SessionId) -> bool {
+    fn has_thread_entry(sidebar: &ThreadsNavigator, session_id: &acp::SessionId) -> bool {
         sidebar.contents.entries.iter().any(|entry| {
             matches!(entry, ListEntry::Thread(t) if &t.session_info.session_id == session_id)
         })
@@ -3184,10 +3307,11 @@ mod tests {
     fn setup_sidebar(
         multi_workspace: &Entity<MultiWorkspace>,
         cx: &mut gpui::VisualTestContext,
-    ) -> Entity<Sidebar> {
+    ) -> Entity<ThreadsNavigator> {
         let multi_workspace = multi_workspace.clone();
-        let sidebar =
-            cx.update(|window, cx| cx.new(|cx| Sidebar::new(multi_workspace.clone(), window, cx)));
+        let sidebar = cx.update(|window, cx| {
+            cx.new(|cx| ThreadsNavigator::new(multi_workspace.clone(), window, cx))
+        });
         multi_workspace.update(cx, |mw, cx| {
             mw.register_sidebar(sidebar.clone(), cx);
         });
@@ -3266,7 +3390,10 @@ mod tests {
         task.await.unwrap();
     }
 
-    fn open_and_focus_sidebar(sidebar: &Entity<Sidebar>, cx: &mut gpui::VisualTestContext) {
+    fn open_and_focus_sidebar(
+        sidebar: &Entity<ThreadsNavigator>,
+        cx: &mut gpui::VisualTestContext,
+    ) {
         let multi_workspace = sidebar.read_with(cx, |s, _| s.multi_workspace.upgrade());
         if let Some(multi_workspace) = multi_workspace {
             multi_workspace.update_in(cx, |mw, window, cx| {
@@ -3283,7 +3410,7 @@ mod tests {
     }
 
     fn visible_entries_as_strings(
-        sidebar: &Entity<Sidebar>,
+        sidebar: &Entity<ThreadsNavigator>,
         cx: &mut gpui::VisualTestContext,
     ) -> Vec<String> {
         sidebar.read_with(cx, |sidebar, _cx| {
@@ -3366,13 +3493,15 @@ mod tests {
     fn test_clean_mention_links() {
         // Simple mention link
         assert_eq!(
-            Sidebar::clean_mention_links("check [@Button.tsx](file:///path/to/Button.tsx)"),
+            ThreadsNavigator::clean_mention_links(
+                "check [@Button.tsx](file:///path/to/Button.tsx)"
+            ),
             "check @Button.tsx"
         );
 
         // Multiple mention links
         assert_eq!(
-            Sidebar::clean_mention_links(
+            ThreadsNavigator::clean_mention_links(
                 "look at [@foo.rs](file:///foo.rs) and [@bar.rs](file:///bar.rs)"
             ),
             "look at @foo.rs and @bar.rs"
@@ -3380,24 +3509,24 @@ mod tests {
 
         // No mention links — passthrough
         assert_eq!(
-            Sidebar::clean_mention_links("plain text with no mentions"),
+            ThreadsNavigator::clean_mention_links("plain text with no mentions"),
             "plain text with no mentions"
         );
 
         // Incomplete link syntax — preserved as-is
         assert_eq!(
-            Sidebar::clean_mention_links("broken [@mention without closing"),
+            ThreadsNavigator::clean_mention_links("broken [@mention without closing"),
             "broken [@mention without closing"
         );
 
         // Regular markdown link (no @) — not touched
         assert_eq!(
-            Sidebar::clean_mention_links("see [docs](https://example.com)"),
+            ThreadsNavigator::clean_mention_links("see [docs](https://example.com)"),
             "see [docs](https://example.com)"
         );
 
         // Empty input
-        assert_eq!(Sidebar::clean_mention_links(""), "");
+        assert_eq!(ThreadsNavigator::clean_mention_links(""), "");
     }
 
     #[gpui::test]
@@ -4247,7 +4376,7 @@ mod tests {
         multi_workspace: &Entity<MultiWorkspace>,
         project: &Entity<project::Project>,
         cx: &mut gpui::VisualTestContext,
-    ) -> (Entity<Sidebar>, Entity<AgentPanel>) {
+    ) -> (Entity<ThreadsNavigator>, Entity<AgentPanel>) {
         let sidebar = setup_sidebar(multi_workspace, cx);
         let workspace = multi_workspace.read_with(cx, |mw, _cx| mw.workspace().clone());
         let panel = add_agent_panel(&workspace, project, cx);
@@ -4351,7 +4480,11 @@ mod tests {
         );
     }
 
-    fn type_in_search(sidebar: &Entity<Sidebar>, query: &str, cx: &mut gpui::VisualTestContext) {
+    fn type_in_search(
+        sidebar: &Entity<ThreadsNavigator>,
+        query: &str,
+        cx: &mut gpui::VisualTestContext,
+    ) {
         sidebar.update_in(cx, |sidebar, window, cx| {
             window.focus(&sidebar.filter_editor.focus_handle(cx), cx);
             sidebar.filter_editor.update(cx, |editor, cx| {
@@ -6069,7 +6202,7 @@ mod tests {
         });
 
         let new_path_list =
-            new_workspace.read_with(cx, |_, cx| workspace_path_list(&new_workspace, cx));
+            new_workspace.read_with(cx, |_, cx| workspace_folder_paths(&new_workspace, cx));
         assert_eq!(
             new_path_list,
             PathList::new(&[std::path::PathBuf::from("/wt-feature-a")]),

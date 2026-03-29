@@ -23,14 +23,14 @@ use crate::tab::{BrowserTab, TabEvent};
 #[cfg(not(target_os = "macos"))]
 use crate::toolbar::BrowserToolbar;
 use editor::Editor;
+#[cfg(not(target_os = "macos"))]
+use gpui::px;
 use gpui::{
     App, Bounds, Context, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement,
     IntoElement, NativePopoverClickableRow, NativePopoverContentItem, NativeSearchFieldTarget,
     NativeSearchSuggestionMenu, ParentElement, Pixels, Render, SharedString, Styled, Subscription,
     Task, WeakEntity, Window, actions, div, prelude::*,
 };
-#[cfg(not(target_os = "macos"))]
-use gpui::px;
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace::{
     Workspace,

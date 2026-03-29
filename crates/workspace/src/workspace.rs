@@ -25,9 +25,9 @@ mod workspace_settings;
 pub use crate::notifications::NotificationFrame;
 pub use dock::{DeployProjectDiagnostics, Panel, ToggleProjectDiagnostics, ToggleProjectSearch};
 pub use multi_workspace::{
-    CloseWorkspaceSidebar, DraggedSidebar, FocusWorkspaceSidebar, MultiWorkspace,
+    CloseProjectNavigation, DraggedSidebar, FocusProjectNavigation, MultiWorkspace,
     MultiWorkspaceEvent, NextWorkspace, PreviousWorkspace, Sidebar, SidebarHandle,
-    ToggleWorkspaceSidebar,
+    ToggleProjectNavigation,
 };
 pub use path_list::{PathList, SerializedPathList};
 pub use terminal_session_manager::{

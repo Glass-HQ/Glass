@@ -48,8 +48,9 @@ use update_version::UpdateVersion;
 use util::ResultExt;
 #[allow(unused_imports)]
 use workspace::{
-    MultiWorkspace, Pane, TitleBarItemViewHandle, ToggleWorkspaceSidebar, ToggleWorktreeSecurity,
-    Workspace, WorkspaceId, WorkspaceItemKind, notifications::NotifyResultExt,
+    CloseProjectNavigation, FocusProjectNavigation, MultiWorkspace, Pane, TitleBarItemViewHandle,
+    ToggleProjectNavigation, ToggleWorktreeSecurity, Workspace, WorkspaceId, WorkspaceItemKind,
+    notifications::NotifyResultExt,
 };
 use workspace_chrome::ModeControl;
 #[allow(unused_imports)]
@@ -549,7 +550,7 @@ impl TitleBar {
     }
 
     /// Used to update the title bar state in case the workspace has
-    /// been moved to a new window through the threads sidebar.
+    /// been moved to a new window through project navigation.
     fn sync_multi_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let current = window
             .root::<MultiWorkspace>()
@@ -890,10 +891,10 @@ impl TitleBar {
                             .indicator_border_color(Some(cx.theme().colors().title_bar_background))
                     })
                     .tooltip(move |_, cx| {
-                        Tooltip::for_action("Open Threads Sidebar", &ToggleWorkspaceSidebar, cx)
+                        Tooltip::for_action("Open Project Navigation", &ToggleProjectNavigation, cx)
                     })
                     .on_click(|_, window, cx| {
-                        window.dispatch_action(ToggleWorkspaceSidebar.boxed_clone(), cx);
+                        window.dispatch_action(ToggleProjectNavigation.boxed_clone(), cx);
                     }),
                 )
                 .into_any_element(),
@@ -1041,9 +1042,9 @@ impl TitleBar {
 
         let workspace = workspace.read(cx);
         workspace.active_mode_id() == ModeId::BROWSER
-            || workspace
-                .active_item(cx)
-                .is_some_and(|item| item.workspace_item_kind(cx) == Some(WorkspaceItemKind::Browser))
+            || workspace.active_item(cx).is_some_and(|item| {
+                item.workspace_item_kind(cx) == Some(WorkspaceItemKind::Browser)
+            })
     }
 
     fn render_editor_nav_buttons(&self, cx: &mut Context<Self>) -> impl IntoElement {
@@ -1070,10 +1071,8 @@ impl TitleBar {
                             )
                         })
                         .on_click(|_, window, cx| {
-                            window.dispatch_action(
-                                zed_actions::assistant::Toggle.boxed_clone(),
-                                cx,
-                            );
+                            window
+                                .dispatch_action(zed_actions::assistant::Toggle.boxed_clone(), cx);
                         }),
                 )
             })

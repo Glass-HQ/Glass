@@ -436,19 +436,19 @@ fn run_visual_tests(project_path: PathBuf, update_baseline: bool) -> Result<()> 
         }
     }
 
-    // Run Test 3: Multi-workspace sidebar visual tests
-    println!("\n--- Test 3: multi_workspace_sidebar ---");
-    match run_multi_workspace_sidebar_visual_tests(app_state.clone(), &mut cx, update_baseline) {
+    // Run Test 3: Project navigation visual tests
+    println!("\n--- Test 3: project_navigation ---");
+    match run_project_navigation_visual_tests(app_state.clone(), &mut cx, update_baseline) {
         Ok(TestResult::Passed) => {
-            println!("✓ multi_workspace_sidebar: PASSED");
+            println!("✓ project_navigation: PASSED");
             passed += 1;
         }
         Ok(TestResult::BaselineUpdated(_)) => {
-            println!("✓ multi_workspace_sidebar: Baselines updated");
+            println!("✓ project_navigation: Baselines updated");
             updated += 1;
         }
         Err(e) => {
-            eprintln!("✗ multi_workspace_sidebar: FAILED - {}", e);
+            eprintln!("✗ project_navigation: FAILED - {}", e);
             failed += 1;
         }
     }
@@ -2508,7 +2508,7 @@ fn run_tool_permissions_visual_tests(
 }
 
 #[cfg(target_os = "macos")]
-fn run_multi_workspace_sidebar_visual_tests(
+fn run_project_navigation_visual_tests(
     app_state: Arc<AppState>,
     cx: &mut VisualTestAppContext,
     update_baseline: bool,
@@ -2652,12 +2652,16 @@ fn run_multi_workspace_sidebar_visual_tests(
     cx.run_until_parked();
 
     // Create the sidebar and register it on the MultiWorkspace
-    let sidebar = multi_workspace_window
+    let threads_navigator = multi_workspace_window
         .update(cx, |_multi_workspace, window, cx| {
             let multi_workspace_handle = cx.entity();
-            cx.new(|cx| sidebar::Sidebar::new(multi_workspace_handle, window, cx))
+            cx.new(|cx| sidebar::ThreadsNavigator::new(multi_workspace_handle, window, cx))
         })
-        .context("Failed to create sidebar")?;
+        .context("Failed to create threads navigator")?;
+    let sidebar = threads_navigator
+        .read_with(cx, |navigator, _| navigator.project_surface())
+        .flatten()
+        .context("Failed to resolve project navigation surface")?;
 
     multi_workspace_window
         .update(cx, |multi_workspace, _window, cx| {
@@ -2764,7 +2768,7 @@ fn run_multi_workspace_sidebar_visual_tests(
 
     // Capture: sidebar open with active workspaces and recent projects
     let test_result = run_visual_test(
-        "multi_workspace_sidebar_open",
+        "project_navigation_open",
         multi_workspace_window.into(),
         cx,
         update_baseline,
@@ -3183,13 +3187,17 @@ edition = "2021"
 
     cx.run_until_parked();
 
-    // Create and register the workspace sidebar
-    let sidebar = workspace_window
+    // Create and register project navigation
+    let threads_navigator = workspace_window
         .update(cx, |_multi_workspace, window, cx| {
             let multi_workspace_handle = cx.entity();
-            cx.new(|cx| sidebar::Sidebar::new(multi_workspace_handle, window, cx))
+            cx.new(|cx| sidebar::ThreadsNavigator::new(multi_workspace_handle, window, cx))
         })
-        .context("Failed to create sidebar")?;
+        .context("Failed to create threads navigator")?;
+    let sidebar = threads_navigator
+        .read_with(cx, |navigator, _| navigator.project_surface())
+        .flatten()
+        .context("Failed to resolve project navigation surface")?;
 
     workspace_window
         .update(cx, |multi_workspace, _window, cx| {

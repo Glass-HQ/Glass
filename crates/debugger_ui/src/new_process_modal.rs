@@ -707,8 +707,8 @@ impl Render for NewProcessModal {
                             }),
                         ],
                     )
-                    .style(ui::ToggleButtonGroupStyle::Outlined)
                     .label_size(LabelSize::Default)
+                    .style(ui::ToggleButtonGroupStyle::Outlined)
                     .auto_width()
                     .selected_index(match self.mode {
                         NewProcessMode::Task => 0,

@@ -5940,7 +5940,12 @@ impl ProjectPanel {
                             if !this.marked_entries.contains(&selection) {
                                 this.marked_entries.clear();
                             }
-                            this.deploy_context_menu(event.position, entry_id, window, cx);
+                            this.deploy_context_menu(
+                                window.mouse_position_in_window(),
+                                entry_id,
+                                window,
+                                cx,
+                            );
                         }),
                     )
             })
@@ -7135,6 +7140,7 @@ impl Render for ProjectPanel {
                             .anchor(gpui::Corner::TopLeft)
                             .child(menu.clone()),
                     )
+                    .window_overlay()
                     .with_priority(3)
                 }))
         } else {

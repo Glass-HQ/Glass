@@ -369,6 +369,7 @@ impl TerminalPanel {
                     .gap(DynamicSpacing::Base02.rems(cx))
                     .child(
                         PopoverMenu::new("terminal-tab-bar-popover-menu")
+                            .window_overlay()
                             .trigger_with_tooltip(
                                 IconButton::new("plus", IconName::Plus).icon_size(IconSize::Small),
                                 Tooltip::text("New…"),
@@ -395,6 +396,7 @@ impl TerminalPanel {
                     .children(assistant_tab_bar_button.clone())
                     .child(
                         PopoverMenu::new("terminal-pane-tab-bar-split")
+                            .window_overlay()
                             .trigger_with_tooltip(
                                 IconButton::new("terminal-pane-split", IconName::Split)
                                     .icon_size(IconSize::Small),
@@ -1505,6 +1507,7 @@ impl Focusable for FailedToSpawnTerminal {
 impl Render for FailedToSpawnTerminal {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let popover_menu = PopoverMenu::new("settings-popover")
+            .window_overlay()
             .trigger(
                 IconButton::new("icon-button-popover", IconName::ChevronDown)
                     .icon_size(IconSize::XSmall),

@@ -3584,7 +3584,9 @@ impl Pane {
 
     pub fn render_menu_overlay(menu: &Entity<ContextMenu>) -> Div {
         div().absolute().bottom_0().right_0().size_0().child(
-            deferred(anchored().anchor(Corner::TopRight).child(menu.clone())).with_priority(1),
+            deferred(anchored().anchor(Corner::TopRight).child(menu.clone()))
+                .window_overlay()
+                .with_priority(1),
         )
     }
 
@@ -4062,6 +4064,7 @@ fn default_render_tab_bar_buttons(
         .gap(DynamicSpacing::Base04.rems(cx))
         .child(
             PopoverMenu::new("pane-tab-bar-popover-menu")
+                .window_overlay()
                 .trigger_with_tooltip(
                     IconButton::new("plus", IconName::Plus).icon_size(IconSize::Small),
                     Tooltip::text("New..."),
@@ -4089,6 +4092,7 @@ fn default_render_tab_bar_buttons(
         )
         .child(
             PopoverMenu::new("pane-tab-bar-split")
+                .window_overlay()
                 .trigger_with_tooltip(
                     IconButton::new("split", IconName::Split)
                         .icon_size(IconSize::Small)

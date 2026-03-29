@@ -143,6 +143,7 @@ pub struct PopoverMenu<M: ManagedView> {
     trigger_handle: Option<PopoverMenuHandle<M>>,
     on_open: Option<Rc<dyn Fn(&mut Window, &mut App)>>,
     full_width: bool,
+    use_window_overlay: bool,
 }
 
 impl<M: ManagedView> PopoverMenu<M> {
@@ -158,11 +159,17 @@ impl<M: ManagedView> PopoverMenu<M> {
             trigger_handle: None,
             on_open: None,
             full_width: false,
+            use_window_overlay: false,
         }
     }
 
     pub fn full_width(mut self, full_width: bool) -> Self {
         self.full_width = full_width;
+        self
+    }
+
+    pub fn window_overlay(mut self) -> Self {
+        self.use_window_overlay = true;
         self
     }
 
@@ -369,12 +376,18 @@ impl<M: ManagedView> Element for PopoverMenu<M> {
                         .snap_to_window_with_margin(px(8.))
                         .anchor(self.anchor)
                         .offset(offset);
+                    if self.use_window_overlay {
+                        anchored = anchored.position_mode(gpui::AnchoredPositionMode::Local);
+                    }
                     if let Some(child_bounds) = element_state.child_bounds {
                         anchored = anchored.position(child_bounds.corner(self.resolved_attach()));
                     }
-                    let mut element = deferred(anchored.child(div().occlude().child(menu.clone())))
-                        .with_priority(1)
-                        .into_any();
+                    let mut deferred_element =
+                        deferred(anchored.child(div().occlude().child(menu.clone())));
+                    if self.use_window_overlay {
+                        deferred_element = deferred_element.window_overlay();
+                    }
+                    let mut element = deferred_element.with_priority(1).into_any();
 
                     menu_layout_id = Some(element.request_layout(window, cx));
                     element
@@ -429,7 +442,7 @@ impl<M: ManagedView> Element for PopoverMenu<M> {
         &mut self,
         global_id: Option<&GlobalElementId>,
         _inspector_id: Option<&gpui::InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         request_layout: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
@@ -443,14 +456,21 @@ impl<M: ManagedView> Element for PopoverMenu<M> {
         }
 
         request_layout.child_layout_id.map(|layout_id| {
-            let bounds = window.layout_bounds(layout_id);
+            let child_bounds = window.layout_bounds(layout_id);
+            let stored_bounds = if self.use_window_overlay {
+                Bounds::new(child_bounds.origin - bounds.origin, child_bounds.size)
+            } else {
+                child_bounds
+            };
             window.with_element_state(global_id.unwrap(), |element_state, _cx| {
                 let mut element_state: PopoverMenuElementState<M> = element_state.unwrap();
-                element_state.child_bounds = Some(bounds);
+                element_state.child_bounds = Some(stored_bounds);
                 ((), element_state)
             });
 
-            window.insert_hitbox(bounds, HitboxBehavior::Normal).id
+            window
+                .insert_hitbox(child_bounds, HitboxBehavior::Normal)
+                .id
         })
     }
 

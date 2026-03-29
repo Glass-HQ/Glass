@@ -1246,18 +1246,21 @@ fn keymap_page() -> SettingsPage {
                             return;
                         };
                         original_window
-                            .update(cx, |multi_workspace, original_window: &mut gpui::Window, cx| {
-                                let workspace = multi_workspace.workspace().clone();
-                                workspace.update(cx, |workspace, cx| {
-                                    keymap_editor::open_keymap_editor(
-                                        workspace,
-                                        None,
-                                        original_window,
-                                        cx,
-                                    );
-                                });
-                                original_window.activate_window();
-                            })
+                            .update(
+                                cx,
+                                |multi_workspace, original_window: &mut gpui::Window, cx| {
+                                    let workspace = multi_workspace.workspace().clone();
+                                    workspace.update(cx, |workspace, cx| {
+                                        keymap_editor::open_keymap_editor(
+                                            workspace,
+                                            None,
+                                            original_window,
+                                            cx,
+                                        );
+                                    });
+                                    original_window.activate_window();
+                                },
+                            )
                             .ok();
                         window.remove_window();
                     },
