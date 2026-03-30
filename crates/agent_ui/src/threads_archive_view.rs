@@ -11,8 +11,8 @@ use chrono::{DateTime, Datelike as _, Local, NaiveDate, TimeDelta, Utc};
 use editor::Editor;
 use fs::Fs;
 use gpui::{
-    AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, ListState, Render,
-    SharedString, Subscription, Task, Window, list, prelude::*, px,
+    Action as _, AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, ListState,
+    Render, SharedString, Subscription, Task, Window, list, prelude::*, px,
 };
 use itertools::Itertools as _;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
@@ -24,6 +24,7 @@ use ui::{
     utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
+use zed_actions::OpenRecent;
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 use zed_actions::editor::{MoveDown, MoveUp};
 
@@ -512,6 +513,10 @@ impl ThreadsArchiveView {
                     .as_ref()
                     .map(|h| h.read(cx).supports_delete())
                     .unwrap_or(false);
+                let colors = cx.theme().colors();
+                let radius = cx.theme().component_radius().tab.unwrap_or(px(8.0));
+                let selected_background = colors.text.opacity(0.14);
+                let hover_background = colors.text.opacity(0.09);
 
                 let title: SharedString =
                     session.title.clone().unwrap_or_else(|| "Untitled".into());
@@ -540,13 +545,10 @@ impl ThreadsArchiveView {
                     .min_w_0()
                     .w_full()
                     .px(DynamicSpacing::Base06.rems(cx))
-                    .border_1()
-                    .map(|this| {
-                        if is_focused {
-                            this.border_color(cx.theme().colors().border_focused)
-                        } else {
-                            this.border_color(gpui::transparent_black())
-                        }
+                    .rounded(radius)
+                    .when(is_focused, |this| this.bg(selected_background))
+                    .when(!is_focused, |this| {
+                        this.hover(|style| style.bg(hover_background))
                     })
                     .on_hover(cx.listener(move |this, is_hovered, _window, cx| {
                         if *is_hovered {
@@ -811,8 +813,6 @@ impl ThreadsArchiveView {
             })
             .pr_1p5()
             .gap_1()
-            .border_b_1()
-            .border_color(cx.theme().colors().border)
             .child(
                 h_flex()
                     .ml_1()
@@ -844,6 +844,39 @@ impl ThreadsArchiveView {
                         })),
                 )
             })
+            .child(
+                IconButton::new("archive-close", IconName::Archive)
+                    .icon_size(IconSize::Small)
+                    .toggle_state(true)
+                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                    .tooltip(Tooltip::text("Show Threads"))
+                    .on_click(cx.listener(|_this, _, _window, cx| {
+                        cx.emit(ThreadsArchiveViewEvent::Close);
+                    })),
+            )
+            .child(
+                IconButton::new("open-project", IconName::OpenFolder)
+                    .icon_size(IconSize::Small)
+                    .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                    .tooltip(|_window, cx| {
+                        Tooltip::for_action(
+                            "Add Project",
+                            &OpenRecent {
+                                create_new_window: false,
+                            },
+                            cx,
+                        )
+                    })
+                    .on_click(|_, window, cx| {
+                        window.dispatch_action(
+                            OpenRecent {
+                                create_new_window: false,
+                            }
+                            .boxed_clone(),
+                            cx,
+                        );
+                    }),
+            )
     }
 }
 
