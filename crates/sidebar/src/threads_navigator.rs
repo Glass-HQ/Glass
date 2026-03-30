@@ -1561,6 +1561,7 @@ impl ThreadsNavigator {
         };
 
         let color = cx.theme().colors();
+        let base_background = color.ghost_element_background;
         let selected_background = color.text.opacity(0.14);
         let hover_background = color.text.opacity(0.09);
 
@@ -1571,6 +1572,7 @@ impl ThreadsNavigator {
             .w_full()
             .px_2()
             .rounded(cx.theme().component_radius().tab.unwrap_or(px(8.0)))
+            .bg(base_background)
             .when(is_selected, |this| this.bg(selected_background))
             .when(!is_selected, |this| this.hover(|s| s.bg(hover_background)))
             .justify_between()
