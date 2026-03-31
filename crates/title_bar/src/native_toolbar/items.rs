@@ -1,7 +1,8 @@
 use gpui::{
-    Action, App, NativeToolbarButton, NativeToolbarClickEvent, NativeToolbarControlGroup,
-    NativeToolbarGroupControlRepresentation, NativeToolbarGroupEvent, NativeToolbarGroupOption,
-    NativeToolbarItem, Window,
+    Action, App, MacTextRasterizationMode, NativeToolbarButton, NativeToolbarClickEvent,
+    NativeToolbarControlGroup, NativeToolbarGroupControlRepresentation, NativeToolbarGroupEvent,
+    NativeToolbarGroupOption, NativeToolbarItem, NativeToolbarSegment,
+    NativeToolbarSegmentedControl, NativeToolbarSegmentedEvent, Window,
 };
 use workspace_chrome::{mode_index, mode_label, mode_sf_symbol};
 use workspace_modes::{ModeId, SwitchToBrowserMode, SwitchToEditorMode, SwitchToTerminalMode};
@@ -63,6 +64,42 @@ impl TitleBar {
                     }
                 }
             }),
+        )
+    }
+
+    pub(crate) fn build_text_rasterization_item(&self, cx: &App) -> NativeToolbarItem {
+        let selected_index = match cx.mac_text_rasterization_mode() {
+            MacTextRasterizationMode::Legacy => 0,
+            MacTextRasterizationMode::PolarityAware => 1,
+            MacTextRasterizationMode::DisableYSubpixelShift => 2,
+            MacTextRasterizationMode::PolarityAwareDisableYSubpixelShift => 3,
+        };
+
+        NativeToolbarItem::SegmentedControl(
+            NativeToolbarSegmentedControl::new(
+                "glass.text_rasterization_experiment",
+                vec![
+                    NativeToolbarSegment::new("Base"),
+                    NativeToolbarSegment::new("Pol"),
+                    NativeToolbarSegment::new("Y=0"),
+                    NativeToolbarSegment::new("Both"),
+                ],
+            )
+            .selected_index(selected_index)
+            .on_select(
+                |event: &NativeToolbarSegmentedEvent, _window: &mut Window, cx: &mut App| {
+                    let mode = match event.selected_index {
+                        0 => MacTextRasterizationMode::Legacy,
+                        1 => MacTextRasterizationMode::PolarityAware,
+                        2 => MacTextRasterizationMode::DisableYSubpixelShift,
+                        3 => MacTextRasterizationMode::PolarityAwareDisableYSubpixelShift,
+                        _ => return,
+                    };
+
+                    cx.set_mac_text_rasterization_mode(mode);
+                    cx.refresh_windows();
+                },
+            ),
         )
     }
 }

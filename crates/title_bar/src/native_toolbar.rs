@@ -20,6 +20,10 @@ use workspace_modes::ModeId;
 
 pub(crate) use state::NativeToolbarState;
 
+fn show_text_rasterization_experiments() -> bool {
+    cfg!(debug_assertions) || std::env::var_os("GLASS_TEXT_RENDERING_EXPERIMENTS").is_some()
+}
+
 impl TitleBar {
     pub(crate) fn render_macos_title_bar(
         &mut self,
@@ -105,6 +109,11 @@ impl TitleBar {
             .map(|user| user.github_login.to_string())
             .unwrap_or_default();
         let show_update = self.update_version.read(cx).show_update_in_menu_bar();
+        let show_text_rasterization_experiments = show_text_rasterization_experiments()
+            && active_mode == ModeId::EDITOR
+            && !is_browser_surface_active
+            && !is_terminal_mode;
+        let text_rasterization_mode = cx.mac_text_rasterization_mode();
         let connection_status_key = match &*self.client.status().borrow() {
             ClientStatus::ConnectionError => "connection_error",
             ClientStatus::ConnectionLost => "connection_lost",
@@ -117,7 +126,7 @@ impl TitleBar {
         let diagnostics = self.project.read(cx).diagnostic_summary(false, cx);
 
         let toolbar_key = format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}:{}:{:?}",
             active_mode.0,
             is_browser_surface_active,
             "",
@@ -135,6 +144,8 @@ impl TitleBar {
             self.native_toolbar_state.status_line_ending,
             self.native_toolbar_state.status_toolchain,
             self.native_toolbar_state.status_image_info,
+            show_text_rasterization_experiments,
+            text_rasterization_mode,
         );
 
         if self.native_toolbar_state.last_toolbar_key == toolbar_key {
@@ -166,6 +177,10 @@ impl TitleBar {
             ))
             .item(NativeToolbarItem::SidebarTrackingSeparator)
             .item(self.build_mode_switcher_item(active_mode));
+
+        if show_text_rasterization_experiments {
+            toolbar = toolbar.item(self.build_text_rasterization_item(cx));
+        }
 
         if let Some(item) = self.build_restricted_mode_item(cx) {
             toolbar = toolbar.item(item);
