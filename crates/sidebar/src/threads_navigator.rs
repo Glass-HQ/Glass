@@ -3036,36 +3036,50 @@ impl ThreadsNavigator {
             .pr_1p5()
             .gap_1()
             .when(!no_open_projects, |this| {
-                this.border_b_1()
-                    .border_color(cx.theme().colors().border)
-                    .child(
-                        div().ml_1().child(
-                            Icon::new(IconName::MagnifyingGlass)
-                                .size(IconSize::Small)
-                                .color(Color::Muted),
-                        ),
-                    )
-                    .child(self.render_filter_input(cx))
-                    .child(
-                        h_flex()
-                            .gap_1()
-                            .when(
-                                self.selection.is_some()
-                                    && !self.filter_editor.focus_handle(cx).is_focused(window),
-                                |this| this.child(KeyBinding::for_action(&FocusSidebarFilter, cx)),
+                this.child(
+                    div().ml_1().child(
+                        Icon::new(IconName::MagnifyingGlass)
+                            .size(IconSize::Small)
+                            .color(Color::Muted),
+                    ),
+                )
+                .child(self.render_filter_input(cx))
+                .child(
+                    h_flex()
+                        .gap_1()
+                        .when(
+                            self.selection.is_some()
+                                && !self.filter_editor.focus_handle(cx).is_focused(window),
+                            |this| this.child(KeyBinding::for_action(&FocusSidebarFilter, cx)),
+                        )
+                        .when(has_query, |this| {
+                            this.child(
+                                IconButton::new("clear_filter", IconName::Close)
+                                    .icon_size(IconSize::Small)
+                                    .tooltip(Tooltip::text("Clear Search"))
+                                    .on_click(cx.listener(|this, _, window, cx| {
+                                        this.reset_filter_editor_text(window, cx);
+                                        this.update_entries(cx);
+                                    })),
                             )
-                            .when(has_query, |this| {
-                                this.child(
-                                    IconButton::new("clear_filter", IconName::Close)
-                                        .icon_size(IconSize::Small)
-                                        .tooltip(Tooltip::text("Clear Search"))
-                                        .on_click(cx.listener(|this, _, window, cx| {
-                                            this.reset_filter_editor_text(window, cx);
-                                            this.update_entries(cx);
-                                        })),
-                                )
-                            }),
-                    )
+                        })
+                        .child(
+                            IconButton::new("archive", IconName::Archive)
+                                .icon_size(IconSize::Small)
+                                .toggle_state(matches!(self.view, SidebarView::Archive(..)))
+                                .tooltip(move |_, cx| {
+                                    Tooltip::for_action(
+                                        "Toggle Archived Threads",
+                                        &ToggleArchive,
+                                        cx,
+                                    )
+                                })
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.toggle_archive(&ToggleArchive, window, cx);
+                                })),
+                        )
+                        .child(self.render_recent_projects_button(cx)),
+                )
             })
     }
 
@@ -3179,10 +3193,6 @@ impl Render for ThreadsNavigator {
         let sticky_header = self.render_sticky_header(window, cx);
 
         let color = cx.theme().colors();
-        let bg = color
-            .title_bar_background
-            .blend(color.panel_background.opacity(0.32));
-
         let no_open_projects = !self.contents.has_open_projects;
         let no_search_results = self.contents.entries.is_empty();
         #[cfg(target_os = "macos")]
@@ -3218,7 +3228,6 @@ impl Render for ThreadsNavigator {
             .h_full()
             .when(hosted_in_native_sidebar, |this| this.w_full())
             .when(!hosted_in_native_sidebar, |this| this.w(self.width))
-            .bg(bg)
             .when(!hosted_in_native_sidebar, |this| {
                 this.border_r_1().border_color(color.border)
             })
@@ -3252,26 +3261,6 @@ impl Render for ThreadsNavigator {
                     }),
                 SidebarView::Archive(archive_view) => this.child(archive_view.clone()),
             })
-            .child(
-                h_flex()
-                    .p_1()
-                    .gap_1()
-                    .justify_end()
-                    .border_t_1()
-                    .border_color(cx.theme().colors().border)
-                    .child(
-                        IconButton::new("archive", IconName::Archive)
-                            .icon_size(IconSize::Small)
-                            .toggle_state(matches!(self.view, SidebarView::Archive(..)))
-                            .tooltip(move |_, cx| {
-                                Tooltip::for_action("Toggle Archived Threads", &ToggleArchive, cx)
-                            })
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                this.toggle_archive(&ToggleArchive, window, cx);
-                            })),
-                    )
-                    .child(self.render_recent_projects_button(cx)),
-            )
     }
 }
 

@@ -209,7 +209,7 @@ impl Render for DockButtonBar {
                                 .size(ButtonSize::None)
                                 .label_size(LabelSize::Small)
                                 .start_icon(
-                                    Icon::new(IconName::AiZed)
+                                    Icon::new(IconName::Thread)
                                         .size(IconSize::Small)
                                         .color(Color::Muted),
                                 )

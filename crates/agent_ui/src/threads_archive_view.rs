@@ -11,8 +11,8 @@ use chrono::{DateTime, Datelike as _, Local, NaiveDate, TimeDelta, Utc};
 use editor::Editor;
 use fs::Fs;
 use gpui::{
-    AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, ListState, Render,
-    SharedString, Subscription, Task, Window, list, prelude::*, px,
+    Action as _, AnyElement, App, Context, Entity, EventEmitter, FocusHandle, Focusable, ListState,
+    Render, SharedString, Subscription, Task, Window, list, prelude::*, px,
 };
 use itertools::Itertools as _;
 use menu::{Confirm, SelectFirst, SelectLast, SelectNext, SelectPrevious};
@@ -24,6 +24,7 @@ use ui::{
     utils::platform_title_bar_height,
 };
 use util::ResultExt as _;
+use zed_actions::OpenRecent;
 use zed_actions::agents_sidebar::FocusSidebarFilter;
 use zed_actions::editor::{MoveDown, MoveUp};
 
@@ -830,20 +831,56 @@ impl ThreadsArchiveView {
             .when(show_focus_keybinding, |this| {
                 this.child(KeyBinding::for_action(&FocusSidebarFilter, cx))
             })
-            .when(!has_query && !show_focus_keybinding, |this| {
-                this.child(self.render_agent_picker(cx))
-            })
-            .when(has_query, |this| {
-                this.child(
-                    IconButton::new("clear_filter", IconName::Close)
-                        .icon_size(IconSize::Small)
-                        .tooltip(Tooltip::text("Clear Search"))
-                        .on_click(cx.listener(|this, _, window, cx| {
-                            this.reset_filter_editor_text(window, cx);
-                            this.update_items(cx);
-                        })),
-                )
-            })
+            .child(
+                h_flex()
+                    .gap_1()
+                    .when(!has_query && !show_focus_keybinding, |this| {
+                        this.child(self.render_agent_picker(cx))
+                    })
+                    .when(has_query, |this| {
+                        this.child(
+                            IconButton::new("clear_filter", IconName::Close)
+                                .icon_size(IconSize::Small)
+                                .tooltip(Tooltip::text("Clear Search"))
+                                .on_click(cx.listener(|this, _, window, cx| {
+                                    this.reset_filter_editor_text(window, cx);
+                                    this.update_items(cx);
+                                })),
+                        )
+                    })
+                    .child(
+                        IconButton::new("archive", IconName::Archive)
+                            .icon_size(IconSize::Small)
+                            .toggle_state(true)
+                            .tooltip(Tooltip::text("Back To Threads"))
+                            .on_click(cx.listener(|_, _, _, cx| {
+                                cx.emit(ThreadsArchiveViewEvent::Close);
+                            })),
+                    )
+                    .child(
+                        IconButton::new("open-project", IconName::OpenFolder)
+                            .icon_size(IconSize::Small)
+                            .selected_style(ButtonStyle::Tinted(TintColor::Accent))
+                            .tooltip(|_window, cx| {
+                                Tooltip::for_action(
+                                    "Add Project",
+                                    &OpenRecent {
+                                        create_new_window: false,
+                                    },
+                                    cx,
+                                )
+                            })
+                            .on_click(|_, window, cx| {
+                                window.dispatch_action(
+                                    OpenRecent {
+                                        create_new_window: false,
+                                    }
+                                    .boxed_clone(),
+                                    cx,
+                                );
+                            }),
+                    ),
+            )
     }
 }
 

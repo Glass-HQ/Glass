@@ -5935,7 +5935,7 @@ impl ProjectPanel {
                     .when_some(end_slot, |this, slot| this.child(slot))
                     .on_mouse_down(
                         MouseButton::Right,
-                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                        cx.listener(move |this, _event: &MouseDownEvent, window, cx| {
                             cx.stop_propagation();
                             if !this.marked_entries.contains(&selection) {
                                 this.marked_entries.clear();

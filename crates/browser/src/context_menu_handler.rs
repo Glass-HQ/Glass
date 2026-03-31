@@ -20,7 +20,6 @@ pub struct ContextMenuContext {
     pub link_url: Option<String>,
     pub selection_text: Option<String>,
     pub is_editable: bool,
-    pub page_url: String,
     pub can_undo: bool,
     pub can_redo: bool,
     pub can_cut: bool,
@@ -53,11 +52,6 @@ impl OsrContextMenuHandler {
             if s.is_empty() { None } else { Some(s) }
         };
 
-        let page_url = {
-            let userfree = params.page_url();
-            cef::CefString::from(&userfree).to_string()
-        };
-
         let is_editable = params.is_editable() != 0;
 
         let edit_flags = params.edit_state_flags();
@@ -67,7 +61,6 @@ impl OsrContextMenuHandler {
             link_url,
             selection_text,
             is_editable,
-            page_url,
             can_undo: (edit_flags_raw.0 & 1) != 0,
             can_redo: (edit_flags_raw.0 & 2) != 0,
             can_cut: (edit_flags_raw.0 & 4) != 0,
@@ -104,7 +97,6 @@ wrap_context_menu_handler! {
                     link_url: None,
                     selection_text: None,
                     is_editable: false,
-                    page_url: String::new(),
                     can_undo: false,
                     can_redo: false,
                     can_cut: false,

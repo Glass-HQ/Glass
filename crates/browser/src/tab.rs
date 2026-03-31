@@ -79,23 +79,17 @@ pub(crate) fn close_all_browsers() -> usize {
 /// Events emitted by BrowserTab to subscribers (toolbar, browser_view).
 pub(crate) enum TabEvent {
     AddressChanged(String),
-    TitleChanged(String),
+    TitleChanged,
     LoadingStateChanged,
-    PageChromeChanged(Option<Hsla>),
+    PageChromeChanged,
     TextInputStateChanged(BrowserTextInputState),
     FrameReady,
     NavigateToUrl(String),
     OpenNewTab(String),
     OpenTargetRequested(OpenTargetRequest),
-    FaviconChanged(Option<String>),
-    LoadError {
-        url: String,
-        error_code: i32,
-        error_text: String,
-    },
-    ContextMenuOpen {
-        context: ContextMenuContext,
-    },
+    FaviconChanged,
+    LoadError { url: String, error_text: String },
+    ContextMenuOpen { context: ContextMenuContext },
     FindResult(FindResultEvent),
     DownloadUpdated(DownloadUpdatedEvent),
 }
@@ -200,14 +194,14 @@ impl BrowserTab {
                     }
                     self.url.clone_from(&url);
                     cx.emit(TabEvent::AddressChanged(url));
-                    cx.emit(TabEvent::PageChromeChanged(None));
+                    cx.emit(TabEvent::PageChromeChanged);
                 }
                 BrowserEvent::TitleChanged(title) => {
                     if is_suspended {
                         continue;
                     }
                     self.title.clone_from(&title);
-                    cx.emit(TabEvent::TitleChanged(title));
+                    cx.emit(TabEvent::TitleChanged);
                 }
                 BrowserEvent::LoadingStateChanged {
                     is_loading,
@@ -226,16 +220,8 @@ impl BrowserTab {
                     cx.emit(TabEvent::FrameReady);
                 }
                 BrowserEvent::BrowserCreated => {}
-                BrowserEvent::LoadError {
-                    url,
-                    error_code,
-                    error_text,
-                } => {
-                    cx.emit(TabEvent::LoadError {
-                        url,
-                        error_code,
-                        error_text,
-                    });
+                BrowserEvent::LoadError { url, error_text } => {
+                    cx.emit(TabEvent::LoadError { url, error_text });
                 }
                 BrowserEvent::ContextMenuRequested { context } => {
                     cx.emit(TabEvent::ContextMenuOpen { context });
@@ -248,7 +234,7 @@ impl BrowserTab {
                         continue;
                     }
                     self.favicon_url = urls.into_iter().next();
-                    cx.emit(TabEvent::FaviconChanged(self.favicon_url.clone()));
+                    cx.emit(TabEvent::FaviconChanged);
                 }
                 BrowserEvent::PageChromeChanged(page_chrome) => {
                     if is_suspended {
@@ -256,9 +242,7 @@ impl BrowserTab {
                     }
                     if self.page_chrome != page_chrome {
                         self.page_chrome = page_chrome;
-                        cx.emit(TabEvent::PageChromeChanged(
-                            self.page_chrome.map(|page_chrome| page_chrome.color),
-                        ));
+                        cx.emit(TabEvent::PageChromeChanged);
                     }
                 }
                 BrowserEvent::TextInputStateChanged(text_input_state) => {

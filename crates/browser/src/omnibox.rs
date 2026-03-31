@@ -95,6 +95,7 @@ impl Omnibox {
         });
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub fn focus_and_select_all(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.close_dropdown(cx);
         let focus_handle = self.url_editor.focus_handle(cx);

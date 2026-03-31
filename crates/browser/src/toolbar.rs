@@ -80,6 +80,7 @@ impl BrowserToolbar {
         this
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub fn set_active_tab(
         &mut self,
         tab: Entity<BrowserTab>,
@@ -89,6 +90,7 @@ impl BrowserToolbar {
         self.bind_active_tab(Some(tab), window, cx);
     }
 
+    #[cfg(not(target_os = "macos"))]
     pub fn focus_omnibox(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.omnibox.update(cx, |omnibox, cx| {
             omnibox.focus_and_select_all(window, cx);
@@ -131,7 +133,7 @@ impl BrowserToolbar {
                             omnibox.set_url(&url, window, cx);
                         });
                     }
-                    TabEvent::LoadingStateChanged | TabEvent::TitleChanged(_) => {
+                    TabEvent::LoadingStateChanged | TabEvent::TitleChanged => {
                         cx.notify();
                     }
                     _ => {}

@@ -858,7 +858,7 @@ impl BrowserView {
             TabEvent::OpenTargetRequested(request) => {
                 self.handle_open_target_request(tab_entity, request, cx);
             }
-            TabEvent::AddressChanged(_) | TabEvent::TitleChanged(_) => {
+            TabEvent::AddressChanged(_) | TabEvent::TitleChanged => {
                 if !self.is_incognito_window {
                     let tab_handle = tab_entity;
                     let history = self.history.clone();
@@ -876,7 +876,7 @@ impl BrowserView {
                 cx.emit(ItemEvent::UpdateTab);
                 cx.notify();
             }
-            TabEvent::FaviconChanged(_) => {
+            TabEvent::FaviconChanged => {
                 self.schedule_save(cx);
                 cx.emit(ItemEvent::UpdateTab);
                 cx.notify();
@@ -885,7 +885,7 @@ impl BrowserView {
                 cx.emit(ItemEvent::UpdateTab);
                 cx.notify();
             }
-            TabEvent::PageChromeChanged(_) => {
+            TabEvent::PageChromeChanged => {
                 let is_active_tab = self
                     .active_tab()
                     .is_some_and(|active_tab| active_tab == &tab_entity);
@@ -904,9 +904,7 @@ impl BrowserView {
                     cx.notify();
                 }
             }
-            TabEvent::LoadError {
-                url, error_text, ..
-            } => {
+            TabEvent::LoadError { url, error_text } => {
                 log::warn!("[browser] load error: url={} err={}", url, error_text);
                 cx.notify();
             }

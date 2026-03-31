@@ -58,7 +58,6 @@ wrap_load_handler! {
 
             let _ = self.handler.sender.send(BrowserEvent::LoadError {
                 url,
-                error_code: *code as i32,
                 error_text: text,
             });
         }

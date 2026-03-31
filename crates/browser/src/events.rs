@@ -11,10 +11,8 @@ use std::sync::mpsc;
 
 #[derive(Debug, Clone)]
 pub struct FindResultEvent {
-    pub identifier: i32,
     pub count: i32,
     pub active_match_ordinal: i32,
-    pub final_update: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -129,7 +127,6 @@ pub enum BrowserEvent {
     BrowserCreated,
     LoadError {
         url: String,
-        error_code: i32,
         error_text: String,
     },
     ContextMenuRequested {
