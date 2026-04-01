@@ -72,6 +72,8 @@ fn show_project_sidebar_tab(
 }
 
 impl DockButtonBar {
+    pub const NATIVE_SIDEBAR_HEIGHT: f64 = 177.0;
+
     pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
         cx.new(|_cx| Self {
             workspace,

@@ -375,6 +375,10 @@ impl WorkspaceSidebarHost {
                 .cloned(),
         }
     }
+
+    pub(crate) fn button_bar(&self, cx: &App) -> Option<Entity<DockButtonBar>> {
+        self.left_dock.read(cx).native_sidebar_button_bar()
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -385,15 +389,11 @@ impl Render for WorkspaceSidebarHost {
             .map(|view| view.into_any_element())
             .unwrap_or_else(|| div().size_full().into_any_element());
 
-        let button_bar = self.left_dock.read(cx).native_sidebar_button_bar();
         div()
             .size_full()
             .flex()
             .flex_col()
             .overflow_hidden()
-            .when_some(button_bar, |this, dock_button_bar| {
-                this.child(dock_button_bar)
-            })
             .child(
                 div()
                     .flex()
@@ -401,6 +401,8 @@ impl Render for WorkspaceSidebarHost {
                     .flex_1()
                     .size_full()
                     .overflow_hidden()
+                    .bg(cx.theme().colors().panel_background)
+                    .text_color(cx.theme().colors().text)
                     .child(body),
             )
             .into_any_element()
@@ -2138,9 +2140,14 @@ impl Workspace {
                 cx.notify();
             }),
             cx.observe_window_appearance(window, |_, window, cx| {
-                let window_appearance = window.appearance();
+                let next_appearance = theme::Appearance::from(window.appearance());
+                let current_appearance = SystemAppearance::global(cx).0;
 
-                *SystemAppearance::global_mut(cx) = SystemAppearance(window_appearance.into());
+                if current_appearance == next_appearance {
+                    return;
+                }
+
+                *SystemAppearance::global_mut(cx) = SystemAppearance(next_appearance);
 
                 GlobalTheme::reload_theme(cx);
                 GlobalTheme::reload_icon_theme(cx);
@@ -7713,6 +7720,7 @@ impl Workspace {
     ) -> AnyElement {
         let sidebar_width = workspace_sidebar_host.read(cx).width();
         let sidebar_collapsed = self.workspace_sidebar_host_collapsed(window, cx);
+        let button_bar = workspace_sidebar_host.read(cx).button_bar(cx);
         let sidebar_titlebar_fill = match cx.theme().window_background_appearance() {
             WindowBackgroundAppearance::Opaque => Some(cx.theme().colors().panel_background),
             _ => None,
@@ -7724,6 +7732,9 @@ impl Workspace {
             .flex_row()
             .child(
                 native_sidebar("workspace-sidebar-host", &[""; 0])
+                    .when_some(button_bar, |this, dock_button_bar| {
+                        this.header_view(dock_button_bar, DockButtonBar::NATIVE_SIDEBAR_HEIGHT)
+                    })
                     .sidebar_view(workspace_sidebar_host)
                     .sidebar_width(sidebar_width)
                     .min_sidebar_width(160.0)

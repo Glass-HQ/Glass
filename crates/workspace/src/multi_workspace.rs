@@ -978,6 +978,7 @@ impl Render for MultiWorkspace {
                         let sidebar_collapsed =
                             workspace.workspace_sidebar_host_collapsed(window, cx);
                         let sidebar_width = self.workspace_sidebar_host.read(cx).width();
+                        let button_bar = self.workspace_sidebar_host.read(cx).button_bar(cx);
                         let sidebar_titlebar_fill = match cx.theme().window_background_appearance()
                         {
                             WindowBackgroundAppearance::Opaque => {
@@ -992,6 +993,12 @@ impl Render for MultiWorkspace {
                             .flex_row()
                             .child(
                                 native_sidebar("workspace-sidebar-host-shell", &[""; 0])
+                                    .when_some(button_bar, |this, dock_button_bar| {
+                                        this.header_view(
+                                            dock_button_bar,
+                                            crate::dock::DockButtonBar::NATIVE_SIDEBAR_HEIGHT,
+                                        )
+                                    })
                                     .sidebar_view(self.workspace_sidebar_host.clone())
                                     .sidebar_width(sidebar_width)
                                     .min_sidebar_width(160.0)
