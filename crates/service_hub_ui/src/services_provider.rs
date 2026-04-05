@@ -118,6 +118,17 @@ impl ServiceWorkspacePane {
         }
     }
 
+    pub fn render_sidebar_footer(
+        &self,
+        window: &mut Window,
+        cx: &mut Context<ServicesPage>,
+    ) -> Option<AnyElement> {
+        match self {
+            Self::AppStoreConnect(provider) => provider.render_sidebar_footer(window, cx),
+            Self::Unavailable(provider) => provider.render_sidebar_footer(window, cx),
+        }
+    }
+
     pub fn as_app_store_connect_mut(&mut self) -> Option<&mut AppStoreConnectWorkspaceProvider> {
         match self {
             Self::AppStoreConnect(provider) => Some(provider),
@@ -273,6 +284,14 @@ impl UnavailableServiceWorkspacePane {
                 .color(Color::Muted),
             )
             .into_any_element()
+    }
+
+    fn render_sidebar_footer(
+        &self,
+        _window: &mut Window,
+        _cx: &mut Context<ServicesPage>,
+    ) -> Option<AnyElement> {
+        None
     }
 }
 

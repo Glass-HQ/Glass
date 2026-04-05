@@ -88,6 +88,7 @@ use workspace::notifications::{NotificationId, dismiss_app_notification, show_ap
 use workspace_modes::ModeId;
 
 use workspace::dock::OpenRuntimeActions as DockOpenRuntimeActions;
+use workspace::dock::OpenServices as DockOpenServices;
 use workspace::{
     AppState, MultiWorkspace, NewFile, NewWindow, OpenLog, Panel, Toast, Workspace,
     WorkspaceSettings, create_and_open_local_file, item::ItemHandle,
@@ -459,6 +460,9 @@ pub fn initialize_workspace(
         );
         workspace.register_action(|_workspace, _: &DockOpenRuntimeActions, window, cx| {
             window.dispatch_action(app_runtime_ui::OpenRuntimeActions.boxed_clone(), cx);
+        });
+        workspace.register_action(|_workspace, _: &DockOpenServices, window, cx| {
+            window.dispatch_action(service_hub_ui::OpenServices.boxed_clone(), cx);
         });
         workspace.register_action(
             |workspace, _: &workspace::ToggleProjectSearch, window, cx| {

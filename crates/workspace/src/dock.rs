@@ -24,6 +24,8 @@ actions!(
         DeployProjectDiagnostics,
         /// Opens the runtime actions menu from the dock button bar.
         OpenRuntimeActions,
+        /// Opens the services view from the dock button bar.
+        OpenServices,
         /// Toggles the project search view open or closed.
         ToggleProjectSearch,
         /// Toggles the project diagnostics view open or closed.
@@ -75,8 +77,6 @@ fn show_project_sidebar_tab(
 }
 
 impl DockButtonBar {
-    pub const NATIVE_SIDEBAR_HEIGHT: f64 = 210.0;
-
     pub fn new(workspace: WeakEntity<Workspace>, cx: &mut App) -> Entity<Self> {
         cx.new(|_cx| Self {
             workspace,
@@ -356,6 +356,26 @@ impl Render for DockButtonBar {
                                 );
                             });
                         }
+                    }
+                })
+                .into_any_element(),
+        );
+
+        mode_rows.push(
+            SidebarRow::new("sidebar-services", "Services", IconName::Server)
+                .selected(active_sidebar_section == crate::WorkspaceSidebarSection::Services)
+                .on_click({
+                    let multi_workspace = multi_workspace.clone();
+                    move |_, window, cx| {
+                        if let Some(multi_workspace) = multi_workspace.as_ref()
+                            && multi_workspace.read(cx).sidebar_open()
+                        {
+                            multi_workspace.update(cx, |multi_workspace, cx| {
+                                multi_workspace.close_sidebar(window, cx);
+                            });
+                        }
+
+                        window.dispatch_action(OpenServices.boxed_clone(), cx);
                     }
                 })
                 .into_any_element(),

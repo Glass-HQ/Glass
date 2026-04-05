@@ -178,6 +178,7 @@ pub enum WorkspaceSidebarSection {
     Project,
     Git,
     BrowserTabs,
+    Services,
     Terminal,
 }
 
@@ -370,20 +371,20 @@ impl WorkspaceSidebarHost {
             WorkspaceSidebarSection::BrowserTabs => self
                 .section_view(WorkspaceSidebarSection::BrowserTabs)
                 .cloned(),
+            WorkspaceSidebarSection::Services => self
+                .section_view(WorkspaceSidebarSection::Services)
+                .cloned(),
             WorkspaceSidebarSection::Terminal => self
                 .section_view(WorkspaceSidebarSection::Terminal)
                 .cloned(),
         }
-    }
-
-    pub fn button_bar(&self, cx: &App) -> Option<Entity<DockButtonBar>> {
-        self.left_dock.read(cx).native_sidebar_button_bar()
     }
 }
 
 #[cfg(target_os = "macos")]
 impl Render for WorkspaceSidebarHost {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let button_bar = self.left_dock.read(cx).native_sidebar_button_bar();
         let body = self
             .active_section_view(cx)
             .map(|view| view.into_any_element())
@@ -394,12 +395,15 @@ impl Render for WorkspaceSidebarHost {
             .flex()
             .flex_col()
             .overflow_hidden()
+            .when_some(button_bar, |this, dock_button_bar| {
+                this.child(dock_button_bar)
+            })
             .child(
                 div()
                     .flex()
                     .flex_col()
                     .flex_1()
-                    .size_full()
+                    .min_h_0()
                     .overflow_hidden()
                     .bg(cx.theme().colors().panel_background)
                     .text_color(cx.theme().colors().text)
@@ -5719,6 +5723,7 @@ impl Workspace {
             WorkspaceSidebarSection::BrowserTabs => {
                 self.mode_view(ModeId::BROWSER, cx);
             }
+            WorkspaceSidebarSection::Services => {}
             WorkspaceSidebarSection::Terminal => {}
         }
 
@@ -5984,6 +5989,7 @@ impl Workspace {
         match section {
             WorkspaceSidebarSection::Terminal => Some(ModeId::TERMINAL),
             WorkspaceSidebarSection::BrowserTabs
+            | WorkspaceSidebarSection::Services
             | WorkspaceSidebarSection::Project
             | WorkspaceSidebarSection::Git => None,
         }
@@ -6016,6 +6022,7 @@ impl Workspace {
             WorkspaceSidebarSection::Terminal => Some("TerminalPanel"),
             WorkspaceSidebarSection::Project => Some("ProjectPanel"),
             WorkspaceSidebarSection::Git => Some("GitPanel"),
+            WorkspaceSidebarSection::Services => None,
             WorkspaceSidebarSection::BrowserTabs => None,
         }?;
 
@@ -7724,7 +7731,6 @@ impl Workspace {
     ) -> AnyElement {
         let sidebar_width = workspace_sidebar_host.read(cx).width();
         let sidebar_collapsed = self.workspace_sidebar_host_collapsed(window, cx);
-        let button_bar = workspace_sidebar_host.read(cx).button_bar(cx);
         let sidebar_titlebar_fill = match cx.theme().window_background_appearance() {
             WindowBackgroundAppearance::Opaque => Some(cx.theme().colors().panel_background),
             _ => None,
@@ -7736,9 +7742,6 @@ impl Workspace {
             .flex_row()
             .child(
                 native_sidebar("workspace-sidebar-host", &[""; 0])
-                    .when_some(button_bar, |this, dock_button_bar| {
-                        this.header_view(dock_button_bar, DockButtonBar::NATIVE_SIDEBAR_HEIGHT)
-                    })
                     .sidebar_view(workspace_sidebar_host)
                     .sidebar_width(sidebar_width)
                     .min_sidebar_width(160.0)
