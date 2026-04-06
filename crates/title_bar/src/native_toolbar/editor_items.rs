@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use client::User;
+use cloud_api_types::Plan;
 use encoding_selector::Toggle as ToggleEncoding;
 use gpui::{
     Action, App, NativeToolbarButton, NativeToolbarItem, NativeToolbarLabel,
@@ -10,6 +11,24 @@ use settings::Settings;
 use workspace::notifications::NotifyResultExt;
 
 use crate::{TitleBar, title_bar_settings::TitleBarSettings};
+
+pub(super) fn plan_label(plan: Plan) -> &'static str {
+    match plan {
+        Plan::ZedFree => "Free",
+        Plan::ZedPro => "Pro",
+        Plan::ZedProTrial => "Pro Trial",
+        Plan::ZedBusiness => "Business",
+        Plan::ZedStudent => "Student",
+    }
+}
+
+fn account_menu_label(user_login: &str, plan: Option<Plan>) -> String {
+    format!(
+        "{} ({})",
+        user_login,
+        plan_label(plan.unwrap_or(Plan::ZedFree))
+    )
+}
 
 impl TitleBar {
     pub(crate) fn build_toolchain_item(&self, toolchain: String) -> NativeToolbarItem {
@@ -74,6 +93,7 @@ impl TitleBar {
     pub(crate) fn build_user_menu_item(
         &self,
         user: &Option<Arc<User>>,
+        plan: Option<Plan>,
         cx: &App,
     ) -> NativeToolbarItem {
         let show_update = self.update_version.read(cx).show_update_in_menu_bar();
@@ -85,7 +105,9 @@ impl TitleBar {
 
         let mut menu_items = Vec::new();
         if signed_in {
-            menu_items.push(NativeToolbarMenuItem::action(&user_login).enabled(false));
+            menu_items.push(
+                NativeToolbarMenuItem::action(account_menu_label(&user_login, plan)).enabled(false),
+            );
             menu_items.push(NativeToolbarMenuItem::separator());
         }
         if show_update {

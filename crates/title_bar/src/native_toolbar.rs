@@ -7,6 +7,7 @@ mod session_items;
 mod state;
 mod status;
 
+use self::editor_items::plan_label;
 use crate::{TitleBar, show_menus, title_bar_settings::TitleBarSettings};
 use client::Status as ClientStatus;
 use gpui::{
@@ -98,11 +99,25 @@ impl TitleBar {
 
         let has_restricted_worktrees = self.has_restricted_worktrees(cx);
         let is_remote = self.project.read(cx).is_via_remote_server();
-        let user = self.user_store.read(cx).current_user();
+        let (user, menu_plan) = {
+            let user_store = self.user_store.read(cx);
+            let user = user_store.current_user();
+            let has_subscription_period = user_store.subscription_period().is_some();
+            let plan = user_store.plan().filter(|_| {
+                // Preserve the existing GPUI menu behavior for legacy free accounts.
+                has_subscription_period
+            });
+            let menu_plan = user
+                .as_ref()
+                .map(|_| plan.unwrap_or(cloud_api_types::Plan::ZedFree));
+
+            (user, menu_plan)
+        };
         let user_login = user
             .as_ref()
             .map(|user| user.github_login.to_string())
             .unwrap_or_default();
+        let current_plan_label = menu_plan.map(plan_label);
         let show_update = self.update_version.read(cx).show_update_in_menu_bar();
         let connection_status_key = match &*self.client.status().borrow() {
             ClientStatus::ConnectionError => "connection_error",
@@ -114,7 +129,7 @@ impl TitleBar {
             _ => "ok",
         };
         let toolbar_key = format!(
-            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
+            "{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{}:{:?}:{:?}:{:?}:{:?}",
             active_mode.0,
             is_browser_surface_active,
             "",
@@ -126,6 +141,7 @@ impl TitleBar {
             title_bar_settings.show_project_items,
             title_bar_settings.show_branch_name,
             user_login,
+            current_plan_label.unwrap_or_default(),
             connection_status_key,
             show_update,
             self.native_toolbar_state.status_encoding,
@@ -213,7 +229,7 @@ impl TitleBar {
 
         toolbar = toolbar
             .item(NativeToolbarItem::Space)
-            .item(self.build_user_menu_item(&user, cx));
+            .item(self.build_user_menu_item(&user, menu_plan, cx));
 
         window.set_native_toolbar(Some(toolbar));
     }
