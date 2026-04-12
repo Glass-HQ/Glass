@@ -591,6 +591,15 @@ impl AutoUpdater {
         arch: &str,
         cx: &mut AsyncApp,
     ) -> Result<Option<String>> {
+        // First, try fetching the remote server binary from Glass's GitHub Releases.
+        // Glass publishes these as release assets (e.g., zed-remote-server-linux-x86_64.gz).
+        if let Some(url) =
+            Self::get_github_release_remote_server_url(version.as_ref(), os, arch, cx).await?
+        {
+            return Ok(Some(url));
+        }
+
+        // Fall back to the upstream cloud API for compatibility.
         let this = cx.update(|cx| {
             cx.default_global::<GlobalAutoUpdate>()
                 .0
@@ -603,6 +612,76 @@ impl AutoUpdater {
                 .await?;
 
         Ok(Some(release.url))
+    }
+
+    /// Fetches the remote server download URL directly from Glass's GitHub Releases,
+    /// bypassing the Zed cloud API which does not host Glass release assets.
+    async fn get_github_release_remote_server_url(
+        version: Option<&Version>,
+        os: &str,
+        arch: &str,
+        cx: &mut AsyncApp,
+    ) -> Result<Option<String>> {
+        const GLASS_GITHUB_RELEASES_API: &str =
+            "https://api.github.com/repos/Glass-HQ/Glass/releases";
+
+        let this = cx.update(|cx| {
+            cx.default_global::<GlobalAutoUpdate>()
+                .0
+                .clone()
+                .context("auto-update not initialized")
+        })?;
+        let http_client = this.read_with(cx, |this, _| this.client.http_client());
+
+        // Determine which release to fetch: specific version tag or latest.
+        let api_url = if let Some(v) = version {
+            format!("{}/tags/v{}", GLASS_GITHUB_RELEASES_API, v)
+        } else {
+            format!("{}/latest", GLASS_GITHUB_RELEASES_API)
+        };
+
+        let mut response = http_client
+            .get(&api_url, Default::default(), true)
+            .await?;
+
+        if !response.status().is_success() {
+            log::warn!(
+                "Glass GitHub Releases API returned {}: falling back to cloud API",
+                response.status()
+            );
+            return Ok(None);
+        }
+
+        let mut body = Vec::new();
+        response.body_mut().read_to_end(&mut body).await?;
+
+        let release: serde_json::Value = serde_json::from_slice(&body)?;
+        let asset_name = format!("zed-remote-server-{}-{}.gz", os, arch);
+
+        if let Some(assets) = release.get("assets").and_then(|a| a.as_array()) {
+            for asset in assets {
+                if let (Some(name), Some(url)) = (
+                    asset.get("name").and_then(|n| n.as_str()),
+                    asset
+                        .get("browser_download_url")
+                        .and_then(|u| u.as_str()),
+                ) {
+                    if name == asset_name {
+                        log::info!(
+                            "Found remote server binary in Glass GitHub Release: {}",
+                            url
+                        );
+                        return Ok(Some(url.to_string()));
+                    }
+                }
+            }
+        }
+
+        log::warn!(
+            "Remote server asset '{}' not found in Glass GitHub Release",
+            asset_name
+        );
+        Ok(None)
     }
 
     async fn get_release_asset(

@@ -868,6 +868,17 @@ jobs:
           security default-keychain -s login.keychain || true
           security delete-keychain build.keychain || true
 
+      - name: Package remote server binary
+        run: |
+          REMOTE_SERVER_BIN="target/${{ matrix.target }}/release/remote_server"
+          REMOTE_SERVER_GZ="target/${{ matrix.target }}/release/zed-remote-server-macos-${{ matrix.arch }}.gz"
+          if [ -f "$REMOTE_SERVER_BIN" ]; then
+            gzip -c "$REMOTE_SERVER_BIN" > "$REMOTE_SERVER_GZ"
+            echo "Packaged remote server: $REMOTE_SERVER_GZ ($(du -h "$REMOTE_SERVER_GZ" | cut -f1))"
+          else
+            echo "WARNING: remote_server binary not found at $REMOTE_SERVER_BIN"
+          fi
+
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
@@ -881,6 +892,13 @@ jobs:
           name: Glass-${{ matrix.arch }}-symbols.zip
           path: target/${{ matrix.target }}/release/Glass-${{ matrix.arch }}-symbols.zip
           if-no-files-found: error
+
+      - name: Upload remote server artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zed-remote-server-macos-${{ matrix.arch }}.gz
+          path: target/${{ matrix.target }}/release/zed-remote-server-macos-${{ matrix.arch }}.gz
+          if-no-files-found: warn
 
   create-release:
     name: Create GitHub Release
@@ -918,8 +936,10 @@ jobs:
           files: |
             artifacts/Glass-aarch64.dmg/Glass-aarch64.dmg
             artifacts/Glass-aarch64-symbols.zip/Glass-aarch64-symbols.zip
+            artifacts/zed-remote-server-macos-aarch64.gz/zed-remote-server-macos-aarch64.gz
             # Intel build disabled - uncomment when re-enabled:
             # artifacts/Glass-x86_64.dmg/Glass-x86_64.dmg
+            # artifacts/zed-remote-server-macos-x86_64.gz/zed-remote-server-macos-x86_64.gz
           body: |
             ## Glass ${{ env.RELEASE_VERSION }}
 
