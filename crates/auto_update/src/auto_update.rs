@@ -591,15 +591,6 @@ impl AutoUpdater {
         arch: &str,
         cx: &mut AsyncApp,
     ) -> Result<Option<String>> {
-        // First, try fetching the remote server binary from Glass's GitHub Releases.
-        // Glass publishes these as release assets (e.g., zed-remote-server-linux-x86_64.gz).
-        if let Some(url) =
-            Self::get_github_release_remote_server_url(version.as_ref(), os, arch, cx).await?
-        {
-            return Ok(Some(url));
-        }
-
-        // Fall back to the upstream cloud API for compatibility.
         let this = cx.update(|cx| {
             cx.default_global::<GlobalAutoUpdate>()
                 .0
@@ -614,74 +605,24 @@ impl AutoUpdater {
         Ok(Some(release.url))
     }
 
-    /// Fetches the remote server download URL directly from Glass's GitHub Releases,
-    /// bypassing the Zed cloud API which does not host Glass release assets.
-    async fn get_github_release_remote_server_url(
+    fn get_glass_remote_server_release_asset(
         version: Option<&Version>,
         os: &str,
         arch: &str,
-        cx: &mut AsyncApp,
-    ) -> Result<Option<String>> {
-        const GLASS_GITHUB_RELEASES_API: &str =
-            "https://api.github.com/repos/Glass-HQ/Glass/releases";
+    ) -> Option<ReleaseAsset> {
+        let mut version = version?.clone();
+        version.pre = semver::Prerelease::EMPTY;
+        version.build = semver::BuildMetadata::EMPTY;
+        let version = version.to_string();
+        let extension = if os == "windows" { "zip" } else { "gz" };
+        let asset_name = format!("zed-remote-server-{os}-{arch}.{extension}");
 
-        let this = cx.update(|cx| {
-            cx.default_global::<GlobalAutoUpdate>()
-                .0
-                .clone()
-                .context("auto-update not initialized")
-        })?;
-        let http_client = this.read_with(cx, |this, _| this.client.http_client());
-
-        // Determine which release to fetch: specific version tag or latest.
-        let api_url = if let Some(v) = version {
-            format!("{}/tags/v{}", GLASS_GITHUB_RELEASES_API, v)
-        } else {
-            format!("{}/latest", GLASS_GITHUB_RELEASES_API)
-        };
-
-        let mut response = http_client
-            .get(&api_url, Default::default(), true)
-            .await?;
-
-        if !response.status().is_success() {
-            log::warn!(
-                "Glass GitHub Releases API returned {}: falling back to cloud API",
-                response.status()
-            );
-            return Ok(None);
-        }
-
-        let mut body = Vec::new();
-        response.body_mut().read_to_end(&mut body).await?;
-
-        let release: serde_json::Value = serde_json::from_slice(&body)?;
-        let asset_name = format!("zed-remote-server-{}-{}.gz", os, arch);
-
-        if let Some(assets) = release.get("assets").and_then(|a| a.as_array()) {
-            for asset in assets {
-                if let (Some(name), Some(url)) = (
-                    asset.get("name").and_then(|n| n.as_str()),
-                    asset
-                        .get("browser_download_url")
-                        .and_then(|u| u.as_str()),
-                ) {
-                    if name == asset_name {
-                        log::info!(
-                            "Found remote server binary in Glass GitHub Release: {}",
-                            url
-                        );
-                        return Ok(Some(url.to_string()));
-                    }
-                }
-            }
-        }
-
-        log::warn!(
-            "Remote server asset '{}' not found in Glass GitHub Release",
-            asset_name
-        );
-        Ok(None)
+        Some(ReleaseAsset {
+            version: version.clone(),
+            url: format!(
+                "https://github.com/Glass-HQ/Glass/releases/download/v{version}/{asset_name}"
+            ),
+        })
     }
 
     async fn get_release_asset(
@@ -693,6 +634,13 @@ impl AutoUpdater {
         arch: &str,
         cx: &mut AsyncApp,
     ) -> Result<ReleaseAsset> {
+        if asset == "zed-remote-server"
+            && let Some(release) =
+                Self::get_glass_remote_server_release_asset(version.as_ref(), os, arch)
+        {
+            return Ok(release);
+        }
+
         let client = this.read_with(cx, |this, _| this.client.clone());
 
         let (system_id, metrics_id, is_staff) = if client.telemetry().metrics_enabled() {
@@ -1278,6 +1226,61 @@ mod tests {
 
     pub(super) struct InstallOverride(pub Rc<dyn Fn(&Path, &AsyncApp) -> Result<Option<PathBuf>>>);
     impl Global for InstallOverride {}
+
+    #[test]
+    fn test_glass_remote_server_release_asset_uses_github_release_downloads() {
+        let release = AutoUpdater::get_glass_remote_server_release_asset(
+            Some(&Version::new(0, 0, 1)),
+            "linux",
+            "x86_64",
+        )
+        .unwrap();
+
+        assert_eq!(release.version, "0.0.1");
+        assert_eq!(
+            release.url,
+            "https://github.com/Glass-HQ/Glass/releases/download/v0.0.1/zed-remote-server-linux-x86_64.gz"
+        );
+    }
+
+    #[test]
+    fn test_glass_remote_server_release_asset_uses_zip_for_windows() {
+        let release = AutoUpdater::get_glass_remote_server_release_asset(
+            Some(&Version::new(0, 0, 1)),
+            "windows",
+            "aarch64",
+        )
+        .unwrap();
+
+        assert_eq!(
+            release.url,
+            "https://github.com/Glass-HQ/Glass/releases/download/v0.0.1/zed-remote-server-windows-aarch64.zip"
+        );
+    }
+
+    #[test]
+    fn test_glass_remote_server_release_asset_strips_version_metadata() {
+        let mut version = Version::new(0, 0, 1);
+        version.pre = semver::Prerelease::new("stable.48").unwrap();
+        version.build = semver::BuildMetadata::new("abcdef0").unwrap();
+
+        let release =
+            AutoUpdater::get_glass_remote_server_release_asset(Some(&version), "macos", "aarch64")
+                .unwrap();
+
+        assert_eq!(release.version, "0.0.1");
+        assert_eq!(
+            release.url,
+            "https://github.com/Glass-HQ/Glass/releases/download/v0.0.1/zed-remote-server-macos-aarch64.gz"
+        );
+    }
+
+    #[test]
+    fn test_glass_remote_server_release_asset_requires_a_version() {
+        assert!(
+            AutoUpdater::get_glass_remote_server_release_asset(None, "linux", "x86_64").is_none()
+        );
+    }
 
     #[gpui::test]
     fn test_auto_update_defaults_to_true(cx: &mut TestAppContext) {
