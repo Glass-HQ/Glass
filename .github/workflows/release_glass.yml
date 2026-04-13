@@ -47,6 +47,11 @@ jobs:
         with:
           clean: false
 
+      - name: Set app version
+        run: |
+          echo "APP_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
+          echo "ZED_APP_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -242,7 +247,7 @@ jobs:
           echo "Generated Glass.icns"
 
           # Generate Info.plist with all bundle metadata and plist extensions merged
-          cat > "$APP_PATH/Contents/Info.plist" << 'PLIST'
+          cat > "$APP_PATH/Contents/Info.plist" << PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
@@ -264,9 +269,9 @@ jobs:
               <key>CFBundlePackageType</key>
               <string>APPL</string>
               <key>CFBundleShortVersionString</key>
-              <string>0.0.1</string>
+              <string>$APP_VERSION</string>
               <key>CFBundleVersion</key>
-              <string>0.0.1</string>
+              <string>$APP_VERSION</string>
               <key>LSMinimumSystemVersion</key>
               <string>10.15.7</string>
               <key>NSHighResolutionCapable</key>
@@ -916,6 +921,10 @@ jobs:
         with:
           clean: false
 
+      - name: Set app version
+        run: |
+          echo "ZED_APP_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -948,6 +957,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           clean: false
+
+      - name: Set app version
+        run: |
+          echo "ZED_APP_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Setup Sentry
         uses: matbour/setup-sentry-cli@v2
@@ -982,6 +995,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           clean: false
+
+      - name: Set app version
+        run: |
+          echo "ZED_APP_VERSION=${RELEASE_VERSION#v}" >> "$GITHUB_ENV"
 
       - name: Setup Sentry
         uses: matbour/setup-sentry-cli@v2
@@ -1024,6 +1041,12 @@ jobs:
         with:
           clean: false
 
+      - name: Set app version
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION.TrimStart('v')
+          "ZED_APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Setup Sentry
         uses: matbour/setup-sentry-cli@v2
         with:
@@ -1059,6 +1082,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           clean: false
+
+      - name: Set app version
+        shell: pwsh
+        run: |
+          $version = $env:RELEASE_VERSION.TrimStart('v')
+          "ZED_APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Setup Sentry
         uses: matbour/setup-sentry-cli@v2
