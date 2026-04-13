@@ -907,7 +907,7 @@ jobs:
 
   bundle-macos-x86_64-remote-server:
     name: Bundle macOS remote server (x86_64)
-    runs-on: macos-14
+    runs-on: macos-15-intel
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
