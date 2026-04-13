@@ -46,6 +46,10 @@ impl std::error::Error for MissingDependencyError {}
 const POLL_INTERVAL: Duration = Duration::from_secs(60 * 60);
 const REMOTE_SERVER_CACHE_LIMIT: usize = 5;
 
+fn remote_server_archive_extension(os: &str) -> &'static str {
+    if os == "windows" { "zip" } else { "gz" }
+}
+
 #[cfg(target_os = "linux")]
 fn linux_rsync_install_hint() -> &'static str {
     let os_release = match std::fs::read_to_string("/etc/os-release") {
@@ -557,7 +561,11 @@ impl AutoUpdater {
         let servers_dir = paths::remote_servers_dir();
         let channel_dir = servers_dir.join(release_channel.dev_name());
         let platform_dir = channel_dir.join(format!("{}-{}", os, arch));
-        let version_path = platform_dir.join(format!("{}.gz", release.version));
+        let version_path = platform_dir.join(format!(
+            "{}.{}",
+            release.version,
+            remote_server_archive_extension(os)
+        ));
         smol::fs::create_dir_all(&platform_dir).await.ok();
 
         let client = this.read_with(cx, |this, _| this.client.http_client());
@@ -614,7 +622,7 @@ impl AutoUpdater {
         version.pre = semver::Prerelease::EMPTY;
         version.build = semver::BuildMetadata::EMPTY;
         let version = version.to_string();
-        let extension = if os == "windows" { "zip" } else { "gz" };
+        let extension = remote_server_archive_extension(os);
         let asset_name = format!("zed-remote-server-{os}-{arch}.{extension}");
 
         Some(ReleaseAsset {
@@ -956,7 +964,10 @@ async fn cleanup_remote_server_cache(
     while let Some(entry) = entries.next().await {
         let entry = entry?;
         let path = entry.path();
-        if path.extension() != Some(OsStr::new("gz")) {
+        let Some(extension) = path.extension() else {
+            continue;
+        };
+        if extension != OsStr::new("gz") && extension != OsStr::new("zip") {
             continue;
         }
 
@@ -1280,6 +1291,21 @@ mod tests {
         assert!(
             AutoUpdater::get_glass_remote_server_release_asset(None, "linux", "x86_64").is_none()
         );
+    }
+
+    #[test]
+    fn test_cleanup_remote_server_cache_removes_old_zip_archives() {
+        let temp_dir = tempdir().unwrap();
+        let keep_path = temp_dir.path().join("0.0.2.zip");
+        let old_path = temp_dir.path().join("0.0.1.zip");
+
+        std::fs::write(&keep_path, b"current").unwrap();
+        std::fs::write(&old_path, b"old").unwrap();
+
+        smol::block_on(cleanup_remote_server_cache(temp_dir.path(), &keep_path, 1)).unwrap();
+
+        assert!(keep_path.exists());
+        assert!(!old_path.exists());
     }
 
     #[gpui::test]
