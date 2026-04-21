@@ -30,6 +30,8 @@ use gpui::{
     InteractiveElement, IntoElement, ParentElement, Pixels, Render, SharedString, Styled,
     Subscription, Task, UTF16Selection, WeakEntity, Window, actions, div, point, prelude::*, size,
 };
+#[cfg(not(target_os = "macos"))]
+use gpui::UniformListScrollHandle;
 use std::ops::Range;
 use std::sync::atomic::{AtomicBool, Ordering};
 use workspace::{
@@ -213,6 +215,8 @@ pub struct BrowserView {
     #[cfg(not(target_os = "macos"))]
     sidebar_collapsed: bool,
     sidebar_visible: bool,
+    #[cfg(not(target_os = "macos"))]
+    sidebar_scroll_handle: UniformListScrollHandle,
     native_sidebar_panel: Option<Entity<tab_strip::BrowserSidebarPanel>>,
     focus_listeners_registered: bool,
     toast_layer: Entity<toast::ToastLayer>,
@@ -309,6 +313,8 @@ impl BrowserView {
             #[cfg(not(target_os = "macos"))]
             sidebar_collapsed: false,
             sidebar_visible: false,
+            #[cfg(not(target_os = "macos"))]
+            sidebar_scroll_handle: UniformListScrollHandle::default(),
             native_sidebar_panel: None,
             focus_listeners_registered: false,
             toast_layer,
