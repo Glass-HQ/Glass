@@ -26,7 +26,7 @@ permissions:
 jobs:
   check-hotfix-reviews:
     if: github.repository_owner == 'zed-industries'
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 5
     env:
       REPO: ${{ github.repository }}

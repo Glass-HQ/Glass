@@ -6,7 +6,7 @@ on:
 jobs:
   test-signing:
     name: Test CEF Signing
-    runs-on: macos-15
+    runs-on: blacksmith-6vcpu-macos-15
 
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}

@@ -11,7 +11,7 @@ jobs:
   style:
     if: (github.repository_owner == 'zed-industries' || github.repository_owner == 'zed-extensions')
     name: Check formatting and Clippy lints
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     env:
       CC: clang
       CXX: clang++
@@ -42,7 +42,7 @@ jobs:
     needs:
     - style
     name: Run tests
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     env:
       CC: clang
       CXX: clang++
@@ -84,7 +84,7 @@ jobs:
     - style
     - tests
     name: Publish collab server image
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
     - name: deploy_collab::publish::install_doctl
       uses: digitalocean/action-doctl@v2
@@ -110,7 +110,7 @@ jobs:
     needs:
     - publish
     name: Deploy new server image
-    runs-on: namespace-profile-16x32-ubuntu-2204
+    runs-on: blacksmith-16vcpu-ubuntu-2204
     steps:
     - name: steps::checkout_repo
       uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd

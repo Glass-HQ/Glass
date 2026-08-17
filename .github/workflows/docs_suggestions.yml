@@ -50,7 +50,7 @@ jobs:
   # Job for PRs merged to main - batch suggestions to branch
   # Only runs for PRs from the same repo (not forks) since secrets aren't available for fork PRs
   batch-suggestions:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: write
@@ -279,7 +279,7 @@ jobs:
 
   # Job for cherry-picks to release branches - immediate output as PR comment
   cherry-pick-suggestions:
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     timeout-minutes: 10
     permissions:
       contents: read
